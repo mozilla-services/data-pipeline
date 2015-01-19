@@ -4,7 +4,7 @@
 set -o errexit
 
 # Machine config:
-# sudo yum install -y git hg golang cmake rpmdevtools
+# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel
 
 BASE=$(pwd)
 

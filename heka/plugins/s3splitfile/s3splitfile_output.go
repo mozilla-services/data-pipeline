@@ -33,6 +33,7 @@ type S3SplitFileOutput struct {
 	schema     Schema
 	bucket     *s3.Bucket
 	publishChan chan PublishAttempt
+	shuttingDown bool
 }
 
 type PublishAttempt struct {
@@ -355,6 +356,8 @@ func (o *S3SplitFileOutput) Init(config interface{}) (err error) {
 
 	o.publishChan = make(chan PublishAttempt, 1000)
 
+	o.shuttingDown = false
+
 	return
 }
 
@@ -512,6 +515,7 @@ func (o *S3SplitFileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 			if !ok {
 				// Closed inChan => we're shutting down, finalize data files
 				o.finalizeAll()
+				o.shuttingDown = true
 				close(o.publishChan)
 				break
 			}
@@ -571,7 +575,7 @@ func (o *S3SplitFileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 // TODO: If we fail to publish a file, we should inject a failure message back
 //       into the pipeline.
 func (o *S3SplitFileOutput) retryPublish(attempt PublishAttempt, or OutputRunner, err error) {
-	if attempt.AttemptsRemaining > 0 {
+	if !o.shuttingDown && attempt.AttemptsRemaining > 0 {
 		or.LogError(fmt.Errorf("Partial failure, will try %d more time(s): %s", attempt.AttemptsRemaining, err))
 		o.publishChan <- PublishAttempt{attempt.Name, attempt.AttemptsRemaining - 1}
 		return
@@ -605,7 +609,6 @@ func (o *S3SplitFileOutput) publisher(or OutputRunner, wg *sync.WaitGroup) {
 				or.LogMessage(fmt.Sprintf("Dude, where's my bucket: %s", pubFile))
 				continue
 			}
-
 
 			sourcePath := o.getFinalizedFileName(pubFile)
 			destPath := fmt.Sprintf("%s/%s", o.S3BucketPrefix, pubFile)
