@@ -11,7 +11,7 @@ local msg = {
 Timestamp   = nil,
 Type        = "fhr_metadata",
 Payload     = nil,
-Fields      = {}
+Fields      = { sourceName = "fhr" }
 }
 
 local UNK_DIM = "UNKNOWN"
@@ -25,7 +25,6 @@ function process_message()
     if not ok then return -1, fhr end
 
     msg.Fields.sourceVersion    = tostring(fhr.version) or UNK_DIM
-    msg.Fields.sourceName       = "fhr"
 
     local info
     if msg.Fields.sourceVersion == "1" then

@@ -10,7 +10,7 @@ local msg = {
 Timestamp   = nil,
 Type        = "telemetry_metadata",
 Payload     = nil,
-Fields      = {}
+Fields      = { sourceName = "telemetry" }
 }
 
 local UNK_DIM = "UNKNOWN"
@@ -24,7 +24,6 @@ function process_message()
     if not ok then return -1, parsed end
 
     msg.Fields.sourceVersion    = tostring(parsed.ver) or UNK_DIM
-    msg.Fields.sourceName       = "telemetry"
 
     local info = parsed.info
     if type(info) ~= "table" then return -1, "missing info object" end
