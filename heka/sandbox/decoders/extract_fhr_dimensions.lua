@@ -2,10 +2,62 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
--- see https://gist.github.com/mreid-moz/5203956e1d08b60339c0
+--[[
+The decoder extracts the FHR partition dimensions from the large JSON payload
+and adds them as message fields to avoid additional down stream parsing; it also
+uses an IP address lookup to determine the submission's country of origin and
+adds it a as a message field.
+
+Config:
+
+- geoip_city_db (string)
+    The fully qualified path to the GeoIP city database (if not in the default
+    location).
+
+*Example Heka Configuration*
+
+.. code-block:: ini
+
+    [FHRDecoder]
+    type = "SandboxDecoder"
+    filename = "extract_fhr_dimensions.lua"
+    memory_limit = 30000000
+    output_limit = 2097152
+
+        # Default
+        # [FHRDecoder.config]
+        # geoip_city_db = "/usr/local/share/GeoIP/GeoIPCity.dat"
+
+*Example Heka Message*
+
+:Timestamp: 2014-07-19 17:23:35.060999936 +0000 UTC
+:Type: fhr_metadata
+:Hostname: ip-10-227-137-43
+:Pid: 0
+:Uuid: 2dfcbeb8-18d4-41b8-af50-aa055fd94831
+:Logger: fhr
+:Payload: {...}
+:EnvVersion:
+:Severity: 7
+:Fields:
+    | name:"submissionDate" type:string value:"20140719"
+    | name:"appVersion" type:string value:"30.0"
+    | name:"appUpdateChannel" type:string value:"release"
+    | name:"sourceVersion" type:string value:"2"
+    | name:"clientID" type:string value:"a6d35999-2d8d-4c68-9c6b-fbe8c514e40e"
+    | name:"os" type:string value:"Linux"
+    | name:"geoCountry" type:string value:"GB"
+    | name:"sourceName" type:string value:"fhr"
+    | name:"vendor" type:string value:"Mozilla"
+    | name:"appBuildID" type:string value:"20140608211622"
+    | name:"appName" type:string value:"Firefox"
+--]]
 
 require "cjson"
+require 'geoip.city'
 require "os"
+
+local city_db = assert(geoip.city.open(read_config("geoip_city_db")))
 
 local msg = {
 Timestamp   = nil,
@@ -73,13 +125,8 @@ function process_message()
     msg.Fields.vendor           = info.vendor
     msg.Fields.clientID         = fhr.clientID
 
-    -- Carry forward geolocation (country, at least)
-    local ok, geo = pcall(cjson.decode, read_message("Fields[geoip]"))
-    msg.Fields.geoCountry = UNK_GEO
-    if ok then
-        -- extract country
-        msg.Fields.geoCountry = geo.countrycode or UNK_GEO
-    end
+    -- IP address lookup
+    msg.Fields.geoCountry = city_db:query_by_addr(read_message("Fields[remote_addr]"), "country_code") or UNK_GEO
 
     -- Carry forward timestamp.
     msg.Timestamp = read_message("Timestamp")
