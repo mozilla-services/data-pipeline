@@ -1,3 +1,6 @@
+# Scratch dir for building Heka
+build/
+
 # Operating System gunk
 .DS_Store
 Thumbs.db

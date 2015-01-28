@@ -8,7 +8,11 @@ set -o errexit
 
 BASE=$(pwd)
 
-cd ../
+if [ ! -d build ]; then
+    mkdir build
+fi
+
+cd build
 if [ ! -d heka ]; then
     # Fetch a fresh heka clone
     git clone https://github.com/mozilla-services/heka
@@ -16,18 +20,22 @@ fi
 
 cd heka
 
-echo "Patching for larger message size"
-patch message/message.go < $BASE/heka/patches/0001-Increase-message-size-limit-from-64KB-to-8MB.patch
+if [ ! -f "patches_applied" ]; then
+    touch patches_applied
 
-echo "Patching to build `heka-export` cmd"
-patch CMakeLists.txt < $BASE/heka/patches/0002-Add-cmdline-tool-for-uploading-to-S3.patch
+    echo "Patching for larger message size"
+    patch message/message.go < $BASE/heka/patches/0001-Increase-message-size-limit-from-64KB-to-8MB.patch
 
-# TODO: do this using cmake externals instead of shell-fu.
-echo "Installing source files for `heka-export` cmd"
-cp -R $BASE/heka/cmd/heka-export ./cmd/
+    echo "Patching to build `heka-export` cmd"
+    patch CMakeLists.txt < $BASE/heka/patches/0002-Add-cmdline-tool-for-uploading-to-S3.patch
 
-echo "Adding external plugin for s3splitfile output"
-echo 'add_external_plugin(git https://github.com/mreid-moz/data-pipeline master heka/plugins/s3splitfile __ignore_root)' >> cmake/plugin_loader.cmake
+    # TODO: do this using cmake externals instead of shell-fu.
+    echo "Installing source files for `heka-export` cmd"
+    cp -R $BASE/heka/cmd/heka-export ./cmd/
+
+    echo "Adding external plugin for s3splitfile output"
+    echo 'add_external_plugin(git https://github.com/mreid-moz/data-pipeline master heka/plugins/s3splitfile __ignore_root)' >> cmake/plugin_loader.cmake
+fi
 
 source build.sh
 
