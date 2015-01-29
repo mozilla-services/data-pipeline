@@ -290,11 +290,14 @@ func (o *S3SplitFileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}
 
-	var wg sync.WaitGroup
+	var (
+		wg sync.WaitGroup
+		i uint32
+	)
 	wg.Add(1)
 	go o.receiver(or, &wg)
 	// Run a pool of concurrent publishers.
-	for i := 0; i < o.S3WorkerCount; i++ {
+	for i = 0; i < o.S3WorkerCount; i++ {
 		wg.Add(1)
 		go o.publisher(or, &wg)
 	}
