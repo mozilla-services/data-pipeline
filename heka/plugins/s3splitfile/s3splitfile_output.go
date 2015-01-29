@@ -294,7 +294,7 @@ func (o *S3SplitFileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	wg.Add(1)
 	go o.receiver(or, &wg)
 	// Run a pool of concurrent publishers.
-	for i := 0; i < 10; i++ {
+	for i := 0; i < o.S3WorkerCount; i++ {
 		wg.Add(1)
 		go o.publisher(or, &wg)
 	}
