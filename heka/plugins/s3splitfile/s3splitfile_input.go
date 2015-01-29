@@ -8,14 +8,14 @@ package s3splitfile
 
 import (
 	"fmt"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/s3"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
 	"strings"
 	"sync"
 	"time"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
-	"github.com/mozilla-services/heka/message"
 )
 
 type S3SplitFileInput struct {
@@ -35,13 +35,13 @@ type S3SplitFileInputConfig struct {
 	ParserType string `toml:"parser_type"`
 
 	SchemaFile     string `toml:"schema_file"`
-	AWSKey string `toml:"aws_key"`
-	AWSSecretKey string `toml:"aws_secret_key"`
-	AWSRegion string `toml:"aws_region"`
-	S3Bucket string `toml:"s3_bucket"`
+	AWSKey         string `toml:"aws_key"`
+	AWSSecretKey   string `toml:"aws_secret_key"`
+	AWSRegion      string `toml:"aws_region"`
+	S3Bucket       string `toml:"s3_bucket"`
 	S3BucketPrefix string `toml:"s3_bucket_prefix"`
-	S3Retries uint32 `toml:"s3_retries"`
-	S3WorkerCount uint32 `toml:"s3_worker_count"`
+	S3Retries      uint32 `toml:"s3_retries"`
+	S3WorkerCount  uint32 `toml:"s3_worker_count"`
 }
 
 func (input *S3SplitFileInput) ConfigStruct() interface{} {
@@ -105,7 +105,7 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 
 	var (
 		wg sync.WaitGroup
-		i uint32
+		i  uint32
 	)
 
 	input.helper = helper
@@ -139,9 +139,9 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 
 func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key string) (size int64, recordCount int64, err error) {
 	var (
-		pack   *pipeline.PipelinePack
-		dr pipeline.DecoderRunner
-		ok bool
+		pack *pipeline.PipelinePack
+		dr   pipeline.DecoderRunner
+		ok   bool
 	)
 
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
@@ -149,7 +149,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 	parser := pipeline.NewMessageProtoParser()
 
 	dr, ok = input.helper.DecoderRunner(input.DecoderName,
-			fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName))
+		fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName))
 	if !ok {
 		runner.LogError(fmt.Errorf("Error getting decoder: %s", input.DecoderName))
 		return
@@ -176,7 +176,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 		size += int64(n)
 
 		if err != nil {
-            //runner.LogError(fmt.Errorf("Error reading S3: %s", err))
+			//runner.LogError(fmt.Errorf("Error reading S3: %s", err))
 			if err == io.EOF {
 				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d", s3Key, size))
 				if len(record) == 0 {
@@ -186,11 +186,11 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 				}
 				done = true
 			} else if err == io.ErrShortBuffer {
-                runner.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
-                err = nil // non-fatal
-                continue
-            } else {
-                runner.LogError(fmt.Errorf("Bad Error reading S3: %s", err))
+				runner.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				err = nil // non-fatal
+				continue
+			} else {
+				runner.LogError(fmt.Errorf("Bad Error reading S3: %s", err))
 				return size, recordCount, err
 			}
 
@@ -207,13 +207,12 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 		recordCount += 1
 		headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
 		messageLen := len(record) - headerLen
-        // TODO: signed messages?
-        if messageLen > cap(pack.MsgBytes) {
-            pack.MsgBytes = make([]byte, messageLen)
-        }
-        pack.MsgBytes = pack.MsgBytes[:messageLen]
-        copy(pack.MsgBytes, record[headerLen:])
-
+		// TODO: signed messages?
+		if messageLen > cap(pack.MsgBytes) {
+			pack.MsgBytes = make([]byte, messageLen)
+		}
+		pack.MsgBytes = pack.MsgBytes[:messageLen]
+		copy(pack.MsgBytes, record[headerLen:])
 
 		// TODO: support a `matcher`?
 		// if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
@@ -227,7 +226,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 		// }
 		// matched += 1
 
-        dr.InChan() <- pack
+		dr.InChan() <- pack
 	}
 
 	return
@@ -235,10 +234,10 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 
 func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGroup) {
 	var (
-		s3Key string
-		startTime time.Time
-		duration float64
-		downloadMB float64
+		s3Key        string
+		startTime    time.Time
+		duration     float64
+		downloadMB   float64
 		downloadRate float64
 	)
 
@@ -274,7 +273,6 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 
 	wg.Done()
 }
-
 
 func init() {
 	pipeline.RegisterPlugin("S3SplitFileInput", func() interface{} {
