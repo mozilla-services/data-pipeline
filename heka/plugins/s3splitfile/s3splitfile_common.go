@@ -131,10 +131,37 @@ func (rdc RangeDimensionChecker) IsAllowed(v string) (bool) {
 // Pattern to use for sanitizing path/file components.
 var sanitizePattern = regexp.MustCompile("[^a-zA-Z0-9_/.]")
 
+// Given a string, return a sanitized version that can be used safely as part
+// of a filename (for example).
 func SanitizeDimension(dim string) (cleaned string) {
     return sanitizePattern.ReplaceAllString(dim, "_")
 }
 
+// Load a schema from the given file name.  The file is expected to contain
+// valid JSON describing a hierarchy of dimensions, each of which specifies
+// what values are "allowed" for that dimension.
+// Example schema:
+//   {
+//     "version": 1,
+//     "dimensions": [
+//       { "field_name": "submissionDate", "allowed_values": {
+//           { "min": "20140120", "max": "20140125" }
+//       },
+//       { "field_name": "sourceName",     "allowed_values": "*" },
+//       { "field_name": "sourceVersion",  "allowed_values": "*" },
+//       { "field_name": "reason",         "allowed_values":
+//           [ "idle-daily","saved-session" ]
+//       },
+//       { "field_name": "appName",        "allowed_values":
+//           [ "Firefox", "Fennec", "Thunderbird", "FirefoxOS", "B2G" ]
+//       },
+//       { "field_name": "appUpdateChannel",
+//         "allowed_values":
+//           [ "default", "nightly", "aurora", "beta", "release", "esr" ]
+//       },
+//       { "field_name": "appVersion",     "allowed_values": "*" }
+//     ]
+//   }
 func LoadSchema(schemaFileName string) (schema Schema, err error) {
 	// Placeholder for parsing JSON
 	type JSchemaDimension struct {
