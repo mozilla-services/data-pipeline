@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"io/ioutil"
 	"encoding/json"
+	"github.com/crowdmob/goamz/s3"
 )
 
 type PublishAttempt struct {
@@ -224,6 +225,85 @@ func LoadSchema(schemaFileName string) (schema Schema, err error) {
 			}
 			schema.Dims[d.Field_name] = RangeDimensionChecker{minStr, maxStr}
 		}
+	}
+	return
+}
+
+// Maximum number of S3 List results to fetch at once.
+const listBatchSize = 1000
+
+// Encapsulates the result of a List operation, allowing detection of errors
+// along the way.
+type S3Result struct {
+	Key s3.Key
+	Err error
+}
+
+// List the contents of the given bucket, sending matching filenames to a
+// channel which can be read by the caller.
+func S3Iterator(bucket *s3.Bucket, prefix string, schema Schema) <-chan S3Result {
+	keyChannel := make(chan S3Result, listBatchSize)
+	go FilterS3(bucket, prefix, 0, schema, keyChannel)
+	return keyChannel
+}
+
+// Recursively descend into an S3 directory tree, filtering based on the given
+// schema, and sending results on the given channel. The `level` parameter
+// indicates how far down the tree we are, and is used to determine which schema
+// field we use for filtering.
+func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc chan S3Result) {
+    // Update the marker as we encounter keys / prefixes. If a response is
+    // truncated, the next `List` request will start from the next item after
+    // the marker.
+    marker := ""
+
+    // Keep listing if the response is incomplete (there are more than
+    // `listBatchSize` entries or prefixes)
+	done := false
+    for !done {
+	    response, err := bucket.List(prefix, "/", marker, listBatchSize)
+		if err != nil {
+			fmt.Printf("Error listing: %s\n", err)
+			// TODO: retry?
+			kc <- S3Result{s3.Key{}, err}
+		}
+
+		if !response.IsTruncated {
+			// Response is not truncated, so we're done.
+			done = true
+		}
+
+		if level >= len(schema.Fields) {
+			// We are past all the dimensions - encountered items are now
+			// S3 key names. We ignore any further prefixes and assume that the
+			// specified schema is correct/complete.
+			for _, k := range response.Contents {
+				marker = k.Key
+				kc <- S3Result{k, nil}
+			}
+		} else {
+			// We are still looking at prefixes. Recursively list each one that
+			// matches the specified schema's allowed values.
+			for _, pf := range response.CommonPrefixes {
+				// Get just the last piece of the prefix to check it as a
+				// dimension. If we have '/foo/bar/baz', we just want 'baz'.
+				stripped := pf[len(prefix):len(pf)-1]
+				allowed := schema.Dims[schema.Fields[level]].IsAllowed(stripped)
+				marker = pf
+				if allowed {
+					FilterS3(bucket, pf, level + 1, schema, kc)
+				}
+			}
+		}
+	}
+
+	if level == 0 {
+		// We traverse the tree in depth-first order, so once we've reached the
+		// end at the root (level 0), we know we're done.
+		// Note that things could be made faster by parallelizing the recursive
+		// listing, but we would need some other mechanism to know when to close
+		// the channel?
+		close(kc)
 	}
 	return
 }
