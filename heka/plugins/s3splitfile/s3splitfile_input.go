@@ -24,7 +24,6 @@ type S3SplitFileInput struct {
 	bucket      *s3.Bucket
 	schema      Schema
 	stop        chan bool
-	runner      pipeline.InputRunner
 	helper      pipeline.PluginHelper
 	listChan    chan string
 }
@@ -108,6 +107,9 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 		wg sync.WaitGroup
 		i uint32
 	)
+
+	input.helper = helper
+
 	wg.Add(1)
 	go func() {
 		runner.LogMessage("Starting S3 list")
@@ -120,7 +122,9 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 			}
 		}
 		// All done listing, close the channel
+		runner.LogMessage("All done listing. Closing channel")
 		close(input.listChan)
+		wg.Done()
 	}()
 
 	// Run a pool of concurrent publishers.
@@ -133,14 +137,16 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 	return nil
 }
 
-func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, parser *pipeline.MessageProtoParser, s3Key string) (size int64, count int64, err error) {
+func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key string) (size int64, recordCount int64, err error) {
 	var (
-		offset int64
-		processed int64
 		pack   *pipeline.PipelinePack
 		dr pipeline.DecoderRunner
 		ok bool
 	)
+
+	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
+
+	parser := pipeline.NewMessageProtoParser()
 
 	dr, ok = input.helper.DecoderRunner(input.DecoderName,
 			fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName))
@@ -149,65 +155,79 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, parser *p
 		return
 	}
 
+	runner.LogMessage("Got a decoder")
+
 	if input.bucket == nil {
 		runner.LogMessage(fmt.Sprintf("Dude, where's my bucket: %s", s3Key))
 		return
 	}
 
+	runner.LogMessage("Getting a reader")
 	rc, err := input.bucket.GetReader(s3Key)
+	runner.LogMessage("Got a reader")
 	defer rc.Close()
 
 	packSupply := runner.InChan()
-	// msg := new(message.Message)
 
-	for true {
+	done := false
+	for !done {
+		runner.LogMessage(fmt.Sprintf("Reading message %d from %s", recordCount, s3Key))
 		n, record, err := parser.Parse(rc)
-		if n > 0 && n != len(record) {
-			fmt.Printf("Corruption detected in %s at offset: %d bytes: %d\n", s3Key, offset, n-len(record))
-		}
+		size += int64(n)
+
 		if err != nil {
+            //runner.LogError(fmt.Errorf("Error reading S3: %s", err))
 			if err == io.EOF {
-				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d", s3Key, offset))
-				return offset, processed, nil
+				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d", s3Key, size))
+				if len(record) == 0 {
+					runner.LogMessage("At EOF, record was empty.")
+					record = parser.GetRemainingData()
+					runner.LogMessage(fmt.Sprintf("At EOF, RemainingData was %d", len(record)))
+				}
+				done = true
 			} else if err == io.ErrShortBuffer {
                 runner.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
                 err = nil // non-fatal
+                continue
             } else {
-				return offset, processed, err
+                runner.LogError(fmt.Errorf("Bad Error reading S3: %s", err))
+				return size, recordCount, err
 			}
 
-		} else {
-			if len(record) == 0 {
-				break
-			}
-
-			pack = <-packSupply
-			processed += 1
-			headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
-			messageLen := len(record) - headerLen
-	        // TODO: signed messages?
-	        if messageLen > cap(pack.MsgBytes) {
-	            pack.MsgBytes = make([]byte, messageLen)
-	        }
-	        pack.MsgBytes = pack.MsgBytes[:messageLen]
-	        copy(pack.MsgBytes, record[headerLen:])
-
-
-			// TODO: support a `matcher`?
-			// if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
-			// 	runner.LogError(fmt.Errorf("Error unmarshalling message in '%s' at offset: %d error: %s\n", s3Key, offset, err))
-			// 	pack.Recycle()
-			// 	continue
-			// }
-
-			// if !match.Match(msg) {
-			// 	continue
-			// }
-			// matched += 1
-
-	        dr.InChan() <- pack
 		}
-		offset += int64(n)
+		if n > 0 && n != len(record) {
+			runner.LogMessage(fmt.Sprintf("Corruption detected in %s at offset: %d bytes: %d. n=%d, len(record)=%d\n", s3Key, size, n-len(record), n, len(record)))
+		}
+		if len(record) == 0 {
+			runner.LogMessage(fmt.Sprintf("zero-length record in %s at offset: %d n=%d\n", s3Key, size, n))
+			continue
+		}
+
+		pack = <-packSupply
+		recordCount += 1
+		headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
+		messageLen := len(record) - headerLen
+        // TODO: signed messages?
+        if messageLen > cap(pack.MsgBytes) {
+            pack.MsgBytes = make([]byte, messageLen)
+        }
+        pack.MsgBytes = pack.MsgBytes[:messageLen]
+        copy(pack.MsgBytes, record[headerLen:])
+
+
+		// TODO: support a `matcher`?
+		// if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
+		// 	runner.LogError(fmt.Errorf("Error unmarshalling message in '%s' at offset: %d error: %s\n", s3Key, size, err))
+		// 	pack.Recycle()
+		// 	continue
+		// }
+
+		// if !match.Match(msg) {
+		// 	continue
+		// }
+		// matched += 1
+
+        dr.InChan() <- pack
 	}
 
 	return
@@ -222,7 +242,6 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 		downloadRate float64
 	)
 
-	parser := pipeline.NewMessageProtoParser()
 	ok := true
 
 	for ok {
@@ -230,11 +249,12 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 		case s3Key, ok = <-input.listChan:
 			if !ok {
 				// Channel is closed => we're shutting down, exit cleanly.
+				runner.LogMessage("Fetcher all done! shutting down.")
 				break
 			}
 
 			startTime = time.Now().UTC()
-			size, count, err := input.readS3File(runner, parser, s3Key)
+			size, count, err := input.readS3File(runner, s3Key)
 			if err != nil {
 				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
 				continue
@@ -248,7 +268,7 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 				downloadRate = 0
 			}
 
-			runner.LogMessage(fmt.Sprintf("Successfully fetched %d records, %.2fMB in %.2fs (%.2fMB/s): %s", count, downloadMB, duration, downloadRate, s3Key))
+			runner.LogMessage(fmt.Sprintf("Successfully fetched %d records, %dB, %.2fMB in %.2fs (%.2fMB/s): %s", count, size, downloadMB, duration, downloadRate, s3Key))
 		}
 	}
 
