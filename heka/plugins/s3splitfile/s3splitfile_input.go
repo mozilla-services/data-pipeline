@@ -164,6 +164,9 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 
 	runner.LogMessage("Getting a reader")
 	rc, err := input.bucket.GetReader(s3Key)
+	if err != nil {
+		runner.LogError(fmt.Errorf("Error getting a reader: %s", err))
+	}
 	runner.LogMessage("Got a reader")
 	defer rc.Close()
 
@@ -178,7 +181,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 		if err != nil {
 			//runner.LogError(fmt.Errorf("Error reading S3: %s", err))
 			if err == io.EOF {
-				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d", s3Key, size))
+				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d, n=%d, len(record)=%d", s3Key, size, n, len(record)))
 				if len(record) == 0 {
 					runner.LogMessage("At EOF, record was empty.")
 					record = parser.GetRemainingData()
