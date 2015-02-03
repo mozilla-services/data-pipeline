@@ -9,7 +9,9 @@ package s3splitfile
 import (
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/message"
 	"regexp"
+	"io"
 	"io/ioutil"
 	"encoding/json"
 	"github.com/crowdmob/goamz/s3"
@@ -215,13 +217,29 @@ func LoadSchema(schemaFileName string) (schema Schema, err error) {
 			schema.Dims[d.Field_name] = NewListDimensionChecker(allowed)
 		case map[string]interface{}:
 			vrange := d.Allowed_values.(map[string]interface{})
-			minStr, ok := vrange["min"].(string)
-			if !ok {
-				return schema, fmt.Errorf("Value of 'min' for field '%s' must be a string", d.Field_name)
+
+			vMin, okMin := vrange["min"]
+			vMax, okMax := vrange["max"]
+
+			if !okMin && !okMax {
+				return schema, fmt.Errorf("Range for field '%s' must have at least one of 'min' or 'max'", d.Field_name)
 			}
-			maxStr, ok := vrange["max"].(string)
-			if !ok {
-				return schema, fmt.Errorf("Value of 'max' for field '%s' must be a string", d.Field_name)
+
+			ok := false
+			minStr := ""
+			if okMin {
+				minStr, ok = vMin.(string)
+				if !ok {
+					return schema, fmt.Errorf("Value of 'min' for field '%s' must be a string", d.Field_name)
+				}
+			}
+
+			maxStr := ""
+			if okMax {
+				maxStr, ok = vMax.(string)
+				if !ok {
+					return schema, fmt.Errorf("Value of 'max' for field '%s' must be a string (it was %+v)", d.Field_name, vMax)
+				}
 			}
 			schema.Dims[d.Field_name] = RangeDimensionChecker{minStr, maxStr}
 		}
@@ -231,6 +249,9 @@ func LoadSchema(schemaFileName string) (schema Schema, err error) {
 
 // Maximum number of S3 List results to fetch at once.
 const listBatchSize = 1000
+
+// Maximum number of S3 Record results to queue at once.
+const fileBatchSize = 300
 
 // Encapsulates the result of a List operation, allowing detection of errors
 // along the way.
@@ -305,5 +326,82 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 		// the channel?
 		close(kc)
 	}
+	return
+}
+
+// Encapsulates a single record within an S3 file, allowing detection of errors
+// along the way.
+type S3Record struct {
+	BytesRead int
+	Record []byte
+	Err error
+}
+
+// List the contents of the given bucket, sending matching filenames to a
+// channel which can be read by the caller.
+func S3FileIterator(bucket *s3.Bucket, s3Key string) <-chan S3Record {
+	recordChannel := make(chan S3Record, fileBatchSize)
+	go ReadS3File(bucket, s3Key, recordChannel)
+	return recordChannel
+}
+
+func makeS3Record(bytesRead int, data []byte, err error) (result S3Record) {
+	r := S3Record{}
+	r.BytesRead = bytesRead
+	r.Err = err
+	r.Record = make([]byte, len(data))
+	copy(r.Record, data)
+	return r
+}
+
+func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
+	defer close(recordChan)
+	parser := NewMessageProtoParser()
+	reader, err := bucket.GetReader(s3Key)
+	if err != nil {
+		recordChan <- S3Record{0, []byte{}, err}
+		return
+	}
+	defer reader.Close()
+
+	var size int64
+
+	done := false
+	for !done {
+		//runner.LogMessage(fmt.Sprintf("Reading message %d from %s", recordCount, s3Key))
+		n, record, err := parser.Parse(reader)
+		size += int64(n)
+
+		if err != nil {
+			//runner.LogError(fmt.Errorf("Error reading S3: %s", err))
+			if err == io.EOF {
+				// fmt.Printf("Success: Reached EOF in %s at offset: %d, n=%d, len(record)=%d\n", s3Key, size, n, len(record))
+				if len(record) == 0 {
+					// runner.LogMessage("At EOF, record was empty.")
+					record = parser.GetRemainingData()
+					// runner.LogMessage(fmt.Sprintf("At EOF, RemainingData was %d", len(record)))
+				}
+				done = true
+			} else if err == io.ErrShortBuffer {
+				recordChan <- makeS3Record(n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				continue
+			} else {
+				// Some kind of unknown error occurred.
+				// TODO: retry? Keep a key->offset counter and start over?
+				recordChan <- makeS3Record(n, record, err)
+				done = true
+				continue
+			}
+
+		}
+		if len(record) == 0 && !done {
+			// This may happen if we did not read enough data to make a full
+			// record.
+			continue
+		}
+
+		recordChan <- makeS3Record(n, record, err)
+	}
+
 	return
 }
