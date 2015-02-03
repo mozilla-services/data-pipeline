@@ -179,13 +179,20 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 		size += int64(n)
 
 		if err != nil {
-			//runner.LogError(fmt.Errorf("Error reading S3: %s", err))
+			runner.LogError(fmt.Errorf("Error reading S3: %s", err))
 			if err == io.EOF {
 				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d, n=%d, len(record)=%d", s3Key, size, n, len(record)))
 				if len(record) == 0 {
 					runner.LogMessage("At EOF, record was empty.")
 					record = parser.GetRemainingData()
 					runner.LogMessage(fmt.Sprintf("At EOF, RemainingData was %d", len(record)))
+					// We already counted part of this record (n) when we hit
+					// EOF. We subtract it here because GetRemainingData()
+					// contains the entire final record (including the partial
+					// read at EOF).
+					//size += int64(len(record) - n)
+				} else {
+					runner.LogMessage(fmt.Sprintf("At EOF, record was not empty, len=%d.", len(record)))
 				}
 				done = true
 			} else if err == io.ErrShortBuffer {
@@ -193,21 +200,30 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 				err = nil // non-fatal
 				continue
 			} else {
+				// TODO: retry? Keep a key->offset counter and start over?
 				runner.LogError(fmt.Errorf("Bad Error reading S3: %s", err))
 				return size, recordCount, err
 			}
 
 		}
-		if n > 0 && n != len(record) {
+		if n > 0 && n != len(record) && !done {
+			// This is not corruption if it happens in the final record (ie.
+			// when done == true). In the case of the last record, we may have
+			// already read a partial record earlier, and had to use
+			// GetRemainingData() to fetch the whole thing.
 			runner.LogMessage(fmt.Sprintf("Corruption detected in %s at offset: %d bytes: %d. n=%d, len(record)=%d\n", s3Key, size, n-len(record), n, len(record)))
 		}
+		// if len(record) == 0 && !done {
 		if len(record) == 0 {
+			// Why does this happen before EOF?
+			// This happens if we read some data, but not enough to create a full record.
 			runner.LogMessage(fmt.Sprintf("zero-length record in %s at offset: %d n=%d\n", s3Key, size, n))
 			continue
 		}
 
-		pack = <-packSupply
 		recordCount += 1
+		runner.LogMessage(fmt.Sprintf("%s: Message %d at offset: %d, length: %d\n", s3Key, recordCount, size-int64(len(record)), len(record)))
+		pack = <-packSupply
 		headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
 		messageLen := len(record) - headerLen
 		// TODO: signed messages?
@@ -245,13 +261,12 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 	)
 
 	ok := true
-
 	for ok {
 		select {
 		case s3Key, ok = <-input.listChan:
 			if !ok {
 				// Channel is closed => we're shutting down, exit cleanly.
-				runner.LogMessage("Fetcher all done! shutting down.")
+				// runner.LogMessage("Fetcher all done! shutting down.")
 				break
 			}
 
