@@ -4,7 +4,7 @@
 set -o errexit
 
 # Machine config:
-# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel
+# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild
 
 BASE=$(pwd)
 
@@ -44,3 +44,7 @@ source build.sh
 
 # Build RPM
 make package
+if hash rpmrebuild 2>/dev/null; then
+    echo "Rebuilding RPM with date iteration and svc suffix"
+    rpmrebuild -d . --release=0.$(date +%Y%m%d)svc -p -n heka-*-linux-amd64.rpm
+fi
