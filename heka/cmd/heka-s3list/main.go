@@ -27,7 +27,7 @@ import (
 	"time"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
-	"github.com/mreid-moz/s3splitfile"
+	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 )
 
 var suffixes = [...]string{"", "K", "M", "G", "T", "P"}
