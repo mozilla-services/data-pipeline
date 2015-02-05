@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
-	"github.com/mozilla-services/heka/message"
+	// "github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
 	"strings"
@@ -137,116 +137,129 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 	return nil
 }
 
+// TODO: handle "no such file"
 func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key string) (size int64, recordCount int64, err error) {
-	var (
-		pack *pipeline.PipelinePack
-		dr   pipeline.DecoderRunner
-		ok   bool
-	)
+	// var (
+	// 	pack *pipeline.PipelinePack
+	// 	dr   pipeline.DecoderRunner
+	// 	ok   bool
+	// )
 
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
-
-	parser := pipeline.NewMessageProtoParser()
-
-	dr, ok = input.helper.DecoderRunner(input.DecoderName,
-		fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName))
-	if !ok {
-		runner.LogError(fmt.Errorf("Error getting decoder: %s", input.DecoderName))
-		return
-	}
-
-	runner.LogMessage("Got a decoder")
 
 	if input.bucket == nil {
 		runner.LogMessage(fmt.Sprintf("Dude, where's my bucket: %s", s3Key))
 		return
 	}
 
-	runner.LogMessage("Getting a reader")
+	deliverer := runner.NewDeliverer(s3Key)
+	defer deliverer.Done()
+	sr := runner.NewSplitterRunner(s3Key)
+
+	// dr, ok = input.helper.DecoderRunner(input.DecoderName,
+	// 	fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName))
+	// if !ok {
+	// 	runner.LogError(fmt.Errorf("Error getting decoder: %s", input.DecoderName))
+	// 	return
+	// }
+
+	// runner.LogMessage("Got a decoder")
+
+	// runner.LogMessage("Getting a reader")
 	rc, err := input.bucket.GetReader(s3Key)
 	if err != nil {
 		runner.LogError(fmt.Errorf("Error getting a reader: %s", err))
 	}
-	runner.LogMessage("Got a reader")
+	// runner.LogMessage("Got a reader")
 	defer rc.Close()
 
-	packSupply := runner.InChan()
+	// packSupply := runner.InChan()
 
-	done := false
-	for !done {
-		runner.LogMessage(fmt.Sprintf("Reading message %d from %s", recordCount, s3Key))
-		n, record, err := parser.Parse(rc)
-		size += int64(n)
+	// done := false
+	// for !done {
+		runner.LogMessage(fmt.Sprintf("Reading messages from %s", s3Key))
+		for err == nil {
+			err = sr.SplitStream(rc, deliverer)
+		}
 
-		if err != nil {
-			runner.LogError(fmt.Errorf("Error reading S3: %s", err))
-			if err == io.EOF {
-				runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d, n=%d, len(record)=%d", s3Key, size, n, len(record)))
-				if len(record) == 0 {
-					runner.LogMessage("At EOF, record was empty.")
-					record = parser.GetRemainingData()
-					runner.LogMessage(fmt.Sprintf("At EOF, RemainingData was %d", len(record)))
-					// We already counted part of this record (n) when we hit
-					// EOF. We subtract it here because GetRemainingData()
-					// contains the entire final record (including the partial
-					// read at EOF).
-					//size += int64(len(record) - n)
-				} else {
-					runner.LogMessage(fmt.Sprintf("At EOF, record was not empty, len=%d.", len(record)))
-				}
-				done = true
-			} else if err == io.ErrShortBuffer {
-				runner.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
-				err = nil // non-fatal
-				continue
-			} else {
-				// TODO: retry? Keep a key->offset counter and start over?
-				runner.LogError(fmt.Errorf("Bad Error reading S3: %s", err))
-				return size, recordCount, err
+		// if err != nil {
+			if err != io.EOF {
+				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
 			}
+		// 	done = true
+		// }
+		// n, record, err := parser.Parse(rc)
+		// size += int64(n)
 
-		}
-		if n > 0 && n != len(record) && !done {
-			// This is not corruption if it happens in the final record (ie.
-			// when done == true). In the case of the last record, we may have
-			// already read a partial record earlier, and had to use
-			// GetRemainingData() to fetch the whole thing.
-			runner.LogMessage(fmt.Sprintf("Corruption detected in %s at offset: %d bytes: %d. n=%d, len(record)=%d\n", s3Key, size, n-len(record), n, len(record)))
-		}
-		// if len(record) == 0 && !done {
-		if len(record) == 0 {
-			// Why does this happen before EOF?
-			// This happens if we read some data, but not enough to create a full record.
-			runner.LogMessage(fmt.Sprintf("zero-length record in %s at offset: %d n=%d\n", s3Key, size, n))
-			continue
-		}
+		// if err != nil {
+		// 	runner.LogError(fmt.Errorf("Error reading S3: %s", err))
+		// 	if err == io.EOF {
+		// 		runner.LogMessage(fmt.Sprintf("Success: Reached EOF in %s at offset: %d, n=%d, len(record)=%d", s3Key, size, n, len(record)))
+		// 		if len(record) == 0 {
+		// 			runner.LogMessage("At EOF, record was empty.")
+		// 			record = parser.GetRemainingData()
+		// 			runner.LogMessage(fmt.Sprintf("At EOF, RemainingData was %d", len(record)))
+		// 			// We already counted part of this record (n) when we hit
+		// 			// EOF. We subtract it here because GetRemainingData()
+		// 			// contains the entire final record (including the partial
+		// 			// read at EOF).
+		// 			//size += int64(len(record) - n)
+		// 		} else {
+		// 			runner.LogMessage(fmt.Sprintf("At EOF, record was not empty, len=%d.", len(record)))
+		// 		}
+		// 		done = true
+		// 	} else if err == io.ErrShortBuffer {
+		// 		runner.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+		// 		err = nil // non-fatal
+		// 		continue
+		// 	} else {
+		// 		// TODO: retry? Keep a key->offset counter and start over?
+		// 		runner.LogError(fmt.Errorf("Bad Error reading S3: %s", err))
+		// 		return size, recordCount, err
+		// 	}
 
-		recordCount += 1
-		runner.LogMessage(fmt.Sprintf("%s: Message %d at offset: %d, length: %d\n", s3Key, recordCount, size-int64(len(record)), len(record)))
-		pack = <-packSupply
-		headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
-		messageLen := len(record) - headerLen
-		// TODO: signed messages?
-		if messageLen > cap(pack.MsgBytes) {
-			pack.MsgBytes = make([]byte, messageLen)
-		}
-		pack.MsgBytes = pack.MsgBytes[:messageLen]
-		copy(pack.MsgBytes, record[headerLen:])
-
-		// TODO: support a `matcher`?
-		// if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
-		// 	runner.LogError(fmt.Errorf("Error unmarshalling message in '%s' at offset: %d error: %s\n", s3Key, size, err))
-		// 	pack.Recycle()
+		// }
+		// if n > 0 && n != len(record) && !done {
+		// 	// This is not corruption if it happens in the final record (ie.
+		// 	// when done == true). In the case of the last record, we may have
+		// 	// already read a partial record earlier, and had to use
+		// 	// GetRemainingData() to fetch the whole thing.
+		// 	runner.LogMessage(fmt.Sprintf("Corruption detected in %s at offset: %d bytes: %d. n=%d, len(record)=%d\n", s3Key, size, n-len(record), n, len(record)))
+		// }
+		// // if len(record) == 0 && !done {
+		// if len(record) == 0 {
+		// 	// Why does this happen before EOF?
+		// 	// This happens if we read some data, but not enough to create a full record.
+		// 	runner.LogMessage(fmt.Sprintf("zero-length record in %s at offset: %d n=%d\n", s3Key, size, n))
 		// 	continue
 		// }
 
-		// if !match.Match(msg) {
-		// 	continue
+		// recordCount += 1
+		// runner.LogMessage(fmt.Sprintf("%s: Message %d at offset: %d, length: %d\n", s3Key, recordCount, size-int64(len(record)), len(record)))
+		// pack = <-packSupply
+		// headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
+		// messageLen := len(record) - headerLen
+		// // TODO: signed messages?
+		// if messageLen > cap(pack.MsgBytes) {
+		// 	pack.MsgBytes = make([]byte, messageLen)
 		// }
-		// matched += 1
+		// pack.MsgBytes = pack.MsgBytes[:messageLen]
+		// copy(pack.MsgBytes, record[headerLen:])
 
-		dr.InChan() <- pack
-	}
+		// // TODO: support a `matcher`?
+		// // if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
+		// // 	runner.LogError(fmt.Errorf("Error unmarshalling message in '%s' at offset: %d error: %s\n", s3Key, size, err))
+		// // 	pack.Recycle()
+		// // 	continue
+		// // }
+
+		// // if !match.Match(msg) {
+		// // 	continue
+		// // }
+		// // matched += 1
+
+		// dr.InChan() <- pack
+	// }
 
 	return
 }
