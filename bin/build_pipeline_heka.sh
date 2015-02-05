@@ -4,7 +4,7 @@
 set -o errexit
 
 # Machine config:
-# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel
+# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild
 
 BUILD_BRANCH=$1
 if [ -z "$BUILD_BRANCH" ]; then
@@ -43,6 +43,9 @@ if [ ! -f "patches_applied" ]; then
     cp -R $BASE/heka/cmd/heka-s3list ./cmd/
     cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
 
+    echo 'Installing lua filters/modules/decoders'
+    rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
+
     echo "Adding external plugin for s3splitfile output"
     echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline $BUILD_BRANCH heka/plugins/s3splitfile __ignore_root)" >> cmake/plugin_loader.cmake
 fi
@@ -51,3 +54,7 @@ source build.sh
 
 # Build RPM
 make package
+if hash rpmrebuild 2>/dev/null; then
+    echo "Rebuilding RPM with date iteration and svc suffix"
+    rpmrebuild -d . --release=0.$(date +%Y%m%d)svc -p -n heka-*-linux-amd64.rpm
+fi
