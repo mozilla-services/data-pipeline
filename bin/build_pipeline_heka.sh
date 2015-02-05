@@ -33,6 +33,9 @@ if [ ! -f "patches_applied" ]; then
     echo 'Installing source files for `heka-export` cmd'
     cp -R $BASE/heka/cmd/heka-export ./cmd/
 
+    echo 'Installing lua filters/modules/decoders'
+    rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
+
     echo "Adding external plugin for s3splitfile output"
     echo 'add_external_plugin(git https://github.com/mreid-moz/data-pipeline master heka/plugins/s3splitfile __ignore_root)' >> cmake/plugin_loader.cmake
 fi
