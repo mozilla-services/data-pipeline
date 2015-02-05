@@ -26,11 +26,11 @@ if [ ! -f "patches_applied" ]; then
     echo "Patching for larger message size"
     patch message/message.go < $BASE/heka/patches/0001-Increase-message-size-limit-from-64KB-to-8MB.patch
 
-    echo "Patching to build `heka-export` cmd"
+    echo 'Patching to build `heka-export` cmd'
     patch CMakeLists.txt < $BASE/heka/patches/0002-Add-cmdline-tool-for-uploading-to-S3.patch
 
     # TODO: do this using cmake externals instead of shell-fu.
-    echo "Installing source files for `heka-export` cmd"
+    echo 'Installing source files for `heka-export` cmd'
     cp -R $BASE/heka/cmd/heka-export ./cmd/
 
     echo "Adding external plugin for s3splitfile output"
