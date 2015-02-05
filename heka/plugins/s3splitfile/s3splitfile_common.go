@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"io"
 	"io/ioutil"
+	"math"
 	"encoding/json"
 	"github.com/crowdmob/goamz/s3"
 )
@@ -247,6 +248,23 @@ func LoadSchema(schemaFileName string) (schema Schema, err error) {
 	return
 }
 
+var suffixes = [...]string{"", "K", "M", "G", "T", "P"}
+
+// Return a nice, human-readable representation of the given number of bytes.
+func PrettySize(bytes int64) (string) {
+	fBytes := float64(bytes)
+	sIdx := 0
+	for i, _ := range suffixes {
+		sIdx = i
+		if fBytes < math.Pow(1024.0, float64(sIdx + 1)) {
+			break
+		}
+	}
+
+	pretty := fBytes / math.Pow(1024.0, float64(sIdx))
+	return fmt.Sprintf("%.2f%sB", pretty, suffixes[sIdx])
+}
+
 // Maximum number of S3 List results to fetch at once.
 const listBatchSize = 1000
 
@@ -255,15 +273,15 @@ const fileBatchSize = 300
 
 // Encapsulates the result of a List operation, allowing detection of errors
 // along the way.
-type S3Result struct {
+type S3ListResult struct {
 	Key s3.Key
 	Err error
 }
 
 // List the contents of the given bucket, sending matching filenames to a
 // channel which can be read by the caller.
-func S3Iterator(bucket *s3.Bucket, prefix string, schema Schema) <-chan S3Result {
-	keyChannel := make(chan S3Result, listBatchSize)
+func S3Iterator(bucket *s3.Bucket, prefix string, schema Schema) <-chan S3ListResult {
+	keyChannel := make(chan S3ListResult, listBatchSize)
 	go FilterS3(bucket, prefix, 0, schema, keyChannel)
 	return keyChannel
 }
@@ -272,7 +290,7 @@ func S3Iterator(bucket *s3.Bucket, prefix string, schema Schema) <-chan S3Result
 // schema, and sending results on the given channel. The `level` parameter
 // indicates how far down the tree we are, and is used to determine which schema
 // field we use for filtering.
-func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc chan S3Result) {
+func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc chan S3ListResult) {
     // Update the marker as we encounter keys / prefixes. If a response is
     // truncated, the next `List` request will start from the next item after
     // the marker.
@@ -286,7 +304,7 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 		if err != nil {
 			fmt.Printf("Error listing: %s\n", err)
 			// TODO: retry?
-			kc <- S3Result{s3.Key{}, err}
+			kc <- S3ListResult{s3.Key{}, err}
 		}
 
 		if !response.IsTruncated {
@@ -300,7 +318,7 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 			// specified schema is correct/complete.
 			for _, k := range response.Contents {
 				marker = k.Key
-				kc <- S3Result{k, nil}
+				kc <- S3ListResult{k, nil}
 			}
 		} else {
 			// We are still looking at prefixes. Recursively list each one that
@@ -354,9 +372,26 @@ func makeS3Record(bytesRead int, data []byte, err error) (result S3Record) {
 	return r
 }
 
+// TODO: duplicated from heka-cat
+func makeSplitterRunner() (SplitterRunner, error) {
+	splitter := &HekaFramingSplitter{}
+	config := splitter.ConfigStruct()
+	err := splitter.Init(config)
+	if err != nil {
+		return nil, fmt.Errorf("Error initializing HekaFramingSplitter: %s", err)
+	}
+	srConfig := CommonSplitterConfig{}
+	sRunner := NewSplitterRunner("HekaFramingSplitter", splitter, srConfig)
+	return sRunner, nil
+}
+
 func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 	defer close(recordChan)
-	parser := NewMessageProtoParser()
+	sRunner, err := makeSplitterRunner()
+	if err != nil {
+		recordChan <- S3Record{0, []byte{}, err}
+		return
+	}
 	reader, err := bucket.GetReader(s3Key)
 	if err != nil {
 		recordChan <- S3Record{0, []byte{}, err}
@@ -368,25 +403,24 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 
 	done := false
 	for !done {
-		//runner.LogMessage(fmt.Sprintf("Reading message %d from %s", recordCount, s3Key))
-		n, record, err := parser.Parse(reader)
+		n, record, err := sRunner.GetRecordFromStream(reader)
 		size += int64(n)
 
 		if err != nil {
-			//runner.LogError(fmt.Errorf("Error reading S3: %s", err))
 			if err == io.EOF {
-				// fmt.Printf("Success: Reached EOF in %s at offset: %d, n=%d, len(record)=%d\n", s3Key, size, n, len(record))
-				if len(record) == 0 {
-					// runner.LogMessage("At EOF, record was empty.")
-					record = parser.GetRemainingData()
-					// runner.LogMessage(fmt.Sprintf("At EOF, RemainingData was %d", len(record)))
+				if len(record) != 0 {
+					record = sRunner.GetRemainingData()
+					if len(record) > 0 {
+						fmt.Printf("At EOF, len(remaining data) was %d\n", len(record))
+					}
 				}
+
 				done = true
 			} else if err == io.ErrShortBuffer {
 				recordChan <- makeS3Record(n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
 				continue
 			} else {
-				// Some kind of unknown error occurred.
+				// Some other kind of error occurred.
 				// TODO: retry? Keep a key->offset counter and start over?
 				recordChan <- makeS3Record(n, record, err)
 				done = true

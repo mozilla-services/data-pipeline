@@ -19,19 +19,17 @@ import (
 
 type S3SplitFileInput struct {
 	*S3SplitFileInputConfig
-	decoderChan chan *pipeline.PipelinePack
 	bucket      *s3.Bucket
 	schema      Schema
 	stop        chan bool
-	helper      pipeline.PluginHelper
 	listChan    chan string
 }
 
 type S3SplitFileInputConfig struct {
-	TickerInterval uint   `toml:"ticker_interval"`
-	DecoderName    string `toml:"decoder"`
-	// Type of parser used to break the stream up into messages
-	ParserType string `toml:"parser_type"`
+	// So we can default to using ProtobufDecoder.
+	Decoder string
+	// So we can default to using HekaFramingSplitter.
+	Splitter string
 
 	SchemaFile     string `toml:"schema_file"`
 	AWSKey         string `toml:"aws_key"`
@@ -45,7 +43,8 @@ type S3SplitFileInputConfig struct {
 
 func (input *S3SplitFileInput) ConfigStruct() interface{} {
 	return &S3SplitFileInputConfig{
-		TickerInterval: uint(5),
+		Decoder:        "ProtobufDecoder",
+		Splitter:       "HekaFramingSplitter",
 		AWSKey:         "",
 		AWSSecretKey:   "",
 		AWSRegion:      "us-west-2",
@@ -107,8 +106,6 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 		i  uint32
 	)
 
-	input.helper = helper
-
 	wg.Add(1)
 	go func() {
 		runner.LogMessage("Starting S3 list")
@@ -126,7 +123,7 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 		wg.Done()
 	}()
 
-	// Run a pool of concurrent publishers.
+	// Run a pool of concurrent readers.
 	for i = 0; i < input.S3WorkerCount; i++ {
 		wg.Add(1)
 		go input.fetcher(runner, &wg)
@@ -137,7 +134,8 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 }
 
 // TODO: handle "no such file"
-func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key string) (size int64, recordCount int64, err error) {
+// TODO: use s3splitfile_common.ReadS3File()?
+func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key string) (err error) {
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
 
 	if input.bucket == nil {
@@ -153,7 +151,6 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 	if err != nil {
 		runner.LogError(fmt.Errorf("Error getting a reader: %s", err))
 	}
-	// runner.LogMessage("Got a reader")
 	defer rc.Close()
 
 	runner.LogMessage(fmt.Sprintf("Reading messages from %s", s3Key))
@@ -173,8 +170,6 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 		s3Key        string
 		startTime    time.Time
 		duration     float64
-		downloadMB   float64
-		downloadRate float64
 	)
 
 	ok := true
@@ -188,21 +183,13 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 			}
 
 			startTime = time.Now().UTC()
-			size, count, err := input.readS3File(runner, s3Key)
-			if err != nil {
+			err := input.readS3File(runner, s3Key)
+			if err != nil && err != io.EOF {
 				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
 				continue
 			}
 			duration = time.Now().UTC().Sub(startTime).Seconds()
-
-			downloadMB = float64(size) / 1024.0 / 1024.0
-			if duration > 0 {
-				downloadRate = downloadMB / duration
-			} else {
-				downloadRate = 0
-			}
-
-			runner.LogMessage(fmt.Sprintf("Successfully fetched %d records, %dB, %.2fMB in %.2fs (%.2fMB/s): %s", count, size, downloadMB, duration, downloadRate, s3Key))
+			runner.LogMessage(fmt.Sprintf("Successfully fetched %s in %.2fs ", s3Key, duration))
 		}
 	}
 

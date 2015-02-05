@@ -21,7 +21,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 	"time"
@@ -29,22 +28,6 @@ import (
 	"github.com/crowdmob/goamz/s3"
 	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 )
-
-var suffixes = [...]string{"", "K", "M", "G", "T", "P"}
-
-func PrettySize(bytes int64) (string) {
-	fBytes := float64(bytes)
-	sIdx := 0
-	for i, _ := range suffixes {
-		sIdx = i
-		if fBytes < math.Pow(1024.0, float64(sIdx + 1)) {
-			break
-		}
-	}
-
-	pretty := fBytes / math.Pow(1024.0, float64(sIdx))
-	return fmt.Sprintf("%.2f%sB", pretty, suffixes[sIdx])
-}
 
 func main() {
     flagSchema := flag.String("schema", "", "Filename of the schema to use as a filter")
@@ -83,8 +66,6 @@ func main() {
 		prefix += "/"
 	}
 
-	// prefix := strings.Trim(*flagBucketPrefix, "/") + "/"
-
 	// Initialize the S3 bucket
 	auth := aws.Auth{AccessKey: *flagAWSKey, SecretKey: *flagAWSSecretKey}
 	s := s3.New(auth, aws.Regions[*flagAWSRegion])
@@ -111,6 +92,7 @@ func main() {
 	duration := time.Now().UTC().Sub(startTime).Seconds()
 
 	if *flagVerbose {
-		fmt.Printf("Filter matched %d files totaling %s in %.02fs (%d errors)\n", totalCount, PrettySize(totalSize), duration, errCount)
+		fmt.Printf("Filter matched %d files totaling %s in %.02fs (%d errors)\n",
+			totalCount, s3splitfile.PrettySize(totalSize), duration, errCount)
 	}
 }
