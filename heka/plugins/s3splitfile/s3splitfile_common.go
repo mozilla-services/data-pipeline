@@ -411,11 +411,11 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 
 		if err != nil {
 			if err == io.EOF {
-				if len(record) != 0 {
-					record = sRunner.GetRemainingData()
-					if len(record) > 0 {
-						fmt.Printf("At EOF, len(remaining data) was %d\n", len(record))
-					}
+				lenRemaining := len(sRunner.GetRemainingData())
+				if lenRemaining > 0 {
+					// There was a partial message at the end of the stream.
+					// Discard the leftover bytes.
+					fmt.Printf("At EOF, len(remaining data) was %d\n", lenRemaining)
 				}
 
 				done = true
