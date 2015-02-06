@@ -25,13 +25,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/s3"
+	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 	"github.com/mozilla-services/heka/message"
 	"io"
 	"os"
 	"time"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
-	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 )
 
 func main() {
@@ -39,10 +39,10 @@ func main() {
 	flagFormat := flag.String("format", "txt", "output format [txt|json|heka|count]")
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagStdin := flag.Bool("stdin", false, "read list of s3 key names from stdin")
-    flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
-    flagAWSKey := flag.String("aws-key", "DUMMY", "AWS Key")
-    flagAWSSecretKey := flag.String("aws-secret-key", "DUMMY", "AWS Secret Key")
-    flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
+	flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
+	flagAWSKey := flag.String("aws-key", "DUMMY", "AWS Key")
+	flagAWSSecretKey := flag.String("aws-secret-key", "DUMMY", "AWS Secret Key")
+	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
 	flag.Parse()
 
 	if !*flagStdin && flag.NArg() < 1 {
@@ -79,10 +79,10 @@ func main() {
 
 	if *flagStdin {
 		scanner := bufio.NewScanner(os.Stdin)
-	    for scanner.Scan() {
-	        filename := scanner.Text()
+		for scanner.Scan() {
+			filename := scanner.Text()
 			cat(bucket, filename, match, *flagFormat, out)
-	    }
+		}
 	} else {
 		for _, filename := range flag.Args() {
 			cat(bucket, filename, match, *flagFormat, out)

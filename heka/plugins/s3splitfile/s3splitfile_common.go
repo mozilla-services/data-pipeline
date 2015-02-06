@@ -7,27 +7,27 @@
 package s3splitfile
 
 import (
+	"encoding/json"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/crowdmob/goamz/s3"
 	"github.com/mozilla-services/heka/message"
-	"regexp"
+	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"io/ioutil"
 	"math"
-	"encoding/json"
-	"github.com/crowdmob/goamz/s3"
+	"regexp"
 )
 
 type PublishAttempt struct {
-	Name string
+	Name              string
 	AttemptsRemaining uint32
 }
 
 // Encapsulates the directory-splitting schema
 type Schema struct {
-	Fields []string
+	Fields       []string
 	FieldIndices map[string]int
-	Dims map[string]DimensionChecker
+	Dims         map[string]DimensionChecker
 }
 
 // Determine whether a given value is acceptable for a given field, and if not
@@ -80,13 +80,14 @@ func (s *Schema) GetDimensions(pack *PipelinePack) (dimensions []string) {
 // Interface for calculating whether a particular value is acceptable
 // as-is, or if it should be replaced with a default value.
 type DimensionChecker interface {
-	IsAllowed(v string) (bool)
+	IsAllowed(v string) bool
 }
 
 // Accept any value at all.
 type AnyDimensionChecker struct {
 }
-func (adc AnyDimensionChecker) IsAllowed(v string) (bool) {
+
+func (adc AnyDimensionChecker) IsAllowed(v string) bool {
 	return true
 }
 
@@ -96,7 +97,8 @@ type ListDimensionChecker struct {
 	// Use a map instead of a list internally for fast lookups.
 	allowed map[string]struct{}
 }
-func (ldc ListDimensionChecker) IsAllowed(v string) (bool) {
+
+func (ldc ListDimensionChecker) IsAllowed(v string) bool {
 	_, ok := ldc.allowed[v]
 	return ok
 }
@@ -104,7 +106,7 @@ func (ldc ListDimensionChecker) IsAllowed(v string) (bool) {
 // Factory for creating a ListDimensionChecker using a list instead of a map
 func NewListDimensionChecker(allowed []string) *ListDimensionChecker {
 	dimMap := map[string]struct{}{}
-	for _, a := range(allowed) {
+	for _, a := range allowed {
 		dimMap[a] = struct{}{}
 	}
 	return &ListDimensionChecker{dimMap}
@@ -117,7 +119,8 @@ type RangeDimensionChecker struct {
 	min string
 	max string
 }
-func (rdc RangeDimensionChecker) IsAllowed(v string) (bool) {
+
+func (rdc RangeDimensionChecker) IsAllowed(v string) bool {
 	// Min and max are optional, so treat them separately.
 	// TODO: ensure that Go does string comparisons in the fashion expected
 	//       by this code.
@@ -138,7 +141,7 @@ var sanitizePattern = regexp.MustCompile("[^a-zA-Z0-9_/.]")
 // Given a string, return a sanitized version that can be used safely as part
 // of a filename (for example).
 func SanitizeDimension(dim string) (cleaned string) {
-    return sanitizePattern.ReplaceAllString(dim, "_")
+	return sanitizePattern.ReplaceAllString(dim, "_")
 }
 
 // Load a schema from the given file name.  The file is expected to contain
@@ -169,13 +172,13 @@ func SanitizeDimension(dim string) (cleaned string) {
 func LoadSchema(schemaFileName string) (schema Schema, err error) {
 	// Placeholder for parsing JSON
 	type JSchemaDimension struct {
-		Field_name string
+		Field_name     string
 		Allowed_values interface{}
 	}
 
 	// Placeholder for parsing JSON
 	type JSchema struct {
-		Version int32
+		Version    int32
 		Dimensions []JSchemaDimension
 	}
 
@@ -251,12 +254,12 @@ func LoadSchema(schemaFileName string) (schema Schema, err error) {
 var suffixes = [...]string{"", "K", "M", "G", "T", "P"}
 
 // Return a nice, human-readable representation of the given number of bytes.
-func PrettySize(bytes int64) (string) {
+func PrettySize(bytes int64) string {
 	fBytes := float64(bytes)
 	sIdx := 0
 	for i, _ := range suffixes {
 		sIdx = i
-		if fBytes < math.Pow(1024.0, float64(sIdx + 1)) {
+		if fBytes < math.Pow(1024.0, float64(sIdx+1)) {
 			break
 		}
 	}
@@ -291,16 +294,16 @@ func S3Iterator(bucket *s3.Bucket, prefix string, schema Schema) <-chan S3ListRe
 // indicates how far down the tree we are, and is used to determine which schema
 // field we use for filtering.
 func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc chan S3ListResult) {
-    // Update the marker as we encounter keys / prefixes. If a response is
-    // truncated, the next `List` request will start from the next item after
-    // the marker.
-    marker := ""
+	// Update the marker as we encounter keys / prefixes. If a response is
+	// truncated, the next `List` request will start from the next item after
+	// the marker.
+	marker := ""
 
-    // Keep listing if the response is incomplete (there are more than
-    // `listBatchSize` entries or prefixes)
+	// Keep listing if the response is incomplete (there are more than
+	// `listBatchSize` entries or prefixes)
 	done := false
-    for !done {
-	    response, err := bucket.List(prefix, "/", marker, listBatchSize)
+	for !done {
+		response, err := bucket.List(prefix, "/", marker, listBatchSize)
 		if err != nil {
 			fmt.Printf("Error listing: %s\n", err)
 			// TODO: retry?
@@ -326,11 +329,11 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 			for _, pf := range response.CommonPrefixes {
 				// Get just the last piece of the prefix to check it as a
 				// dimension. If we have '/foo/bar/baz', we just want 'baz'.
-				stripped := pf[len(prefix):len(pf)-1]
+				stripped := pf[len(prefix) : len(pf)-1]
 				allowed := schema.Dims[schema.Fields[level]].IsAllowed(stripped)
 				marker = pf
 				if allowed {
-					FilterS3(bucket, pf, level + 1, schema, kc)
+					FilterS3(bucket, pf, level+1, schema, kc)
 				}
 			}
 		}
@@ -351,8 +354,8 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 // along the way.
 type S3Record struct {
 	BytesRead int
-	Record []byte
-	Err error
+	Record    []byte
+	Err       error
 }
 
 // List the contents of the given bucket, sending matching filenames to a

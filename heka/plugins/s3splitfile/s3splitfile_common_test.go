@@ -51,7 +51,6 @@ func S3SplitFileSpec(c gs.Context) {
 		testFieldVal(c, schema, "list", "quux", "OTHER")
 		testFieldVal(c, schema, "list", "Some values are not acceptable!", "OTHER")
 
-
 		testFieldVal(c, schema, "rangeMin", "aaa", "aaa")
 		testFieldVal(c, schema, "rangeMin", "foo", "foo")
 		testFieldVal(c, schema, "rangeMin", "bar", "bar")

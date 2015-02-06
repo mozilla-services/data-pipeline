@@ -21,23 +21,23 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"strings"
-	"time"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
 	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
+	"os"
+	"strings"
+	"time"
 )
 
 func main() {
-    flagSchema := flag.String("schema", "", "Filename of the schema to use as a filter")
-    flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
-    flagBucketPrefix := flag.String("bucket-prefix", "", "S3 Bucket path prefix")
-    flagAWSKey := flag.String("aws-key", "DUMMY", "AWS Key")
-    flagAWSSecretKey := flag.String("aws-secret-key", "DUMMY", "AWS Secret Key")
-    flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
-    flagDryRun := flag.Bool("dry-run", false, "Don't actually do anything, just output what would be done")
-    flagVerbose := flag.Bool("verbose", false, "Print detailed info")
+	flagSchema := flag.String("schema", "", "Filename of the schema to use as a filter")
+	flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
+	flagBucketPrefix := flag.String("bucket-prefix", "", "S3 Bucket path prefix")
+	flagAWSKey := flag.String("aws-key", "DUMMY", "AWS Key")
+	flagAWSSecretKey := flag.String("aws-secret-key", "DUMMY", "AWS Secret Key")
+	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
+	flagDryRun := flag.Bool("dry-run", false, "Don't actually do anything, just output what would be done")
+	flagVerbose := flag.Bool("verbose", false, "Print detailed info")
 	flag.Parse()
 
 	if flag.NArg() != 0 {
@@ -55,7 +55,7 @@ func main() {
 
 	if *flagDryRun {
 		fmt.Printf("Dry Run: Would have listed files in s3://%s/%s according to filter schema %s\n",
-				   *flagBucket, *flagBucketPrefix, *flagSchema)
+			*flagBucket, *flagBucketPrefix, *flagSchema)
 		os.Exit(0)
 	}
 

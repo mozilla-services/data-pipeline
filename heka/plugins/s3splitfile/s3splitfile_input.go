@@ -19,10 +19,10 @@ import (
 
 type S3SplitFileInput struct {
 	*S3SplitFileInputConfig
-	bucket      *s3.Bucket
-	schema      Schema
-	stop        chan bool
-	listChan    chan string
+	bucket   *s3.Bucket
+	schema   Schema
+	stop     chan bool
+	listChan chan string
 }
 
 type S3SplitFileInputConfig struct {
@@ -167,9 +167,9 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 
 func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGroup) {
 	var (
-		s3Key        string
-		startTime    time.Time
-		duration     float64
+		s3Key     string
+		startTime time.Time
+		duration  float64
 	)
 
 	ok := true
