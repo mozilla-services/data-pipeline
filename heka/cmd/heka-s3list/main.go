@@ -68,7 +68,12 @@ func main() {
 
 	// Initialize the S3 bucket
 	auth := aws.Auth{AccessKey: *flagAWSKey, SecretKey: *flagAWSSecretKey}
-	s := s3.New(auth, aws.Regions[*flagAWSRegion])
+	region, ok := aws.Regions[*flagAWSRegion]
+	if !ok {
+		fmt.Printf("Parameter 'aws-region' must be a valid AWS Region\n")
+		os.Exit(4)
+	}
+	s := s3.New(auth, region)
 	b = s.Bucket(*flagBucket)
 
 	var errCount int
