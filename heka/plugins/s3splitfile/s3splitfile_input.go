@@ -126,7 +126,7 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 	// Run a pool of concurrent readers.
 	for i = 0; i < input.S3WorkerCount; i++ {
 		wg.Add(1)
-		go input.fetcher(runner, &wg)
+		go input.fetcher(runner, &wg, i)
 	}
 	wg.Wait()
 
@@ -135,17 +135,13 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 
 // TODO: handle "no such file"
 // TODO: use s3splitfile_common.ReadS3File()?
-func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key string) (err error) {
+func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d pipeline.Deliverer, sr pipeline.SplitterRunner, s3Key string) (err error) {
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
 
 	if input.bucket == nil {
 		runner.LogMessage(fmt.Sprintf("Dude, where's my bucket: %s", s3Key))
 		return
 	}
-
-	deliverer := runner.NewDeliverer(s3Key)
-	defer deliverer.Done()
-	sr := runner.NewSplitterRunner(s3Key)
 
 	rc, err := input.bucket.GetReader(s3Key)
 	if err != nil {
@@ -155,7 +151,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 
 	runner.LogMessage(fmt.Sprintf("Reading messages from %s", s3Key))
 	for err == nil {
-		err = sr.SplitStream(rc, deliverer)
+		err = sr.SplitStream(rc, d)
 	}
 
 	if err != io.EOF {
@@ -165,12 +161,17 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, s3Key str
 	return
 }
 
-func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGroup) {
+func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGroup, workerId uint32) {
 	var (
 		s3Key     string
 		startTime time.Time
 		duration  float64
 	)
+
+	fetcherName := fmt.Sprintf("S3Reader%d", workerId)
+	deliverer := runner.NewDeliverer(fetcherName)
+	defer deliverer.Done()
+	splitterRunner := runner.NewSplitterRunner(fetcherName)
 
 	ok := true
 	for ok {
@@ -183,7 +184,7 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 			}
 
 			startTime = time.Now().UTC()
-			err := input.readS3File(runner, s3Key)
+			err := input.readS3File(runner, deliverer, splitterRunner, s3Key)
 			if err != nil && err != io.EOF {
 				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
 				continue
