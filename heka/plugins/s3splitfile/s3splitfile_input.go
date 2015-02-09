@@ -135,7 +135,7 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 
 // TODO: handle "no such file"
 // TODO: use s3splitfile_common.ReadS3File()?
-func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d pipeline.Deliverer, sr pipeline.SplitterRunner, s3Key string) (err error) {
+func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d *pipeline.Deliverer, sr *pipeline.SplitterRunner, s3Key string) (err error) {
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
 
 	if input.bucket == nil {
@@ -151,7 +151,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d pipelin
 
 	runner.LogMessage(fmt.Sprintf("Reading messages from %s", s3Key))
 	for err == nil {
-		err = sr.SplitStream(rc, d)
+		err = (*sr).SplitStream(rc, *d)
 	}
 
 	if err != io.EOF {
@@ -184,7 +184,11 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 			}
 
 			startTime = time.Now().UTC()
-			err := input.readS3File(runner, deliverer, splitterRunner, s3Key)
+			err := input.readS3File(runner, &deliverer, &splitterRunner, s3Key)
+			leftovers := splitterRunner.GetRemainingData()
+			if len(leftovers) > 0 {
+				runner.LogError(fmt.Errorf("Trailing data, possible corruption: %d bytes left in stream at EOF: %s", len(leftovers), s3Key))
+			}
 			if err != nil && err != io.EOF {
 				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
 				continue
