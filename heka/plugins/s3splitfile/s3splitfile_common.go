@@ -7,23 +7,27 @@
 package s3splitfile
 
 import (
-	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	"regexp"
-	"io/ioutil"
 	"encoding/json"
+	"fmt"
+	"github.com/crowdmob/goamz/s3"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	"io"
+	"io/ioutil"
+	"math"
+	"regexp"
 )
 
 type PublishAttempt struct {
-	Name string
+	Name              string
 	AttemptsRemaining uint32
 }
 
 // Encapsulates the directory-splitting schema
 type Schema struct {
-	Fields []string
+	Fields       []string
 	FieldIndices map[string]int
-	Dims map[string]DimensionChecker
+	Dims         map[string]DimensionChecker
 }
 
 // Determine whether a given value is acceptable for a given field, and if not
@@ -76,13 +80,14 @@ func (s *Schema) GetDimensions(pack *PipelinePack) (dimensions []string) {
 // Interface for calculating whether a particular value is acceptable
 // as-is, or if it should be replaced with a default value.
 type DimensionChecker interface {
-	IsAllowed(v string) (bool)
+	IsAllowed(v string) bool
 }
 
 // Accept any value at all.
 type AnyDimensionChecker struct {
 }
-func (adc AnyDimensionChecker) IsAllowed(v string) (bool) {
+
+func (adc AnyDimensionChecker) IsAllowed(v string) bool {
 	return true
 }
 
@@ -92,7 +97,8 @@ type ListDimensionChecker struct {
 	// Use a map instead of a list internally for fast lookups.
 	allowed map[string]struct{}
 }
-func (ldc ListDimensionChecker) IsAllowed(v string) (bool) {
+
+func (ldc ListDimensionChecker) IsAllowed(v string) bool {
 	_, ok := ldc.allowed[v]
 	return ok
 }
@@ -100,7 +106,7 @@ func (ldc ListDimensionChecker) IsAllowed(v string) (bool) {
 // Factory for creating a ListDimensionChecker using a list instead of a map
 func NewListDimensionChecker(allowed []string) *ListDimensionChecker {
 	dimMap := map[string]struct{}{}
-	for _, a := range(allowed) {
+	for _, a := range allowed {
 		dimMap[a] = struct{}{}
 	}
 	return &ListDimensionChecker{dimMap}
@@ -113,7 +119,8 @@ type RangeDimensionChecker struct {
 	min string
 	max string
 }
-func (rdc RangeDimensionChecker) IsAllowed(v string) (bool) {
+
+func (rdc RangeDimensionChecker) IsAllowed(v string) bool {
 	// Min and max are optional, so treat them separately.
 	// TODO: ensure that Go does string comparisons in the fashion expected
 	//       by this code.
@@ -134,7 +141,7 @@ var sanitizePattern = regexp.MustCompile("[^a-zA-Z0-9_/.]")
 // Given a string, return a sanitized version that can be used safely as part
 // of a filename (for example).
 func SanitizeDimension(dim string) (cleaned string) {
-    return sanitizePattern.ReplaceAllString(dim, "_")
+	return sanitizePattern.ReplaceAllString(dim, "_")
 }
 
 // Load a schema from the given file name.  The file is expected to contain
@@ -165,13 +172,13 @@ func SanitizeDimension(dim string) (cleaned string) {
 func LoadSchema(schemaFileName string) (schema Schema, err error) {
 	// Placeholder for parsing JSON
 	type JSchemaDimension struct {
-		Field_name string
+		Field_name     string
 		Allowed_values interface{}
 	}
 
 	// Placeholder for parsing JSON
 	type JSchema struct {
-		Version int32
+		Version    int32
 		Dimensions []JSchemaDimension
 	}
 
@@ -214,16 +221,224 @@ func LoadSchema(schemaFileName string) (schema Schema, err error) {
 			schema.Dims[d.Field_name] = NewListDimensionChecker(allowed)
 		case map[string]interface{}:
 			vrange := d.Allowed_values.(map[string]interface{})
-			minStr, ok := vrange["min"].(string)
-			if !ok {
-				return schema, fmt.Errorf("Value of 'min' for field '%s' must be a string", d.Field_name)
+
+			vMin, okMin := vrange["min"]
+			vMax, okMax := vrange["max"]
+
+			if !okMin && !okMax {
+				return schema, fmt.Errorf("Range for field '%s' must have at least one of 'min' or 'max'", d.Field_name)
 			}
-			maxStr, ok := vrange["max"].(string)
-			if !ok {
-				return schema, fmt.Errorf("Value of 'max' for field '%s' must be a string", d.Field_name)
+
+			ok := false
+			minStr := ""
+			if okMin {
+				minStr, ok = vMin.(string)
+				if !ok {
+					return schema, fmt.Errorf("Value of 'min' for field '%s' must be a string", d.Field_name)
+				}
+			}
+
+			maxStr := ""
+			if okMax {
+				maxStr, ok = vMax.(string)
+				if !ok {
+					return schema, fmt.Errorf("Value of 'max' for field '%s' must be a string (it was %+v)", d.Field_name, vMax)
+				}
 			}
 			schema.Dims[d.Field_name] = RangeDimensionChecker{minStr, maxStr}
 		}
 	}
+	return
+}
+
+var suffixes = [...]string{"", "K", "M", "G", "T", "P"}
+
+// Return a nice, human-readable representation of the given number of bytes.
+func PrettySize(bytes int64) string {
+	fBytes := float64(bytes)
+	sIdx := 0
+	for i, _ := range suffixes {
+		sIdx = i
+		if fBytes < math.Pow(1024.0, float64(sIdx+1)) {
+			break
+		}
+	}
+
+	pretty := fBytes / math.Pow(1024.0, float64(sIdx))
+	return fmt.Sprintf("%.2f%sB", pretty, suffixes[sIdx])
+}
+
+// Maximum number of S3 List results to fetch at once.
+const listBatchSize = 1000
+
+// Maximum number of S3 Record results to queue at once.
+const fileBatchSize = 300
+
+// Encapsulates the result of a List operation, allowing detection of errors
+// along the way.
+type S3ListResult struct {
+	Key s3.Key
+	Err error
+}
+
+// List the contents of the given bucket, sending matching filenames to a
+// channel which can be read by the caller.
+func S3Iterator(bucket *s3.Bucket, prefix string, schema Schema) <-chan S3ListResult {
+	keyChannel := make(chan S3ListResult, listBatchSize)
+	go FilterS3(bucket, prefix, 0, schema, keyChannel)
+	return keyChannel
+}
+
+// Recursively descend into an S3 directory tree, filtering based on the given
+// schema, and sending results on the given channel. The `level` parameter
+// indicates how far down the tree we are, and is used to determine which schema
+// field we use for filtering.
+func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc chan S3ListResult) {
+	// Update the marker as we encounter keys / prefixes. If a response is
+	// truncated, the next `List` request will start from the next item after
+	// the marker.
+	marker := ""
+
+	// Keep listing if the response is incomplete (there are more than
+	// `listBatchSize` entries or prefixes)
+	done := false
+	for !done {
+		response, err := bucket.List(prefix, "/", marker, listBatchSize)
+		if err != nil {
+			fmt.Printf("Error listing: %s\n", err)
+			// TODO: retry?
+			kc <- S3ListResult{s3.Key{}, err}
+		}
+
+		if !response.IsTruncated {
+			// Response is not truncated, so we're done.
+			done = true
+		}
+
+		if level >= len(schema.Fields) {
+			// We are past all the dimensions - encountered items are now
+			// S3 key names. We ignore any further prefixes and assume that the
+			// specified schema is correct/complete.
+			for _, k := range response.Contents {
+				marker = k.Key
+				kc <- S3ListResult{k, nil}
+			}
+		} else {
+			// We are still looking at prefixes. Recursively list each one that
+			// matches the specified schema's allowed values.
+			for _, pf := range response.CommonPrefixes {
+				// Get just the last piece of the prefix to check it as a
+				// dimension. If we have '/foo/bar/baz', we just want 'baz'.
+				stripped := pf[len(prefix) : len(pf)-1]
+				allowed := schema.Dims[schema.Fields[level]].IsAllowed(stripped)
+				marker = pf
+				if allowed {
+					FilterS3(bucket, pf, level+1, schema, kc)
+				}
+			}
+		}
+	}
+
+	if level == 0 {
+		// We traverse the tree in depth-first order, so once we've reached the
+		// end at the root (level 0), we know we're done.
+		// Note that things could be made faster by parallelizing the recursive
+		// listing, but we would need some other mechanism to know when to close
+		// the channel?
+		close(kc)
+	}
+	return
+}
+
+// Encapsulates a single record within an S3 file, allowing detection of errors
+// along the way.
+type S3Record struct {
+	BytesRead int
+	Record    []byte
+	Err       error
+}
+
+// List the contents of the given bucket, sending matching filenames to a
+// channel which can be read by the caller.
+func S3FileIterator(bucket *s3.Bucket, s3Key string) <-chan S3Record {
+	recordChannel := make(chan S3Record, fileBatchSize)
+	go ReadS3File(bucket, s3Key, recordChannel)
+	return recordChannel
+}
+
+func makeS3Record(bytesRead int, data []byte, err error) (result S3Record) {
+	r := S3Record{}
+	r.BytesRead = bytesRead
+	r.Err = err
+	r.Record = make([]byte, len(data))
+	copy(r.Record, data)
+	return r
+}
+
+// TODO: duplicated from heka-cat
+func makeSplitterRunner() (SplitterRunner, error) {
+	splitter := &HekaFramingSplitter{}
+	config := splitter.ConfigStruct()
+	err := splitter.Init(config)
+	if err != nil {
+		return nil, fmt.Errorf("Error initializing HekaFramingSplitter: %s", err)
+	}
+	srConfig := CommonSplitterConfig{}
+	sRunner := NewSplitterRunner("HekaFramingSplitter", splitter, srConfig)
+	return sRunner, nil
+}
+
+func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
+	defer close(recordChan)
+	sRunner, err := makeSplitterRunner()
+	if err != nil {
+		recordChan <- S3Record{0, []byte{}, err}
+		return
+	}
+	reader, err := bucket.GetReader(s3Key)
+	if err != nil {
+		recordChan <- S3Record{0, []byte{}, err}
+		return
+	}
+	defer reader.Close()
+
+	var size int64
+
+	done := false
+	for !done {
+		n, record, err := sRunner.GetRecordFromStream(reader)
+		size += int64(n)
+
+		if err != nil {
+			if err == io.EOF {
+				lenRemaining := len(sRunner.GetRemainingData())
+				if lenRemaining > 0 {
+					// There was a partial message at the end of the stream.
+					// Discard the leftover bytes.
+					fmt.Printf("At EOF, len(remaining data) was %d\n", lenRemaining)
+				}
+
+				done = true
+			} else if err == io.ErrShortBuffer {
+				recordChan <- makeS3Record(n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				continue
+			} else {
+				// Some other kind of error occurred.
+				// TODO: retry? Keep a key->offset counter and start over?
+				recordChan <- makeS3Record(n, record, err)
+				done = true
+				continue
+			}
+
+		}
+		if len(record) == 0 && !done {
+			// This may happen if we did not read enough data to make a full
+			// record.
+			continue
+		}
+
+		recordChan <- makeS3Record(n, record, err)
+	}
+
 	return
 }

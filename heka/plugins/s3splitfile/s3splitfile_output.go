@@ -9,6 +9,8 @@ package s3splitfile
 import (
 	"errors"
 	"fmt"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/s3"
 	. "github.com/mozilla-services/heka/pipeline"
 	"os"
 	"path/filepath"
@@ -16,20 +18,18 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
 )
 
 // Output plugin that writes message contents to a file on the file system.
 type S3SplitFileOutput struct {
 	*S3SplitFileOutputConfig
-	perm       os.FileMode
-	folderPerm os.FileMode
-	timerChan  <-chan time.Time
-	dimFiles   map[string]*SplitFileInfo
-	schema     Schema
-	bucket     *s3.Bucket
-	publishChan chan PublishAttempt
+	perm         os.FileMode
+	folderPerm   os.FileMode
+	timerChan    <-chan time.Time
+	dimFiles     map[string]*SplitFileInfo
+	schema       Schema
+	bucket       *s3.Bucket
+	publishChan  chan PublishAttempt
 	shuttingDown bool
 }
 
@@ -68,13 +68,13 @@ type S3SplitFileOutputConfig struct {
 	// file and begin writing to another one (default 60 * 60 * 1000, i.e. 1hr).
 	MaxFileAge uint32 `toml:"max_file_age"`
 
-	AWSKey string `toml:"aws_key"`
-	AWSSecretKey string `toml:"aws_secret_key"`
-	AWSRegion string `toml:"aws_region"`
-	S3Bucket string `toml:"s3_bucket"`
+	AWSKey         string `toml:"aws_key"`
+	AWSSecretKey   string `toml:"aws_secret_key"`
+	AWSRegion      string `toml:"aws_region"`
+	S3Bucket       string `toml:"s3_bucket"`
 	S3BucketPrefix string `toml:"s3_bucket_prefix"`
-	S3Retries uint32 `toml:"s3_retries"`
-	S3WorkerCount uint32 `toml:"s3_worker_count"`
+	S3Retries      uint32 `toml:"s3_retries"`
+	S3WorkerCount  uint32 `toml:"s3_worker_count"`
 }
 
 // Info for a single split file
@@ -271,7 +271,7 @@ func (o *S3SplitFileOutput) getDimPath(pack *PipelinePack) (dimPath string) {
 	dims := o.schema.GetDimensions(pack)
 
 	cleanDims := make([]string, len(dims))
-	for i, d := range(dims) {
+	for i, d := range dims {
 		cleanDims[i] = SanitizeDimension(d)
 	}
 	return strings.Join(cleanDims, "/")
@@ -292,7 +292,7 @@ func (o *S3SplitFileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	var (
 		wg sync.WaitGroup
-		i uint32
+		i  uint32
 	)
 	wg.Add(1)
 	go o.receiver(or, &wg)
