@@ -33,8 +33,8 @@ func main() {
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagStdin := flag.Bool("stdin", false, "read list of s3 key names from stdin")
 	flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
-	flagAWSKey := flag.String("aws-key", "DUMMY", "AWS Key")
-	flagAWSSecretKey := flag.String("aws-secret-key", "DUMMY", "AWS Secret Key")
+	flagAWSKey := flag.String("aws-key", "", "AWS Key")
+	flagAWSSecretKey := flag.String("aws-secret-key", "", "AWS Secret Key")
 	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
 	flag.Parse()
 
@@ -61,11 +61,15 @@ func main() {
 		defer out.Close()
 	}
 
-	auth := aws.Auth{AccessKey: *flagAWSKey, SecretKey: *flagAWSSecretKey}
+	auth, err := aws.GetAuth(*flagAWSKey, *flagAWSSecretKey, "", time.Now())
+	if err != nil {
+		fmt.Printf("Authentication error: %s\n", err)
+		os.Exit(4)
+	}
 	region, ok := aws.Regions[*flagAWSRegion]
 	if !ok {
 		fmt.Printf("Parameter 'aws-region' must be a valid AWS Region\n")
-		os.Exit(4)
+		os.Exit(5)
 	}
 	s := s3.New(auth, region)
 	bucket := s.Bucket(*flagBucket)

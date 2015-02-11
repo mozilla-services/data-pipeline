@@ -65,7 +65,10 @@ func (input *S3SplitFileInput) Init(config interface{}) (err error) {
 	}
 
 	if conf.S3Bucket != "" {
-		auth := aws.Auth{AccessKey: conf.AWSKey, SecretKey: conf.AWSSecretKey}
+		auth, err := aws.GetAuth(conf.AWSKey, conf.AWSSecretKey, "", time.Now())
+		if err != nil {
+			return fmt.Errorf("Authentication error: %s\n", err)
+		}
 		region, ok := aws.Regions[conf.AWSRegion]
 		if !ok {
 			return fmt.Errorf("Parameter 'aws_region' must be a valid AWS Region")
