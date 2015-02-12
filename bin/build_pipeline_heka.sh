@@ -12,6 +12,12 @@ if [ -z "$BUILD_BRANCH" ]; then
 fi
 
 BASE=$(pwd)
+# To override the location of the Lua headers, use something like
+#   export LUA_INCLUDE_PATH=/usr/include/lua5.1
+if [ -z "$LUA_INCLUDE_PATH" ]; then
+    # Default to the headers included with heka.
+    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include
+fi
 
 if [ ! -d build ]; then
     mkdir build
@@ -51,6 +57,42 @@ if [ ! -f "patches_applied" ]; then
 fi
 
 source build.sh
+
+echo 'Installing lua-geoip libs'
+cd $BASE/build
+if [ ! -d lua-geoip ]; then
+    # Fetch the lua geoip lib
+    git clone https://github.com/agladysh/lua-geoip.git
+fi
+
+cd lua-geoip
+
+# Use a known revision (current "master" as of 2015-02-12)
+git checkout d9b36d7c70b7250a5c4e589d13c8b911df3c64fb
+
+# from 'make.sh'
+gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
+
+SO_FLAGS="-shared -fPIC"
+UNAME=$(uname)
+case $UNAME in
+Darwin)
+    echo "Looks like OSX"
+    SO_FLAGS="-bundle -undefined dynamic_lookup"
+    ;;
+*)
+    echo "Looks like Linux"
+    # Default flags apply.
+    ;;
+esac
+
+HEKA_MODS=$BASE/build/heka/build/heka/modules
+mkdir -p HEKA_MODS/geoip
+gcc $SO_FLAGS database.o city.o -o $HEKA_MODS/geoip/city.so
+gcc $SO_FLAGS database.o country.o -o $HEKA_MODS/geoip/country.so
+gcc $SO_FLAGS database.o lua-geoip.o -o $HEKA_MODS/geoip.so
+
+cd $BASE/build/heka/build
 
 # Build RPM
 make package
