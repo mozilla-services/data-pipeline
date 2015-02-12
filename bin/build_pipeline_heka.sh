@@ -101,8 +101,7 @@ cd lua-gzip
 # Use a known revision (current "master" as of 2015-02-12)
 git checkout fe9853ea561d0957a18eb3c4970ca249c0325d84
 
-gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c *.c
-gcc $SO_FLAGS lua-gzip.o -lz -o $HEKA_MODS/gzip.so
+gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
 
 cd $BASE/build/heka/build
 
