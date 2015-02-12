@@ -8,9 +8,9 @@ require "string"
 require "table"
 require 'geoip.city'
 
-function split(str, pat)
+local function split(str, pat)
     local t = {}
-    if str == nil then
+    if not str then
         return t
     end
     local fpat = "(.-)" .. pat
@@ -30,7 +30,7 @@ function split(str, pat)
     return t
 end
 
-function split_path(str)
+local function split_path(str)
     return split(str,'[\\/]+')
 end
 
@@ -40,12 +40,12 @@ local UNK_GEO = "??"
 function get_geo_country()
     local country
     local ipaddr = read_message("Fields[X-Forwarded-For]")
-    if ipaddr ~= nil then
+    if ipaddr then
         country = city_db:query_by_addr(ipaddr, "country_code")
     end
-    if country ~= nil then return country end
+    if country then return country end
     ipaddr = read_message("Fields[RemoteAddr]")
-    if ipaddr ~= nil then
+    if ipaddr then
         country = city_db:query_by_addr(ipaddr, "country_code")
     end
     return country or UNK_GEO
@@ -68,24 +68,25 @@ local ns_config = {
 }
 
 function process_message()
-    -- Carry forward payload some incoming fields
+    -- Carry forward payload some incoming fields.
     msg.Payload = read_message("Payload")
     msg.Timestamp = read_message("Timestamp")
     msg.EnvVersion = read_message("EnvVersion")
 
-    -- Hostname is the host name of the server that received the message
+    -- Hostname is the host name of the server that received the message.
     msg.Hostname = read_message("Hostname")
 
     -- Host is the name of the HTTP endpoint the client used (such as
-    -- "incoming.telemetry.mozilla.org")
+    -- "incoming.telemetry.mozilla.org").
     msg.Fields.Host = read_message("Fields[Host]")
 
-    -- Path should be of the form ^/submit/namespace/id[/extra/path/components]$
+    -- Path should be of the form:
+    --     ^/submit/namespace/id[/extra/path/components]$
     local path = read_message("Fields[Path]")
     local components = split_path(path)
 
     -- Skip this message: Not enough path components.
-    if components == nil or table.getn(components) < 3 then
+    if #components < 3 then
         return -1, "Not enough path components"
     end
 
@@ -99,32 +100,30 @@ function process_message()
     -- Get namespace configuration, look up params, override Logger if needed.
     local cfg = ns_config[namespace]
 
-    -- Skip this message: Invalid namespace
-    if cfg == nil then
+    -- Skip this message: Invalid namespace.
+    if not cfg then
         return -1, string.format("Invalid namespace: '%s' in %s", namespace, path)
     end
 
     msg.Logger = namespace
     local dataLength = string.len(msg.Payload)
-    -- Skip this message: Payload too large
+    -- Skip this message: Payload too large.
     if dataLength > cfg.max_data_length then
         return -1, string.format("Payload too large: %d > %d", dataLength, cfg.max_data_length)
     end
 
     local pathLength = string.len(path)
-    -- Skip this message: Path too long
+    -- Skip this message: Path too long.
     if pathLength > cfg.max_path_length then
         return -1, string.format("Path too long: %d > %d", pathLength, cfg.max_path_length)
     end
-    -- Override Logger if specified
-    if cfg["logger"] ~= nil then msg.Logger = cfg["logger"] end
+    -- Override Logger if specified.
+    if cfg["logger"] then msg.Logger = cfg["logger"] end
 
-    -- TODO: Doesn't seem to let you override UUID. It's probably better to
-    --       use a "special" field for this anyways.
-    --msg.Uuid = table.remove(components, 1)
+    -- This DocumentID is what we should use to de-duplicate submissions.
     msg.Fields.DocumentID = table.remove(components, 1)
 
-    local num_components = table.getn(components)
+    local num_components = #components
     if num_components > 0 then
         local dims = cfg["dimensions"]
         if dims ~= nil and table.getn(dims) >= num_components then
@@ -137,11 +136,10 @@ function process_message()
         end
     end
 
-    -- Insert geo info
+    -- Insert geo info.
     msg.Fields.geoCountry = get_geo_country()
 
-    -- Send new message along
+    -- Send new message along.
     inject_message(msg)
-
     return 0
 end
