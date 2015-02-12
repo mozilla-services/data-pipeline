@@ -64,6 +64,10 @@ if [ ! -d lua-geoip ]; then
     # Fetch the lua geoip lib
     git clone https://github.com/agladysh/lua-geoip.git
     cd lua-geoip
+
+    # Use a known revision (current "master" as of 2015-02-12)
+    git checkout d9b36d7c70b7250a5c4e589d13c8b911df3c64fb
+
     # from 'make.sh'
     gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
 
