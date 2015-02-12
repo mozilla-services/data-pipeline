@@ -9,14 +9,15 @@ require "string"
 require "table"
 require 'geoip.city'
 
-local function split(s, sep_char)
+local sep = lpeg.P("/")
+local elem = lpeg.C((1 - sep)^1)
+local path_grammar = lpeg.Ct(elem^0 * (sep^0 * elem)^0)
+
+local function split_path(s)
     if not s then
         return {}
     end
-    sep = lpeg.P(sep_char)
-    local elem = lpeg.C((1 - sep)^1)
-    local p = lpeg.Ct(elem^0 * (sep^0 * elem)^0)
-    return lpeg.match(p, s)
+    return lpeg.match(path_grammar, s)
 end
 
 local city_db = assert(geoip.city.open(read_config("geoip_city_db")))
@@ -68,7 +69,7 @@ function process_message()
     -- Path should be of the form:
     --     ^/submit/namespace/id[/extra/path/components]$
     local path = read_message("Fields[Path]")
-    local components = split_path(path, "/")
+    local components = split_path(path)
 
     -- Skip this message: Not enough path components.
     if not components or #components < 3 then
