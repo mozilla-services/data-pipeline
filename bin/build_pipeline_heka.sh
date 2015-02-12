@@ -64,7 +64,6 @@ if [ ! -d lua-geoip ]; then
     # Fetch the lua geoip lib
     git clone https://github.com/agladysh/lua-geoip.git
 fi
-
 cd lua-geoip
 
 # Use a known revision (current "master" as of 2015-02-12)
@@ -87,10 +86,22 @@ Darwin)
 esac
 
 HEKA_MODS=$BASE/build/heka/build/heka/modules
-mkdir -p HEKA_MODS/geoip
+mkdir -p $HEKA_MODS/geoip
 gcc $SO_FLAGS database.o city.o -o $HEKA_MODS/geoip/city.so
 gcc $SO_FLAGS database.o country.o -o $HEKA_MODS/geoip/country.so
 gcc $SO_FLAGS database.o lua-geoip.o -o $HEKA_MODS/geoip.so
+
+echo 'Installing lua-gzip lib'
+cd $BASE/build
+if [ ! -d lua-gzip ]; then
+    git clone https://github.com/vincasmiliunas/lua-gzip.git
+fi
+cd lua-gzip
+
+# Use a known revision (current "master" as of 2015-02-12)
+git checkout fe9853ea561d0957a18eb3c4970ca249c0325d84
+
+gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
 
 cd $BASE/build/heka/build
 
