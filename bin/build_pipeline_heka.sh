@@ -63,38 +63,36 @@ cd $BASE/build
 if [ ! -d lua-geoip ]; then
     # Fetch the lua geoip lib
     git clone https://github.com/agladysh/lua-geoip.git
-    cd lua-geoip
-
-    # Use a known revision (current "master" as of 2015-02-12)
-    git checkout d9b36d7c70b7250a5c4e589d13c8b911df3c64fb
-
-    # from 'make.sh'
-    gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
-
-    SO_FLAGS="-shared -fPIC"
-    UNAME=$(uname)
-    case $UNAME in
-    Darwin)
-        echo "Looks like OSX"
-        SO_FLAGS="-bundle -undefined dynamic_lookup"
-        ;;
-    *)
-        echo "Looks like Linux"
-        # Default flags apply.
-        ;;
-    esac
-
-    gcc $SO_FLAGS database.o city.o -o city.so
-    gcc $SO_FLAGS database.o country.o -o country.so
-    gcc $SO_FLAGS database.o lua-geoip.o -o geoip.so
-    cd -
 fi
 
-cd $BASE/build/heka/build
-cp $BASE/build/lua-geoip/geoip.so heka/modules/
-mkdir -p heka/modules/geoip
-cp $BASE/build/lua-geoip/c*.so heka/modules/geoip
+cd lua-geoip
 
+# Use a known revision (current "master" as of 2015-02-12)
+git checkout d9b36d7c70b7250a5c4e589d13c8b911df3c64fb
+
+# from 'make.sh'
+gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
+
+SO_FLAGS="-shared -fPIC"
+UNAME=$(uname)
+case $UNAME in
+Darwin)
+    echo "Looks like OSX"
+    SO_FLAGS="-bundle -undefined dynamic_lookup"
+    ;;
+*)
+    echo "Looks like Linux"
+    # Default flags apply.
+    ;;
+esac
+
+HEKA_MODS=$BASE/build/heka/build/heka/modules
+mkdir -p HEKA_MODS/geoip
+gcc $SO_FLAGS database.o city.o -o $HEKA_MODS/geoip/city.so
+gcc $SO_FLAGS database.o country.o -o $HEKA_MODS/geoip/country.so
+gcc $SO_FLAGS database.o lua-geoip.o -o $HEKA_MODS/geoip.so
+
+cd $BASE/build/heka/build
 
 # Build RPM
 make package
