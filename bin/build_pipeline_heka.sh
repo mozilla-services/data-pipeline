@@ -67,21 +67,22 @@ if [ ! -d lua-geoip ]; then
     # from 'make.sh'
     gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
 
+    SO_FLAGS="-shared -fPIC"
     UNAME=$(uname)
     case $UNAME in
     Darwin)
         echo "Looks like OSX"
-        gcc -bundle -undefined dynamic_lookup database.o city.o -o city.so
-        gcc -bundle -undefined dynamic_lookup database.o country.o -o country.so
-        gcc -bundle -undefined dynamic_lookup database.o lua-geoip.o -o geoip.so
+        SO_FLAGS="-bundle -undefined dynamic_lookup"
         ;;
     *)
         echo "Looks like Linux"
-        gcc -shared -fPIC database.o city.o -o city.so
-        gcc -shared -fPIC database.o country.o -o country.so
-        gcc -shared -fPIC database.o lua-geoip.o -o geoip.so
+        # Default flags apply.
         ;;
     esac
+
+    gcc $SO_FLAGS database.o city.o -o city.so
+    gcc $SO_FLAGS database.o country.o -o country.so
+    gcc $SO_FLAGS database.o lua-geoip.o -o geoip.so
     cd -
 fi
 
