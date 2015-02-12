@@ -63,7 +63,6 @@ local ns_config = {
     telemetry = {
         max_data_length = 204800,
         max_path_length = 10240,
-        logger = "telemetry_override",
         dimensions = {"reason", "appName", "appVersion", "appUpdateChannel", "appBuildID"},
     },
 }
