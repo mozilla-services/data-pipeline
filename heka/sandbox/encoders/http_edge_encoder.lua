@@ -123,7 +123,7 @@ function process_message()
     local num_components = #components
     if num_components > 0 then
         local dims = cfg["dimensions"]
-        if dims ~= nil and table.getn(dims) >= num_components then
+        if dims ~= nil and #dims >= num_components then
             for i=1,num_components do
                 msg.Fields[dims[i]] = components[i]
             end
