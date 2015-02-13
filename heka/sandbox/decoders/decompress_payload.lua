@@ -9,7 +9,7 @@ function process_message()
     local payload = read_message("Payload")
     local b1, b2 = string.byte(payload, 1, 2)
 
-    if b1 == 0x1f and b2 == 0x8b then
+    if b1 == 0x1f and b2 == 0x8b then  -- test for gzip magic header bytes
         local ok, result = pcall(gzip.decompress, payload)
         if not ok then
             return -1, result

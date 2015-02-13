@@ -77,14 +77,14 @@ local con, err = env:connect(db_name, db_user, db_password, db_host, db_port)
 assert(con, err)
 assert (con:execute[[
         CREATE TABLE IF NOT EXISTS logs(
-        Timestamp bigint,
-        Severity integer,
-        Pid integer,
-        Hostname varchar(126),
-        Type varchar(126),
-        Logger varchar(126),
-        EnvVersion varchar(126),
-        Payload varchar(126)
+        timestamp BIGINT,
+        severity INTEGER,
+        pid INTEGER,
+        hostname VARCHAR(126),
+        type VARCHAR(126),
+        logger VARCHAR(126),
+        envversion VARCHAR(126),
+        payload VARCHAR(126)
         )
         ]])
 
