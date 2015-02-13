@@ -58,7 +58,7 @@ local msg = {
     Payload     = nil,
     EnvVersion  = nil,
     Hostname    = nil,
-    Fields      = {}
+    Fields      = nil
 }
 
 function process_message()
