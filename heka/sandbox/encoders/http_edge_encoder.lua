@@ -4,34 +4,28 @@
 
 -- See https://wiki.mozilla.org/CloudServices/DataPipeline/HTTPEdgeServerSpecification
 
+require "cjson"
+require "lpeg"
 require "string"
 require "table"
 require 'geoip.city'
 
-function split(str, pat)
-    local t = {}
-    if str == nil then
-        return t
-    end
-    local fpat = "(.-)" .. pat
-    local last_end = 1
-    local s, e, cap = str:find(fpat, 1)
-    while s do
-        if s ~= 1 or cap ~= "" then
-            table.insert(t,cap)
-        end
-        last_end = e+1
-        s, e, cap = str:find(fpat, last_end)
-    end
-    if last_end <= #str then
-        cap = str:sub(last_end)
-        table.insert(t, cap)
-    end
-    return t
-end
+-- Split a path into components. Multiple consecutive separators do not
+-- result in empty path components.
+-- Examples:
+--   /foo/bar      ->   {"foo", "bar"}
+--   ///foo//bar/  ->   {"foo", "bar"}
+--   foo/bar/      ->   {"foo", "bar"}
+--   /             ->   {}
+local sep = lpeg.P("/")
+local elem = lpeg.C((1 - sep)^1)
+local path_grammar = lpeg.Ct(elem^0 * (sep^0 * elem)^0)
 
-function split_path(str)
-    return split(str,'[\\/]+')
+local function split_path(s)
+    if not s then
+        return {}
+    end
+    return lpeg.match(path_grammar, s)
 end
 
 local city_db = assert(geoip.city.open(read_config("geoip_city_db")))
@@ -40,52 +34,56 @@ local UNK_GEO = "??"
 function get_geo_country()
     local country
     local ipaddr = read_message("Fields[X-Forwarded-For]")
-    if ipaddr ~= nil then
+    if ipaddr then
         country = city_db:query_by_addr(ipaddr, "country_code")
     end
-    if country ~= nil then return country end
+    if country then return country end
     ipaddr = read_message("Fields[RemoteAddr]")
-    if ipaddr ~= nil then
+    if ipaddr then
         country = city_db:query_by_addr(ipaddr, "country_code")
     end
     return country or UNK_GEO
 end
 
+-- Load the namespace configuration externally.
+-- Note that if the config contains invalid JSON, we will discard any messages
+-- we receive with the following error:
+--    FATAL: process_message() function was not found
+local ok, ns_config = pcall(cjson.decode, read_config("namespace_config"))
+if not ok then return -1, ns_config end
+
 local msg = {
     Timestamp   = nil,
     Type        = "http_edge_incoming",
     Payload     = nil,
-    Fields      = {}
-}
-
--- TODO: Load the namespace configuration from an external source.
-local ns_config = {
-    telemetry = {
-        max_data_length = 204800,
-        max_path_length = 10240,
-        dimensions = {"reason", "appName", "appVersion", "appUpdateChannel", "appBuildID"},
-    },
+    EnvVersion  = nil,
+    Hostname    = nil,
+    Fields      = nil
 }
 
 function process_message()
-    -- Carry forward payload some incoming fields
+    -- Reset Fields, since different namespaces may use different fields.
+    msg.Fields = {}
+
+    -- Carry forward payload some incoming fields.
     msg.Payload = read_message("Payload")
     msg.Timestamp = read_message("Timestamp")
     msg.EnvVersion = read_message("EnvVersion")
 
-    -- Hostname is the host name of the server that received the message
+    -- Hostname is the host name of the server that received the message.
     msg.Hostname = read_message("Hostname")
 
     -- Host is the name of the HTTP endpoint the client used (such as
-    -- "incoming.telemetry.mozilla.org")
+    -- "incoming.telemetry.mozilla.org").
     msg.Fields.Host = read_message("Fields[Host]")
 
-    -- Path should be of the form ^/submit/namespace/id[/extra/path/components]$
+    -- Path should be of the form:
+    --     ^/submit/namespace/id[/extra/path/components]$
     local path = read_message("Fields[Path]")
     local components = split_path(path)
 
     -- Skip this message: Not enough path components.
-    if components == nil or table.getn(components) < 3 then
+    if not components or #components < 3 then
         return -1, "Not enough path components"
     end
 
@@ -99,35 +97,33 @@ function process_message()
     -- Get namespace configuration, look up params, override Logger if needed.
     local cfg = ns_config[namespace]
 
-    -- Skip this message: Invalid namespace
-    if cfg == nil then
+    -- Skip this message: Invalid namespace.
+    if not cfg then
         return -1, string.format("Invalid namespace: '%s' in %s", namespace, path)
     end
 
     msg.Logger = namespace
     local dataLength = string.len(msg.Payload)
-    -- Skip this message: Payload too large
+    -- Skip this message: Payload too large.
     if dataLength > cfg.max_data_length then
         return -1, string.format("Payload too large: %d > %d", dataLength, cfg.max_data_length)
     end
 
     local pathLength = string.len(path)
-    -- Skip this message: Path too long
+    -- Skip this message: Path too long.
     if pathLength > cfg.max_path_length then
         return -1, string.format("Path too long: %d > %d", pathLength, cfg.max_path_length)
     end
-    -- Override Logger if specified
-    if cfg["logger"] ~= nil then msg.Logger = cfg["logger"] end
+    -- Override Logger if specified.
+    if cfg["logger"] then msg.Logger = cfg["logger"] end
 
-    -- TODO: Doesn't seem to let you override UUID. It's probably better to
-    --       use a "special" field for this anyways.
-    --msg.Uuid = table.remove(components, 1)
+    -- This DocumentID is what we should use to de-duplicate submissions.
     msg.Fields.DocumentID = table.remove(components, 1)
 
-    local num_components = table.getn(components)
+    local num_components = #components
     if num_components > 0 then
         local dims = cfg["dimensions"]
-        if dims ~= nil and table.getn(dims) >= num_components then
+        if dims ~= nil and #dims >= num_components then
             for i=1,num_components do
                 msg.Fields[dims[i]] = components[i]
             end
@@ -137,11 +133,10 @@ function process_message()
         end
     end
 
-    -- Insert geo info
+    -- Insert geo info.
     msg.Fields.geoCountry = get_geo_country()
 
-    -- Send new message along
+    -- Send new message along.
     inject_message(msg)
-
     return 0
 end
