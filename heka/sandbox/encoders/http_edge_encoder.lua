@@ -4,6 +4,7 @@
 
 -- See https://wiki.mozilla.org/CloudServices/DataPipeline/HTTPEdgeServerSpecification
 
+require "cjson"
 require "lpeg"
 require "string"
 require "table"
@@ -44,16 +45,17 @@ local msg = {
     Fields      = {}
 }
 
--- TODO: Load the namespace configuration from an external source.
-local ns_config = {
-    telemetry = {
-        max_data_length = 204800,
-        max_path_length = 10240,
-        dimensions = {"reason", "appName", "appVersion", "appUpdateChannel", "appBuildID"},
-    },
-}
+-- Load the namespace configuration externally.
+-- Note that if the config contains invalid JSON, we will discard any messages
+-- we receive with the following error:
+--    FATAL: process_message() function was not found
+local ok, ns_config = pcall(cjson.decode, read_config("namespace_config"))
+if not ok then return -1, ns_config end
 
 function process_message()
+    -- Reset Fields, since different namespaces may use different fields.
+    msg.Fields = {}
+
     -- Carry forward payload some incoming fields.
     msg.Payload = read_message("Payload")
     msg.Timestamp = read_message("Timestamp")
