@@ -19,7 +19,7 @@ index 868bf50..602deac 100644
  
  option(INCLUDE_SANDBOX "Include Lua sandbox" on)
  option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
-@@ -213,6 +214,13 @@ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+@@ -217,6 +218,13 @@ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
  
  install(PROGRAMS "${HEKA_CAT_EXE}" DESTINATION bin)
  

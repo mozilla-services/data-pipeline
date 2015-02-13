@@ -2,13 +2,6 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-#
-# The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2015
-# the Initial Developer. All Rights Reserved.
-#
-# Contributor(s):
-#   Mark Reid (mark@mozilla.com)
 # ***** END LICENSE BLOCK *****/
 
 /*
@@ -21,18 +14,18 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/s3"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
 )
 
 type Progress struct {
-	Count int64
-	Bytes int64
+	Count  int64
+	Bytes  int64
 	Errors int32
 }
 
@@ -120,17 +113,16 @@ func makeupload(base string, pattern *regexp.Regexp, bucket *s3.Bucket, bucketPr
 	}
 }
 
-
 func main() {
-    flagBase := flag.String("base-dir", "/", "Base directory in which to look for files to export")
-    flagPattern := flag.String("pattern", ".*", "Filenames must match this regular expression to be uploaded")
-    flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
-    flagBucketPrefix := flag.String("bucket-prefix", "", "S3 Bucket path prefix")
-    flagAWSKey := flag.String("aws-key", "DUMMY", "AWS Key")
-    flagAWSSecretKey := flag.String("aws-secret-key", "DUMMY", "AWS Secret Key")
-    flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
-    flagLoop := flag.Bool("loop", false, "Run in a loop and keep watching for more files to export")
-    flagDryRun := flag.Bool("dry-run", false, "Don't actually do anything, just output what would be done")
+	flagBase := flag.String("base-dir", "/", "Base directory in which to look for files to export")
+	flagPattern := flag.String("pattern", ".*", "Filenames must match this regular expression to be uploaded")
+	flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
+	flagBucketPrefix := flag.String("bucket-prefix", "", "S3 Bucket path prefix")
+	flagAWSKey := flag.String("aws-key", "", "AWS Key")
+	flagAWSSecretKey := flag.String("aws-secret-key", "", "AWS Secret Key")
+	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
+	flagLoop := flag.Bool("loop", false, "Run in a loop and keep watching for more files to export")
+	flagDryRun := flag.Bool("dry-run", false, "Don't actually do anything, just output what would be done")
 	flag.Parse()
 
 	if flag.NArg() != 0 {
@@ -160,8 +152,18 @@ func main() {
 
 	var b *s3.Bucket
 	if !*flagDryRun {
-		auth := aws.Auth{AccessKey: *flagAWSKey, SecretKey: *flagAWSSecretKey}
-		s := s3.New(auth, aws.Regions[*flagAWSRegion])
+		auth, err := aws.GetAuth(*flagAWSKey, *flagAWSSecretKey, "", time.Now())
+		if err != nil {
+			fmt.Printf("Authentication error: %s\n", err)
+			os.Exit(4)
+		}
+
+		region, ok := aws.Regions[*flagAWSRegion]
+		if !ok {
+			fmt.Printf("Parameter 'aws-region' must be a valid AWS Region\n")
+			os.Exit(5)
+		}
+		s := s3.New(auth, region)
 		b = s.Bucket(*flagBucket)
 	} else {
 		// b declared and not used :(

@@ -11,7 +11,7 @@ diff --git a/message/message.go b/message/message.go
 index 4b87f91..b0b0827 100644
 --- a/message/message.go
 +++ b/message/message.go
-@@ -32,7 +32,7 @@ const (
+@@ -33,7 +33,7 @@ const (
  	HEADER_DELIMITER_SIZE = 2                         // record separator + len
  	HEADER_FRAMING_SIZE   = HEADER_DELIMITER_SIZE + 1 // unit separator
  	MAX_HEADER_SIZE       = 255

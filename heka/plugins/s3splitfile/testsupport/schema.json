@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "dimensions": [
+    { "field_name": "any",      "allowed_values": "*" },
+    { "field_name": "list",     "allowed_values": ["foo", "bar", "baz"] },
+    { "field_name": "rangeMin", "allowed_values": { "min": "aaa" } },
+    { "field_name": "rangeMax", "allowed_values": { "max": "bbb" } },
+    { "field_name": "range",    "allowed_values": { "min": "aaa", "max": "bbb" } }
+  ]
+}
+

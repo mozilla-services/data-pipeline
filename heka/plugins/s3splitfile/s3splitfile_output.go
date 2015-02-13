@@ -9,36 +9,28 @@ package s3splitfile
 import (
 	"errors"
 	"fmt"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/s3"
 	. "github.com/mozilla-services/heka/pipeline"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"io/ioutil"
-	"encoding/json"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
 )
 
 // Output plugin that writes message contents to a file on the file system.
 type S3SplitFileOutput struct {
 	*S3SplitFileOutputConfig
-	perm       os.FileMode
-	folderPerm os.FileMode
-	timerChan  <-chan time.Time
-	dimFiles   map[string]*SplitFileInfo
-	schema     Schema
-	bucket     *s3.Bucket
-	publishChan chan PublishAttempt
+	perm         os.FileMode
+	folderPerm   os.FileMode
+	timerChan    <-chan time.Time
+	dimFiles     map[string]*SplitFileInfo
+	schema       Schema
+	bucket       *s3.Bucket
+	publishChan  chan PublishAttempt
 	shuttingDown bool
-}
-
-type PublishAttempt struct {
-	Name string
-	AttemptsRemaining uint32
 }
 
 // ConfigStruct for S3SplitFileOutput plugin.
@@ -76,13 +68,13 @@ type S3SplitFileOutputConfig struct {
 	// file and begin writing to another one (default 60 * 60 * 1000, i.e. 1hr).
 	MaxFileAge uint32 `toml:"max_file_age"`
 
-	AWSKey string `toml:"aws_key"`
-	AWSSecretKey string `toml:"aws_secret_key"`
-	AWSRegion string `toml:"aws_region"`
-	S3Bucket string `toml:"s3_bucket"`
+	AWSKey         string `toml:"aws_key"`
+	AWSSecretKey   string `toml:"aws_secret_key"`
+	AWSRegion      string `toml:"aws_region"`
+	S3Bucket       string `toml:"s3_bucket"`
 	S3BucketPrefix string `toml:"s3_bucket_prefix"`
-	S3Retries uint32 `toml:"s3_retries"`
-	S3WorkerCount uint32 `toml:"s3_worker_count"`
+	S3Retries      uint32 `toml:"s3_retries"`
+	S3WorkerCount  uint32 `toml:"s3_worker_count"`
 }
 
 // Info for a single split file
@@ -93,119 +85,7 @@ type SplitFileInfo struct {
 	size       uint32
 }
 
-// Encapsulates the directory-splitting schema
-type Schema struct {
-	Fields []string
-	FieldIndices map[string]int
-	Dims map[string]DimensionChecker
-}
-
-// Determine whether a given value is acceptable for a given field, and if not
-// return a default value instead.
-func (s *Schema) GetValue(field string, value string) (rvalue string, err error) {
-	checker, ok := s.Dims[field]
-	if !ok {
-		return value, fmt.Errorf("No such field: '%s'", field)
-	}
-	if checker.IsAllowed(value) {
-		return value, nil
-	} else {
-		return "OTHER", nil
-	}
-}
-
-// Extract all dimensions from the given pack.
-func (s *Schema) getDimensions(pack *PipelinePack) (dimensions []string) {
-	dims := make([]string, len(s.Fields))
-	for i, _ := range dims {
-		dims[i] = "UNKNOWN"
-	}
-
-	// TODO: add support for top-level message fields (Timestamp, etc)
-	remaining := len(dims)
-	for _, field := range pack.Message.Fields {
-		if remaining == 0 {
-			break
-		}
-
-		idx, ok := s.FieldIndices[field.GetName()]
-		if ok {
-			remaining -= 1
-			inValues := field.GetValueString()
-			if len(inValues) > 0 {
-				// We use the first available value, even if several have been
-				// provided.
-				v, err := s.GetValue(field.GetName(), inValues[0])
-				if err != nil {
-					fmt.Printf("How did this happen? %s", err)
-				}
-				dims[idx] = v
-			} // Else there were no values, leave this field as unknown.
-		}
-	}
-
-	return dims
-}
-
-// Interface for calculating whether a particular value is acceptable
-// as-is, or if it should be replaced with a default value.
-type DimensionChecker interface {
-	IsAllowed(v string) (bool)
-}
-
-// Accept any value at all.
-type AnyDimensionChecker struct {
-}
-func (adc AnyDimensionChecker) IsAllowed(v string) (bool) {
-	return true
-}
-
-// Accept a specific list of values, anything not in the list
-// will not be accepted
-type ListDimensionChecker struct {
-	// Use a map instead of a list internally for fast lookups.
-	allowed map[string]struct{}
-}
-func (ldc ListDimensionChecker) IsAllowed(v string) (bool) {
-	_, ok := ldc.allowed[v]
-	return ok
-}
-
-// Factory for creating a ListDimensionChecker using a list instead of a map
-func NewListDimensionChecker(allowed []string) *ListDimensionChecker {
-	dimMap := map[string]struct{}{}
-	for _, a := range(allowed) {
-		dimMap[a] = struct{}{}
-	}
-	return &ListDimensionChecker{dimMap}
-}
-
-// If both are specified, accept any value between `min` and `max` (inclusive).
-// If one of the bounds is missing, only enforce the other. If neither bound is
-// present, accept all values.
-type RangeDimensionChecker struct {
-	min string
-	max string
-}
-func (rdc RangeDimensionChecker) IsAllowed(v string) (bool) {
-	// Min and max are optional, so treat them separately.
-	// TODO: ensure that Go does string comparisons in the fashion expected
-	//       by this code.
-	if rdc.min != "" && rdc.min > v {
-		return false
-	}
-
-	if rdc.max != "" && rdc.max < v {
-		return false
-	}
-
-	return true
-}
-
 var hostname, _ = os.Hostname()
-
-// Pattern to use for sanitizing path/file components.
-var cleanPattern = regexp.MustCompile("[^a-zA-Z0-9_/.]")
 
 // Names for the subdirectories to use for in-flight and finalized files. These
 // dirs are found under the main Path specified in the config.
@@ -229,72 +109,6 @@ func (o *S3SplitFileOutput) ConfigStruct() interface{} {
 		S3Retries:      5,
 		S3WorkerCount:  10,
 	}
-}
-
-func (o *S3SplitFileOutput) loadSchema(schemaFileName string) (schema Schema, err error) {
-	// Placeholder for parsing JSON
-	type JSchemaDimension struct {
-		Field_name string
-		Allowed_values interface{}
-	}
-
-	// Placeholder for parsing JSON
-	type JSchema struct {
-		Version int32
-		Dimensions []JSchemaDimension
-	}
-
-	schemaBytes, err := ioutil.ReadFile(schemaFileName)
-	if err != nil {
-		return
-	}
-
-	var js JSchema
-
-	err = json.Unmarshal(schemaBytes, &js)
-	if err != nil {
-		return
-	}
-
-	fields := make([]string, len(js.Dimensions))
-	fieldIndices := map[string]int{}
-	dims := map[string]DimensionChecker{}
-	schema = Schema{fields, fieldIndices, dims}
-
-	for i, d := range js.Dimensions {
-		schema.Fields[i] = d.Field_name
-		schema.FieldIndices[d.Field_name] = i
-		switch d.Allowed_values.(type) {
-		case string:
-			if d.Allowed_values.(string) == "*" {
-				schema.Dims[d.Field_name] = AnyDimensionChecker{}
-			} else {
-				schema.Dims[d.Field_name] = NewListDimensionChecker([]string{d.Allowed_values.(string)})
-			}
-		case []interface{}:
-			allowed := make([]string, len(d.Allowed_values.([]interface{})))
-			for i, v := range d.Allowed_values.([]interface{}) {
-				allowedValue, ok := v.(string)
-				if !ok {
-					return schema, fmt.Errorf("Entries in 'allowed_values' for field '%s' must be strings", d.Field_name)
-				}
-				allowed[i] = allowedValue
-			}
-			schema.Dims[d.Field_name] = NewListDimensionChecker(allowed)
-		case map[string]interface{}:
-			vrange := d.Allowed_values.(map[string]interface{})
-			minStr, ok := vrange["min"].(string)
-			if !ok {
-				return schema, fmt.Errorf("Value of 'min' for field '%s' must be a string", d.Field_name)
-			}
-			maxStr, ok := vrange["max"].(string)
-			if !ok {
-				return schema, fmt.Errorf("Value of 'max' for field '%s' must be a string", d.Field_name)
-			}
-			schema.Dims[d.Field_name] = RangeDimensionChecker{minStr, maxStr}
-		}
-	}
-	return
 }
 
 func (o *S3SplitFileOutput) Init(config interface{}) (err error) {
@@ -334,18 +148,22 @@ func (o *S3SplitFileOutput) Init(config interface{}) (err error) {
 		return
 	}
 
-	o.schema, err = o.loadSchema(conf.SchemaFile)
+	o.schema, err = LoadSchema(conf.SchemaFile)
 	if err != nil {
 		return fmt.Errorf("Parameter 'schema_file' must be a valid JSON file: %s", err)
 	}
 
 	if conf.S3Bucket != "" {
-		auth := aws.Auth{AccessKey: conf.AWSKey, SecretKey: conf.AWSSecretKey}
+		auth, err := aws.GetAuth(conf.AWSKey, conf.AWSSecretKey, "", time.Now())
+		if err != nil {
+			return fmt.Errorf("Authentication error: %s\n", err)
+		}
 		region, ok := aws.Regions[conf.AWSRegion]
 		if !ok {
 			return fmt.Errorf("Parameter 'aws_region' must be a valid AWS Region")
 		}
 		s := s3.New(auth, region)
+		// TODO: ensure we can write to the bucket.
 		o.bucket = s.Bucket(conf.S3Bucket)
 	} else {
 		o.bucket = nil
@@ -381,10 +199,6 @@ func (o *S3SplitFileOutput) writeMessage(fi *SplitFileInfo, msgBytes []byte) (ro
 		}
 	}
 	return
-}
-
-func (o *S3SplitFileOutput) cleanDim(dim string) (cleaned string) {
-	return cleanPattern.ReplaceAllString(dim, "_")
 }
 
 func (o *S3SplitFileOutput) rotateFiles() (err error) {
@@ -457,8 +271,13 @@ func (o *S3SplitFileOutput) getNewFilename() (name string) {
 }
 
 func (o *S3SplitFileOutput) getDimPath(pack *PipelinePack) (dimPath string) {
-	dims := o.schema.getDimensions(pack)
-	return strings.Join(dims, "/")
+	dims := o.schema.GetDimensions(pack)
+
+	cleanDims := make([]string, len(dims))
+	for i, d := range dims {
+		cleanDims[i] = SanitizeDimension(d)
+	}
+	return strings.Join(cleanDims, "/")
 }
 
 func (o *S3SplitFileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
@@ -474,11 +293,14 @@ func (o *S3SplitFileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}
 
-	var wg sync.WaitGroup
+	var (
+		wg sync.WaitGroup
+		i  uint32
+	)
 	wg.Add(1)
 	go o.receiver(or, &wg)
 	// Run a pool of concurrent publishers.
-	for i := 0; i < 10; i++ {
+	for i = 0; i < o.S3WorkerCount; i++ {
 		wg.Add(1)
 		go o.publisher(or, &wg)
 	}
