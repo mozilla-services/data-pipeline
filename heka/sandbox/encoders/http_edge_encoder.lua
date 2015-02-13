@@ -9,6 +9,13 @@ require "string"
 require "table"
 require 'geoip.city'
 
+-- Split a path into components. Multiple consecutive separators do not
+-- result in empty path components.
+-- Examples:
+--   /foo/bar      ->   {"foo", "bar"}
+--   ///foo//bar/  ->   {"foo", "bar"}
+--   foo/bar/      ->   {"foo", "bar"}
+--   /             ->   {}
 local sep = lpeg.P("/")
 local elem = lpeg.C((1 - sep)^1)
 local path_grammar = lpeg.Ct(elem^0 * (sep^0 * elem)^0)
