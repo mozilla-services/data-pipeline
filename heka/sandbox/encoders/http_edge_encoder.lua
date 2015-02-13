@@ -52,7 +52,6 @@ end
 local ok, ns_config = pcall(cjson.decode, read_config("namespace_config"))
 if not ok then return -1, ns_config end
 
-
 local msg = {
     Timestamp   = nil,
     Type        = "http_edge_incoming",
