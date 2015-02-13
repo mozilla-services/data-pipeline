@@ -45,19 +45,22 @@ function get_geo_country()
     return country or UNK_GEO
 end
 
-local msg = {
-    Timestamp   = nil,
-    Type        = "http_edge_incoming",
-    Payload     = nil,
-    Fields      = {}
-}
-
 -- Load the namespace configuration externally.
 -- Note that if the config contains invalid JSON, we will discard any messages
 -- we receive with the following error:
 --    FATAL: process_message() function was not found
 local ok, ns_config = pcall(cjson.decode, read_config("namespace_config"))
 if not ok then return -1, ns_config end
+
+
+local msg = {
+    Timestamp   = nil,
+    Type        = "http_edge_incoming",
+    Payload     = nil,
+    EnvVersion  = nil,
+    Hostname    = nil,
+    Fields      = {}
+}
 
 function process_message()
     -- Reset Fields, since different namespaces may use different fields.
