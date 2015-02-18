@@ -25,6 +25,7 @@ type S3SplitFileInput struct {
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageBytes    int64
+	remainingDataBytes     int64
 
 	*S3SplitFileInputConfig
 	bucket   *s3.Bucket
@@ -145,7 +146,6 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 }
 
 // TODO: handle "no such file"
-// TODO: use s3splitfile_common.ReadS3File()?
 func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d *pipeline.Deliverer, sr *pipeline.SplitterRunner, s3Key string) (err error) {
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
 	if input.bucket == nil {
@@ -197,8 +197,10 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 			err := input.readS3File(runner, &deliverer, &splitterRunner, s3Key)
 			atomic.AddInt64(&input.processFileCount, 1)
 			leftovers := splitterRunner.GetRemainingData()
-			if len(leftovers) > 0 {
-				runner.LogError(fmt.Errorf("Trailing data, possible corruption: %d bytes left in stream at EOF: %s", len(leftovers), s3Key))
+			lenLeftovers := len(leftovers)
+			if lenLeftovers > 0 {
+				atomic.AddInt64(&input.remainingDataBytes, int64(lenLeftovers))
+				runner.LogError(fmt.Errorf("Trailing data, possible corruption: %d bytes left in stream at EOF: %s", lenLeftovers, s3Key))
 			}
 			if err != nil && err != io.EOF {
 				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
@@ -219,6 +221,7 @@ func (input *S3SplitFileInput) ReportMsg(msg *message.Message) error {
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&input.processMessageCount), "count")
 	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&input.processMessageFailures), "count")
 	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&input.processMessageBytes), "B")
+	message.NewInt64Field(msg, "RemainingDataBytes", atomic.LoadInt64(&input.remainingDataBytes), "B")
 
 	return nil
 }
