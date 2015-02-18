@@ -10,14 +10,23 @@ import (
 	"fmt"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type S3SplitFileInput struct {
+	processFileCount          int64
+	processFileFailures       int64
+	processFileDiscardedBytes int64
+	processMessageCount       int64
+	processMessageFailures    int64
+	processMessageBytes       int64
+
 	*S3SplitFileInputConfig
 	bucket   *s3.Bucket
 	schema   Schema
@@ -137,28 +146,26 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 }
 
 // TODO: handle "no such file"
-// TODO: use s3splitfile_common.ReadS3File()?
 func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d *pipeline.Deliverer, sr *pipeline.SplitterRunner, s3Key string) (err error) {
 	runner.LogMessage(fmt.Sprintf("Preparing to read: %s", s3Key))
-
 	if input.bucket == nil {
 		runner.LogMessage(fmt.Sprintf("Dude, where's my bucket: %s", s3Key))
 		return
 	}
+	for r := range S3FileIterator(input.bucket, s3Key) {
+		record := r.Record
+		err := r.Err
 
-	rc, err := input.bucket.GetReader(s3Key)
-	if err != nil {
-		runner.LogError(fmt.Errorf("Error getting a reader: %s", err))
-	}
-	defer rc.Close()
-
-	runner.LogMessage(fmt.Sprintf("Reading messages from %s", s3Key))
-	for err == nil {
-		err = (*sr).SplitStream(rc, *d)
-	}
-
-	if err != io.EOF {
-		runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
+		if err != nil && err != io.EOF {
+			runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
+			atomic.AddInt64(&input.processMessageFailures, 1)
+			return err
+		}
+		if len(record) > 0 {
+			atomic.AddInt64(&input.processMessageCount, 1)
+			atomic.AddInt64(&input.processMessageBytes, int64(len(record)))
+			(*sr).DeliverRecord(record, *d)
+		}
 	}
 
 	return
@@ -188,12 +195,16 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 
 			startTime = time.Now().UTC()
 			err := input.readS3File(runner, &deliverer, &splitterRunner, s3Key)
+			atomic.AddInt64(&input.processFileCount, 1)
 			leftovers := splitterRunner.GetRemainingData()
-			if len(leftovers) > 0 {
-				runner.LogError(fmt.Errorf("Trailing data, possible corruption: %d bytes left in stream at EOF: %s", len(leftovers), s3Key))
+			lenLeftovers := len(leftovers)
+			if lenLeftovers > 0 {
+				atomic.AddInt64(&input.processFileDiscardedBytes, int64(lenLeftovers))
+				runner.LogError(fmt.Errorf("Trailing data, possible corruption: %d bytes left in stream at EOF: %s", lenLeftovers, s3Key))
 			}
 			if err != nil && err != io.EOF {
 				runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
+				atomic.AddInt64(&input.processFileFailures, 1)
 				continue
 			}
 			duration = time.Now().UTC().Sub(startTime).Seconds()
@@ -202,6 +213,17 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 	}
 
 	wg.Done()
+}
+
+func (input *S3SplitFileInput) ReportMsg(msg *message.Message) error {
+	message.NewInt64Field(msg, "ProcessFileCount", atomic.LoadInt64(&input.processFileCount), "count")
+	message.NewInt64Field(msg, "ProcessFileFailures", atomic.LoadInt64(&input.processFileFailures), "count")
+	message.NewInt64Field(msg, "ProcessFileDiscardedBytes", atomic.LoadInt64(&input.processFileDiscardedBytes), "B")
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&input.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&input.processMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&input.processMessageBytes), "B")
+
+	return nil
 }
 
 func init() {

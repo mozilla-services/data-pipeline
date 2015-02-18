@@ -11,17 +11,28 @@ import (
 	"fmt"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
+	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // Output plugin that writes message contents to a file on the file system.
 type S3SplitFileOutput struct {
+	processFileCount           int64
+	processFileFailures        int64
+	processFilePartialFailures int64
+	processFileBytes           int64
+	processMessageCount        int64
+	processMessageFailures     int64
+	processMessageBytes        int64
+	encodeMessageFailures      int64
+
 	*S3SplitFileOutputConfig
 	perm         os.FileMode
 	folderPerm   os.FileMode
@@ -181,7 +192,10 @@ func (o *S3SplitFileOutput) Init(config interface{}) (err error) {
 
 func (o *S3SplitFileOutput) writeMessage(fi *SplitFileInfo, msgBytes []byte) (rotate bool, err error) {
 	rotate = false
+	atomic.AddInt64(&o.processMessageCount, 1)
 	n, e := fi.file.Write(msgBytes)
+
+	atomic.AddInt64(&o.processMessageBytes, int64(n))
 
 	// Note that if these files are being written to elsewhere, the size-based
 	// rotation will not work as expected. A more robust approach would be to
@@ -190,6 +204,7 @@ func (o *S3SplitFileOutput) writeMessage(fi *SplitFileInfo, msgBytes []byte) (ro
 	fi.size += uint32(n)
 
 	if e != nil {
+		atomic.AddInt64(&o.processMessageFailures, 1)
 		return rotate, fmt.Errorf("Can't write to %s: %s", fi.name, e)
 	} else if n != len(msgBytes) {
 		return rotate, fmt.Errorf("Truncated output for %s", fi.name)
@@ -360,6 +375,7 @@ func (o *S3SplitFileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 
 			// Encode the message
 			if outBytes, e = or.Encode(pack); e != nil {
+				atomic.AddInt64(&o.encodeMessageFailures, 1)
 				or.LogError(e)
 			} else if outBytes != nil {
 				// Write to split file
@@ -377,9 +393,8 @@ func (o *S3SplitFileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 						or.LogError(fmt.Errorf("Error finalizing %s: %s", fileInfo.name, e))
 					}
 				}
-			} else {
-				or.LogError(fmt.Errorf("Zero-byte message... why?"))
 			}
+			// else the encoder did not emit a message.
 
 			pack.Recycle()
 		case <-o.timerChan:
@@ -403,6 +418,7 @@ func (o *S3SplitFileOutput) retryPublish(attempt PublishAttempt, or OutputRunner
 		return
 	}
 
+	atomic.AddInt64(&o.processFileFailures, 1)
 	or.LogError(err)
 }
 
@@ -436,24 +452,29 @@ func (o *S3SplitFileOutput) publisher(or OutputRunner, wg *sync.WaitGroup) {
 			destPath := fmt.Sprintf("%s/%s", o.S3BucketPrefix, pubFile)
 			reader, err := os.Open(sourcePath)
 			if err != nil {
+				atomic.AddInt64(&o.processFilePartialFailures, 1)
 				o.retryPublish(pubAttempt, or, fmt.Errorf("Error opening %s for reading: %s", sourcePath, err))
 				continue
 			}
 
 			fi, err := reader.Stat()
 			if err != nil {
-				or.LogError(fmt.Errorf("Error Stat'ing %s: %s", sourcePath, o.S3Bucket, destPath, err))
+				atomic.AddInt64(&o.processFilePartialFailures, 1)
+				o.retryPublish(pubAttempt, or, fmt.Errorf("Error Stat'ing %s: %s", sourcePath, err))
 				continue
 			}
 
 			startTime = time.Now().UTC()
 			err = o.bucket.PutReader(destPath, reader, fi.Size(), "binary/octet-stream", s3.BucketOwnerFull, s3.Options{})
 			if err != nil {
+				atomic.AddInt64(&o.processFilePartialFailures, 1)
 				o.retryPublish(pubAttempt, or, fmt.Errorf("Error publishing %s to s3://%s%s: %s", sourcePath, o.S3Bucket, destPath, err))
 				continue
 			}
 			duration = time.Now().UTC().Sub(startTime).Seconds()
 
+			atomic.AddInt64(&o.processFileCount, 1)
+			atomic.AddInt64(&o.processFileBytes, fi.Size())
 			uploadMB = float64(fi.Size()) / 1024.0 / 1024.0
 			if duration > 0 {
 				uploadRate = uploadMB / duration
@@ -478,6 +499,19 @@ func (o *S3SplitFileOutput) publisher(or OutputRunner, wg *sync.WaitGroup) {
 	}
 
 	wg.Done()
+}
+
+func (o *S3SplitFileOutput) ReportMsg(msg *message.Message) error {
+	message.NewInt64Field(msg, "ProcessFileCount", atomic.LoadInt64(&o.processFileCount), "count")
+	message.NewInt64Field(msg, "ProcessFileFailures", atomic.LoadInt64(&o.processFileFailures), "count")
+	message.NewInt64Field(msg, "ProcessFilePartialFailures", atomic.LoadInt64(&o.processFilePartialFailures), "count")
+	message.NewInt64Field(msg, "ProcessFileBytes", atomic.LoadInt64(&o.processFileBytes), "B")
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&o.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&o.processMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&o.processMessageBytes), "B")
+	message.NewInt64Field(msg, "EncodeMessageFailures", atomic.LoadInt64(&o.encodeMessageFailures), "count")
+
+	return nil
 }
 
 func init() {
