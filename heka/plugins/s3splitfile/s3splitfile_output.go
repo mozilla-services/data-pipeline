@@ -24,23 +24,24 @@ import (
 
 // Output plugin that writes message contents to a file on the file system.
 type S3SplitFileOutput struct {
-	*S3SplitFileOutputConfig
-	perm                       os.FileMode
-	folderPerm                 os.FileMode
-	timerChan                  <-chan time.Time
-	dimFiles                   map[string]*SplitFileInfo
-	schema                     Schema
-	bucket                     *s3.Bucket
-	publishChan                chan PublishAttempt
-	shuttingDown               bool
 	processFileCount           int64
 	processFileFailures        int64
 	processFilePartialFailures int64
-	processFileSumSize         int64
+	processFileBytes           int64
 	processMessageCount        int64
 	processMessageFailures     int64
-	processMessageSumSize      int64
+	processMessageBytes        int64
 	encodeMessageFailures      int64
+
+	*S3SplitFileOutputConfig
+	perm         os.FileMode
+	folderPerm   os.FileMode
+	timerChan    <-chan time.Time
+	dimFiles     map[string]*SplitFileInfo
+	schema       Schema
+	bucket       *s3.Bucket
+	publishChan  chan PublishAttempt
+	shuttingDown bool
 }
 
 // ConfigStruct for S3SplitFileOutput plugin.
@@ -194,7 +195,7 @@ func (o *S3SplitFileOutput) writeMessage(fi *SplitFileInfo, msgBytes []byte) (ro
 	atomic.AddInt64(&o.processMessageCount, 1)
 	n, e := fi.file.Write(msgBytes)
 
-	atomic.AddInt64(&o.processMessageSumSize, int64(n))
+	atomic.AddInt64(&o.processMessageBytes, int64(n))
 
 	// Note that if these files are being written to elsewhere, the size-based
 	// rotation will not work as expected. A more robust approach would be to
@@ -473,7 +474,7 @@ func (o *S3SplitFileOutput) publisher(or OutputRunner, wg *sync.WaitGroup) {
 			duration = time.Now().UTC().Sub(startTime).Seconds()
 
 			atomic.AddInt64(&o.processFileCount, 1)
-			atomic.AddInt64(&o.processFileSumSize, fi.Size())
+			atomic.AddInt64(&o.processFileBytes, fi.Size())
 			uploadMB = float64(fi.Size()) / 1024.0 / 1024.0
 			if duration > 0 {
 				uploadRate = uploadMB / duration
@@ -504,10 +505,10 @@ func (o *S3SplitFileOutput) ReportMsg(msg *message.Message) error {
 	message.NewInt64Field(msg, "ProcessFileCount", atomic.LoadInt64(&o.processFileCount), "count")
 	message.NewInt64Field(msg, "ProcessFileFailures", atomic.LoadInt64(&o.processFileFailures), "count")
 	message.NewInt64Field(msg, "ProcessFilePartialFailures", atomic.LoadInt64(&o.processFilePartialFailures), "count")
-	message.NewInt64Field(msg, "ProcessFileSumSize", atomic.LoadInt64(&o.processFileSumSize), "B")
+	message.NewInt64Field(msg, "ProcessFileBytes", atomic.LoadInt64(&o.processFileBytes), "B")
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&o.processMessageCount), "count")
 	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&o.processMessageFailures), "count")
-	message.NewInt64Field(msg, "ProcessMessageSumSize", atomic.LoadInt64(&o.processMessageSumSize), "B")
+	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&o.processMessageBytes), "B")
 	message.NewInt64Field(msg, "EncodeMessageFailures", atomic.LoadInt64(&o.encodeMessageFailures), "count")
 
 	return nil

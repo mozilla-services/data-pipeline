@@ -20,16 +20,17 @@ import (
 )
 
 type S3SplitFileInput struct {
-	*S3SplitFileInputConfig
-	bucket                 *s3.Bucket
-	schema                 Schema
-	stop                   chan bool
-	listChan               chan string
 	processFileCount       int64
 	processFileFailures    int64
 	processMessageCount    int64
 	processMessageFailures int64
-	processMessageSumSize  int64
+	processMessageBytes    int64
+
+	*S3SplitFileInputConfig
+	bucket   *s3.Bucket
+	schema   Schema
+	stop     chan bool
+	listChan chan string
 }
 
 type S3SplitFileInputConfig struct {
@@ -162,7 +163,7 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d *pipeli
 		}
 		if len(record) > 0 {
 			atomic.AddInt64(&input.processMessageCount, 1)
-			atomic.AddInt64(&input.processMessageSumSize, int64(len(record)))
+			atomic.AddInt64(&input.processMessageBytes, int64(len(record)))
 			(*sr).DeliverRecord(record, *d)
 		}
 	}
@@ -217,7 +218,7 @@ func (input *S3SplitFileInput) ReportMsg(msg *message.Message) error {
 	message.NewInt64Field(msg, "ProcessFileFailures", atomic.LoadInt64(&input.processFileFailures), "count")
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&input.processMessageCount), "count")
 	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&input.processMessageFailures), "count")
-	message.NewInt64Field(msg, "ProcessMessageSumSize", atomic.LoadInt64(&input.processMessageSumSize), "B")
+	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&input.processMessageBytes), "B")
 
 	return nil
 }
