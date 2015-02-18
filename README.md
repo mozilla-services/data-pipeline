@@ -72,10 +72,10 @@ You can set up a bare-bones data pipeline of your own.  You will get an endpoint
 - Where to get more info about configuring heka
   - http://hekad.readthedocs.org/en/latest/index.html
 - How to use nc
-  - Once you’ve got some output saved away, you can feed it back through the main pipeline (not the http edge) using netcat
+  - Once you’ve got some output saved away, you can feed it back through the main pipeline (bypassing the http server) using netcat
 
         ```
         nc localhost 30231 < /path/to/file
         ```
 
-  - This can be helpful in working with sandboxes, but you may want to disable the `ArchiveOutput` section in `basic_local_pipeline.main.toml` when doing this (otherwise this data will be appended to the output file again.
+  - This can be helpful in working with sandboxes, but you may want to disable the `ArchiveOutput` section in `basic_local_pipeline.main.toml` when doing this (otherwise this data will be appended to the test output file again).
