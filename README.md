@@ -7,7 +7,12 @@ for use in the [Cloud Services Data Pipeline](https://wiki.mozilla.org/CloudServ
 
 Run `bin/build_pipeline_heka.sh` from the top level of this repo to build a heka RPM.
 
-## Testing the Data Pipeline
+## Using the Data Pipeline
+
+If you are simply looking to test out some data analysis plugins and don't want to setup your own pipeline here is the fastest way to get going:
+https://mana.mozilla.org/wiki/display/CLOUDSERVICES/Using+the+sandbox+manager+in+the+dev+prototype+pipeline
+
+## Running/Testing Your Own Data Pipeline
 
 You can set up a bare-bones data pipeline of your own.  You will get an endpoint that listens for HTTP POST requests, performs GeoIP lookups, and wraps them up in protobuf messages. These messages will be relayed to a stream-processor, and will be output to a local store on disk. There will be basic web-based monitoring, and the ability to add your own stream processing filters.
 
