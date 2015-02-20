@@ -1,0 +1,58 @@
+[hekad]
+base_dir = "."
+share_dir = "."
+
+[RstEncoder]
+
+[TestInput]
+type = "HttpListenInput"
+address = "127.0.0.1:8080"
+request_headers = ["Content-Length", "X-Forwarded-For"]
+decoder = "HttpEdgeDecoder"
+
+[LogOutput]
+# Print all incoming http messages (both raw and decoded)
+type = "LogOutput"
+message_matcher = "Type == 'http_edge_incoming' || Type == 'heka.httpdata.request'"
+#message_matcher = "TRUE"
+encoder = "RstEncoder"
+
+[HttpEdgeDecoder]
+type = "SandboxDecoder"
+filename = "heka/sandbox/decoders/http_edge_decoder.lua"
+memory_limit = 90000000
+output_limit = 2097152
+    [HttpEdgeDecoder.config]
+    geoip_city_db = "GeoLiteCity.dat"
+    namespace_config = '{"test":{"logger":"test_input","max_path_length":20480,"max_data_length":1048576},"telemetry":{"dimensions":["reason","appName","appVersion","appUpdateChannel","appBuildID"],"max_path_length":10240,"max_data_length":204800}}'
+
+[DashboardOutput]
+address = ":4352"
+static_directory = "build/heka/dasher"
+ticker_interval = 1
+
+[PayloadEncoder]
+
+[RequestRates]
+type = "SandboxFilter"
+message_matcher = "Type == 'http_edge_incoming'"
+filename = "examples/request_rates.lua"
+ticker_interval = 10
+preserve_data = true
+output_limit = 256000
+
+[ProtobufEncoder]
+
+[ArchivePipelineOutput]
+type = "FileOutput"
+path = "./data_decoded.out"
+use_framing = true
+message_matcher = "Type == 'http_edge_incoming'"
+encoder = "ProtobufEncoder"
+
+[ArchiveRawOutput]
+type = "FileOutput"
+path = "./data_raw.out"
+use_framing = true
+message_matcher = "Type == 'heka.httpdata.request'"
+encoder = "ProtobufEncoder"

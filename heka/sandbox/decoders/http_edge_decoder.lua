@@ -31,16 +31,14 @@ end
 local city_db = assert(geoip.city.open(read_config("geoip_city_db")))
 local UNK_GEO = "??"
 
-function get_geo_country()
+function get_geo_country(xff, remote_addr)
     local country
-    local ipaddr = read_message("Fields[X-Forwarded-For]")
-    if ipaddr then
-        country = city_db:query_by_addr(ipaddr, "country_code")
+    if xff then
+        country = city_db:query_by_addr(xff, "country_code")
     end
     if country then return country end
-    ipaddr = read_message("Fields[RemoteAddr]")
-    if ipaddr then
-        country = city_db:query_by_addr(ipaddr, "country_code")
+    if remote_addr then
+        country = city_db:query_by_addr(remote_addr, "country_code")
     end
     return country or UNK_GEO
 end
@@ -52,7 +50,21 @@ end
 local ok, ns_config = pcall(cjson.decode, read_config("namespace_config"))
 if not ok then return -1, ns_config end
 
-local msg = {
+-- This is a copy of the raw message that will be passed through as-is.
+local landfill_msg = {
+    Timestamp  = nil,
+    Type       = nil,
+    Hostname   = nil,
+    Pid        = nil,
+    Logger     = nil,
+    Payload    = nil,
+    EnvVersion = nil,
+    Severity   = nil,
+    Fields     = nil
+}
+
+-- This is the modified message that knows about namespaces and so forth.
+local main_msg = {
     Timestamp   = nil,
     Type        = "http_edge_incoming",
     Payload     = nil,
@@ -62,24 +74,46 @@ local msg = {
 }
 
 function process_message()
+    -- First, copy the current message as-is.
+    landfill_msg.Timestamp  = read_message("Timestamp")
+    landfill_msg.Type       = read_message("Type")
+    landfill_msg.Hostname   = read_message("Hostname")
+    landfill_msg.Pid        = read_message("Timestamp")
+    -- UUID is auto-generated and meaningless anyways
+    landfill_msg.Logger     = read_message("Logger")
+    landfill_msg.Payload    = read_message("Payload")
+    landfill_msg.EnvVersion = read_message("EnvVersion")
+    landfill_msg.Severity   = read_message("Severity")
+    -- Now copy the fields:
+    landfill_msg.Fields = {}
+    while true do
+        local value_type, name, value, representation, count = read_next_field()
+        if not name then break end
+        -- Keep the first occurence only (we want the value supplied by the
+        -- HttpListenInput, not the user-supplied one if we have to choose).
+        if not landfill_msg.Fields[name] then
+            landfill_msg.Fields[name] = value
+        end
+    end
+    inject_message(landfill_msg)
+
     -- Reset Fields, since different namespaces may use different fields.
-    msg.Fields = {}
+    main_msg.Fields = {}
 
     -- Carry forward payload some incoming fields.
-    msg.Payload = read_message("Payload")
-    msg.Timestamp = read_message("Timestamp")
-    msg.EnvVersion = read_message("EnvVersion")
+    main_msg.Payload = landfill_msg.Payload
+    main_msg.Timestamp = landfill_msg.Timestamp
+    main_msg.EnvVersion = landfill_msg.EnvVersion
 
-    -- Hostname is the host name of the server that received the message.
-    msg.Hostname = read_message("Hostname")
-
-    -- Host is the name of the HTTP endpoint the client used (such as
-    -- "incoming.telemetry.mozilla.org").
-    msg.Fields.Host = read_message("Fields[Host]")
+    -- Note: 'Hostname' is the host name of the server that received the
+    -- message, while 'Host' is the name of the HTTP endpoint the client
+    -- used (such as "incoming.telemetry.mozilla.org").
+    main_msg.Hostname = landfill_msg.Hostname
+    main_msg.Fields.Host = landfill_msg.Fields.Host
 
     -- Path should be of the form:
     --     ^/submit/namespace/id[/extra/path/components]$
-    local path = read_message("Fields[Path]")
+    local path = landfill_msg.Fields.Path
     local components = split_path(path)
 
     -- Skip this message: Not enough path components.
@@ -102,8 +136,8 @@ function process_message()
         return -1, string.format("Invalid namespace: '%s' in %s", namespace, path)
     end
 
-    msg.Logger = namespace
-    local dataLength = string.len(msg.Payload)
+    main_msg.Logger = namespace
+    local dataLength = string.len(main_msg.Payload)
     -- Skip this message: Payload too large.
     if dataLength > cfg.max_data_length then
         return -1, string.format("Payload too large: %d > %d", dataLength, cfg.max_data_length)
@@ -115,28 +149,30 @@ function process_message()
         return -1, string.format("Path too long: %d > %d", pathLength, cfg.max_path_length)
     end
     -- Override Logger if specified.
-    if cfg["logger"] then msg.Logger = cfg["logger"] end
+    if cfg["logger"] then main_msg.Logger = cfg["logger"] end
 
     -- This DocumentID is what we should use to de-duplicate submissions.
-    msg.Fields.DocumentID = table.remove(components, 1)
+    main_msg.Fields.DocumentID = table.remove(components, 1)
 
     local num_components = #components
     if num_components > 0 then
         local dims = cfg["dimensions"]
         if dims ~= nil and #dims >= num_components then
             for i=1,num_components do
-                msg.Fields[dims[i]] = components[i]
+                main_msg.Fields[dims[i]] = components[i]
             end
         else
             -- Didn't have dimension spec, or had too many components.
-            msg.Fields.PathComponents = components
+            main_msg.Fields.PathComponents = components
         end
     end
 
     -- Insert geo info.
-    msg.Fields.geoCountry = get_geo_country()
+    local xff = landfill_msg.Fields["X-Forwarded-For"]
+    local remote_addr = landfill_msg.Fields["RemoteAddr"]
+    main_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
 
     -- Send new message along.
-    inject_message(msg)
+    inject_message(main_msg)
     return 0
 end
