@@ -31,16 +31,14 @@ end
 local city_db = assert(geoip.city.open(read_config("geoip_city_db")))
 local UNK_GEO = "??"
 
-function get_geo_country()
+function get_geo_country(xff, remote_addr)
     local country
-    local ipaddr = read_message("Fields[X-Forwarded-For]")
-    if ipaddr then
-        country = city_db:query_by_addr(ipaddr, "country_code")
+    if xff then
+        country = city_db:query_by_addr(xff, "country_code")
     end
     if country then return country end
-    ipaddr = read_message("Fields[RemoteAddr]")
-    if ipaddr then
-        country = city_db:query_by_addr(ipaddr, "country_code")
+    if remote_addr then
+        country = city_db:query_by_addr(remote_addr, "country_code")
     end
     return country or UNK_GEO
 end
@@ -103,20 +101,19 @@ function process_message()
     main_msg.Fields = {}
 
     -- Carry forward payload some incoming fields.
-    main_msg.Payload = read_message("Payload")
-    main_msg.Timestamp = read_message("Timestamp")
-    main_msg.EnvVersion = read_message("EnvVersion")
+    main_msg.Payload = landfill_msg.Payload
+    main_msg.Timestamp = landfill_msg.Timestamp
+    main_msg.EnvVersion = landfill_msg.EnvVersion
 
-    -- Hostname is the host name of the server that received the message.
-    main_msg.Hostname = read_message("Hostname")
-
-    -- Host is the name of the HTTP endpoint the client used (such as
-    -- "incoming.telemetry.mozilla.org").
-    main_msg.Fields.Host = read_message("Fields[Host]")
+    -- Note: 'Hostname' is the host name of the server that received the
+    -- message, while 'Host' is the name of the HTTP endpoint the client
+    -- used (such as "incoming.telemetry.mozilla.org").
+    main_msg.Hostname = landfill_msg.Hostname
+    main_msg.Fields.Host = landfill_msg.Fields.Host
 
     -- Path should be of the form:
     --     ^/submit/namespace/id[/extra/path/components]$
-    local path = read_message("Fields[Path]")
+    local path = landfill_msg.Fields.Path
     local components = split_path(path)
 
     -- Skip this message: Not enough path components.
@@ -171,7 +168,9 @@ function process_message()
     end
 
     -- Insert geo info.
-    main_msg.Fields.geoCountry = get_geo_country()
+    local xff = landfill_msg.Fields["X-Forwarded-For"]
+    local remote_addr = landfill_msg.Fields["RemoteAddr"]
+    main_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
 
     -- Send new message along.
     inject_message(main_msg)
