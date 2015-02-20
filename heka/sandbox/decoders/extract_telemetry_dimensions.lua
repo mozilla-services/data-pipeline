@@ -33,9 +33,6 @@ function uncompress(payload)
 end
 
 function sample(id, sampleRange)
-    if not id then
-        return nil
-    end
     if type(id) ~= "string" then
         return nil
     end
