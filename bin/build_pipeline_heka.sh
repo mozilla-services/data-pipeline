@@ -103,6 +103,11 @@ git checkout fe9853ea561d0957a18eb3c4970ca249c0325d84
 
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
 
+echo 'Installing lua_hash lib'
+cd $BASE
+# Build a hash module with the zlib checksum functions
+gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
+
 cd $BASE/build/heka/build
 
 # Build RPM
