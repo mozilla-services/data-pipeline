@@ -102,7 +102,9 @@ function timer_event(ns)
 
     local json = {}
     local idx = current_month
-    for i=1, MONTHS do
+    if idx == -1 then idx = 0 end
+
+    for i=1,MONTHS do
         idx = idx + 1
         if idx > MONTHS then idx = 1 end
         json[i] = {[month_names[idx]] = month_hll[idx]:count()}
