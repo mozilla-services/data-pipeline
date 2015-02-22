@@ -107,5 +107,5 @@ function timer_event(ns)
         if idx > MONTHS then idx = 1 end
         json[i] = {[month_names[idx]] = month_hll[idx]:count()}
     end
-    inject_payload("json", "Fierfox Active Monthly Users", cjson.encode(json))
+    inject_payload("json", "Firefox Active Monthly Users", cjson.encode(json))
 end
