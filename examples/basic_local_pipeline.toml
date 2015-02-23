@@ -1,6 +1,7 @@
 [hekad]
 base_dir = "."
 share_dir = "."
+max_message_size = 8388608
 
 [RstEncoder]
 
@@ -9,6 +10,7 @@ type = "HttpListenInput"
 address = "127.0.0.1:8080"
 request_headers = ["Content-Length", "X-Forwarded-For"]
 decoder = "HttpEdgeDecoder"
+send_decode_failures = true
 
 [LogOutput]
 # Print all incoming http messages (both raw and decoded)
@@ -21,7 +23,7 @@ encoder = "RstEncoder"
 type = "SandboxDecoder"
 filename = "heka/sandbox/decoders/http_edge_decoder.lua"
 memory_limit = 90000000
-output_limit = 2097152
+output_limit = 8388608
     [HttpEdgeDecoder.config]
     geoip_city_db = "GeoLiteCity.dat"
     namespace_config = '{"test":{"logger":"test_input","max_path_length":20480,"max_data_length":1048576},"telemetry":{"dimensions":["reason","appName","appVersion","appUpdateChannel","appBuildID"],"max_path_length":10240,"max_data_length":204800}}'
