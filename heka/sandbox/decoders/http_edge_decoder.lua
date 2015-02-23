@@ -95,7 +95,11 @@ function process_message()
             landfill_msg.Fields[name] = value
         end
     end
-    inject_message(landfill_msg)
+
+    local landfill_status, landfill_err = pcall(inject_message, landfill_msg)
+    if not landfill_status then
+        return -1, landfill_err
+    end
 
     -- Reset Fields, since different namespaces may use different fields.
     main_msg.Fields = {}
@@ -173,6 +177,10 @@ function process_message()
     main_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
 
     -- Send new message along.
-    inject_message(main_msg)
+    local main_status, main_err = pcall(inject_message, main_msg)
+    if not main_status then
+        return -1, main_err
+    end
+
     return 0
 end
