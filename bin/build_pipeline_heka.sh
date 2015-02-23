@@ -34,9 +34,6 @@ cd heka
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
 
-    echo "Patching for larger message size"
-    patch message/message.go < $BASE/heka/patches/0001-Increase-message-size-limit-from-64KB-to-8MB.patch
-
     echo "Patching to build 'heka-export' cmd"
     patch CMakeLists.txt < $BASE/heka/patches/0002-Add-cmdline-tool-for-uploading-to-S3.patch
 

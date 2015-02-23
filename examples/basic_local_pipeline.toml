@@ -1,6 +1,7 @@
 [hekad]
 base_dir = "."
 share_dir = "."
+# 8MB
 max_message_size = 8388608
 
 [RstEncoder]
@@ -29,7 +30,7 @@ output_limit = 8388608
     namespace_config = '{"test":{"logger":"test_input","max_path_length":20480,"max_data_length":1048576},"telemetry":{"dimensions":["reason","appName","appVersion","appUpdateChannel","appBuildID"],"max_path_length":10240,"max_data_length":204800}}'
 
 [DashboardOutput]
-address = ":4352"
+address = "localhost:4352"
 static_directory = "build/heka/dasher"
 ticker_interval = 1
 
