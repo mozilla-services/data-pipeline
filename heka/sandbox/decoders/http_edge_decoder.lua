@@ -97,6 +97,9 @@ function process_message()
     end
 
     local landfill_status, landfill_err = pcall(inject_message, landfill_msg)
+    if not landfill_status then
+        return -1, landfill_err
+    end
 
     -- Reset Fields, since different namespaces may use different fields.
     main_msg.Fields = {}
@@ -175,18 +178,9 @@ function process_message()
 
     -- Send new message along.
     local main_status, main_err = pcall(inject_message, main_msg)
-    local error_message = ""
-    local return_code = 0
-    if not landfill_status then
-        error_message = string.format("Error injecting landfill message: [%s] ", landfill_err)
-        return_code = -1
-    end
     if not main_status then
-        error_message = error_message .. string.format("Error injecting main message: [%s]", main_err)
-        return_code = -1
+        return -1, main_err
     end
 
-    if return_code == 0 then return return_code end
-
-    return return_code, error_message
+    return 0
 end
