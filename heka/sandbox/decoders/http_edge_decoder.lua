@@ -36,7 +36,7 @@ function get_geo_country(xff, remote_addr)
     if xff then
         local first_addr = string.match(xff, "([^, ]+)")
         if first_addr then
-            country = city_db:query_by_addr(xff, "country_code")
+            country = city_db:query_by_addr(first_addr, "country_code")
         end
     end
     if country then return country end
