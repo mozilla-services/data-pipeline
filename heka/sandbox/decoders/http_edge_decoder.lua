@@ -34,7 +34,10 @@ local UNK_GEO = "??"
 function get_geo_country(xff, remote_addr)
     local country
     if xff then
-        country = city_db:query_by_addr(xff, "country_code")
+        local first_addr = string.match(xff, "([^, ]+)")
+        if first_addr then
+            country = city_db:query_by_addr(xff, "country_code")
+        end
     end
     if country then return country end
     if remote_addr then
