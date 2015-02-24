@@ -11,8 +11,11 @@ require "circular_buffer"
 require "cjson"
 require "string"
 
+local SEC_PER_ROW   = 60
+local ROWS          = 2880
+
 bf                  = bloom_filter.new(3*1e6, 0.01) -- todo up the size when not under the sandbox manager
-cb                  = circular_buffer.new(2880, 3, 60)
+cb                  = circular_buffer.new(ROWS, 3, SEC_PER_ROW)
 local TOTAL         = cb:set_header(1, "Total")
 local FAILURES      = cb:set_header(2, "Failures")
 local DUPLICATES    = cb:set_header(3, "Duplicates")
@@ -95,7 +98,7 @@ end
 last_cleared = nil
 
 function timer_event(ns)
-    if last_cleared and ns - last_cleared >= 1e9 * 86400 * 2 then
+    if last_cleared and ns - last_cleared >= 1e9 * ROWS * SEC_PER_ROW then
         bf.clear()
         last_cleared = ns
     elseif not last_cleared then
