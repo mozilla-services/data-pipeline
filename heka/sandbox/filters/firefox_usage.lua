@@ -8,9 +8,9 @@ Firefox Usage Hours
 Config:
 
 - mode (string, optional, default "match")
-    Sets the uptime extraction mode to 'match' or 'parse'. Match will simply
-    search for the uptime key/value anywhere in the string.  Parse will JSON
-    decoded the entire message to extract this one value.
+    Sets the subsessionLength extraction mode to 'match' or 'parse'. Match will
+    simply search for the uptime key/value anywhere in the string.  Parse will
+    JSON decoded the entire message to extract this one value.
 
 *Example Heka Configuration*
 
@@ -85,13 +85,13 @@ local function parse()
         return -1, "Missing payload object"
     end
 
-    if type(json.payload.simpleMeasurements) ~= "table" then
-        return -1, "Missing payload.simpleMeasurements object"
+    if type(json.payload.info) ~= "table" then
+        return -1, "Missing payload.info object"
     end
 
-    local uptime = json.payload.simpleMeasurements.uptime
+    local uptime = json.payload.info.subsessionLength
     if type(uptime) ~= "number" then
-        return -1, "Missing payload.simpleMeasurements.uptime"
+        return -1, "Missing payload.info.subsessionLength"
     end
     uptime = uptime / 60 -- convert to hours
 
@@ -110,7 +110,7 @@ end
 
 local function match()
     local json = read_message("Payload")
-    local uptime = string.match(json, '"uptime":%s*(%d+)')
+    local uptime = string.match(json, '"subsessionLength":%s*(%d+%.?%d*)')
     if not uptime then
         return -1, "Missing uptime"
     end
