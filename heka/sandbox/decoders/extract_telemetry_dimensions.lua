@@ -41,24 +41,35 @@ function sample(id, sampleRange)
 end
 
 function process_message()
-    -- Attempt to uncompress the payload if it is gzipped
+    -- Attempt to uncompress the payload if it is gzipped.
     local ok
     ok, msg.Payload = uncompress(read_message("Payload"))
     if not ok then return -1, msg.Payload end
 
-    -- Attempt to parse the payload as JSON
+    -- Attempt to parse the payload as JSON.
     local parsed
     ok, parsed = pcall(cjson.decode, msg.Payload)
     if not ok then return -1, parsed end
 
+    -- Carry forward the dimensions from the submission URL Path. Overwrite
+    -- them later with values from the parsed JSON Payload if available.
+    -- These fields should match the ones specified in the namespace_config for
+    -- the "telemetry" endpoint of the HTTP Edge Server.
+    msg.Fields.docId            = read_message("Fields[DocumentID]")
+    msg.Fields.docType          = read_message("Fields[reason]")
+    msg.Fields.appName          = read_message("Fields[appName]")
+    msg.Fields.appVersion       = read_message("Fields[appVersion]")
+    msg.Fields.appUpdateChannel = read_message("Fields[appUpdateChannel]")
+    msg.Fields.appBuildId       = read_message("Fields[appBuildID]")
+
     if parsed.ver then
-        -- Old-style telemetry
+        -- Old-style telemetry.
         msg.Fields.sourceVersion    = tostring(parsed.ver)
 
         local info = parsed.info
         if type(info) ~= "table" then return -1, "missing info object" end
 
-        -- Get some more dimensions
+        -- Get some more dimensions.
         msg.Fields.docType          = info.reason or UNK_DIM
         msg.Fields.appName          = info.appName or UNK_DIM
         msg.Fields.appVersion       = info.appVersion or UNK_DIM
@@ -77,7 +88,7 @@ function process_message()
         local app = parsed.application
         if type(app) ~= "table" then return -1, "missing 'application' object" end
 
-        -- Get some more dimensions
+        -- Get some more dimensions.
         msg.Fields.appName          = app.name or UNK_DIM
         msg.Fields.appVersion       = app.version or UNK_DIM
         msg.Fields.appUpdateChannel = app.channel or UNK_DIM
@@ -95,18 +106,16 @@ function process_message()
         end
     end
 
-    -- Carry forward geolocation (country, at least)
+    -- Carry forward more incoming fields.
     msg.Fields.geoCountry = read_message("Fields[geoCountry]") or UNK_GEO
-
-    -- Carry forward timestamp.
-    msg.Timestamp = read_message("Timestamp")
+    msg.Timestamp         = read_message("Timestamp")
+    msg.Fields.Host       = read_message("Fields[Host]")
 
     msg.Fields.submissionDate = os.date("%Y%m%d", msg.Timestamp / 1e9)
 
     msg.Fields.sampleId = sample(msg.Fields.clientId, 100)
 
-    -- Send new message along
+    -- Send new message along.
     inject_message(msg)
-
     return 0
 end
