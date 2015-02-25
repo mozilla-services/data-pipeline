@@ -131,7 +131,7 @@ end
 
 ----
 
--- todo after reviwing the utilization numbers keep the 'best' mode and remove the other
+-- todo after reviewing the utilization numbers keep the 'best' mode and remove the other
 local mode = read_config("mode") or "match"
 if mode == "match" then
     process_message = match
