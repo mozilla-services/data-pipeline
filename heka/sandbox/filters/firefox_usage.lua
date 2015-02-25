@@ -93,7 +93,7 @@ local function parse()
     if type(uptime) ~= "number" then
         return -1, "Missing payload.info.subsessionLength"
     end
-    uptime = uptime / 3600-- convert to hours
+    uptime = uptime / 3600 -- convert to hours
 
     local ts  = read_message("Timestamp")
     local day = floor(ts / (SEC_IN_DAY * 1e9))
@@ -131,6 +131,7 @@ end
 
 ----
 
+-- todo after reviwing the utilization numbers keep the 'best' mode and remove the other
 local mode = read_config("mode") or "match"
 if mode == "match" then
     process_message = match
