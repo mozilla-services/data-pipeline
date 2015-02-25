@@ -18,7 +18,7 @@ Config:
 
     [FirefoxUsage]
     type = "SandboxFilter"
-    filename = "lua_filters/ff_usage.lua"
+    filename = "lua_filters/firefox_usage.lua"
     message_matcher = "Type == 'telemetry'"
     ticker_interval = 60
     preserve_data = true
@@ -93,7 +93,7 @@ local function parse()
     if type(uptime) ~= "number" then
         return -1, "Missing payload.info.subsessionLength"
     end
-    uptime = uptime / 60 -- convert to hours
+    uptime = uptime / 3600-- convert to hours
 
     local ts  = read_message("Timestamp")
     local day = floor(ts / (SEC_IN_DAY * 1e9))
@@ -114,7 +114,7 @@ local function match()
     if not uptime then
         return -1, "Missing uptime"
     end
-    uptime = tonumber(uptime) / 60 -- convert to hours
+    uptime = tonumber(uptime) / 3600 -- convert to hours
 
     local ts  = read_message("Timestamp")
     local day = floor(ts / (SEC_IN_DAY * 1e9))
