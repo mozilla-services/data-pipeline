@@ -13,6 +13,7 @@ import (
 	"github.com/crowdmob/goamz/s3"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mreid-moz/golang-lru"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -38,6 +39,7 @@ type S3SplitFileOutput struct {
 	folderPerm   os.FileMode
 	timerChan    <-chan time.Time
 	dimFiles     map[string]*SplitFileInfo
+	fopenCache   *lru.Cache
 	schema       Schema
 	bucket       *s3.Bucket
 	publishChan  chan PublishAttempt
@@ -79,6 +81,12 @@ type S3SplitFileOutputConfig struct {
 	// file and begin writing to another one (default 60 * 60 * 1000, i.e. 1hr).
 	MaxFileAge uint32 `toml:"max_file_age"`
 
+	// Specifies how many data files to keep open at once. If there are more
+	// "current" files than this, the least-recently used file will be closed,
+	// and will be re-opened if more messages arrive before it is rotated. The
+	// default is 1000. A value of 0 means no maximum.
+	MaxOpenFiles int `toml:"max_open_files"`
+
 	AWSKey         string `toml:"aws_key"`
 	AWSSecretKey   string `toml:"aws_secret_key"`
 	AWSRegion      string `toml:"aws_region"`
@@ -92,7 +100,6 @@ type S3SplitFileOutputConfig struct {
 type SplitFileInfo struct {
 	name       string
 	lastUpdate time.Time
-	file       *os.File
 	size       uint32
 }
 
@@ -112,6 +119,7 @@ func (o *S3SplitFileOutput) ConfigStruct() interface{} {
 		FolderPerm:     "700",
 		MaxFileSize:    524288000,
 		MaxFileAge:     3600000,
+		MaxOpenFiles:   1000,
 		AWSKey:         "",
 		AWSSecretKey:   "",
 		AWSRegion:      "us-west-2",
@@ -148,6 +156,25 @@ func (o *S3SplitFileOutput) Init(config interface{}) (err error) {
 	if conf.MaxFileAge < 1 {
 		err = fmt.Errorf("Parameter 'max_file_age' must be greater than 0.")
 		return
+	}
+
+	if conf.MaxOpenFiles < 0 {
+		err = fmt.Errorf("Parameter 'max_open_files' must not be negative.")
+		return
+	}
+	o.fopenCache, err = lru.New(conf.MaxOpenFiles)
+	if err != nil {
+		// This should never happen since we already checked for negative size.
+		return
+	}
+
+	// Close files as they are evicted / removed from the cache.
+	o.fopenCache.OnEvicted = func(key interface{}, val interface{}) {
+		// If it's not a file, we don't care about it.
+		switch t := val.(type) {
+		case *os.File:
+			t.Close()
+		}
 	}
 
 	o.dimFiles = map[string]*SplitFileInfo{}
@@ -193,13 +220,20 @@ func (o *S3SplitFileOutput) Init(config interface{}) (err error) {
 func (o *S3SplitFileOutput) writeMessage(fi *SplitFileInfo, msgBytes []byte) (rotate bool, err error) {
 	rotate = false
 	atomic.AddInt64(&o.processMessageCount, 1)
-	n, e := fi.file.Write(msgBytes)
+
+	file, e := o.openCurrent(fi)
+	if e != nil {
+		atomic.AddInt64(&o.processMessageFailures, 1)
+		return rotate, fmt.Errorf("Error getting open file %s: %s", fi.name, e)
+	}
+
+	n, e := file.Write(msgBytes)
 
 	atomic.AddInt64(&o.processMessageBytes, int64(n))
 
 	// Note that if these files are being written to elsewhere, the size-based
 	// rotation will not work as expected. A more robust approach would be to
-	// use something like `fi.file.Seek(0, os.SEEK_CUR)` to get the current
+	// use something like `file.Seek(0, os.SEEK_CUR)` to get the current
 	// offset into the file.
 	fi.size += uint32(n)
 
@@ -243,6 +277,24 @@ func (o *S3SplitFileOutput) finalizeAll() (err error) {
 }
 
 func (o *S3SplitFileOutput) openCurrent(fi *SplitFileInfo) (file *os.File, err error) {
+	// TODO: There is a race condition here - if there's a huge amount of churn
+	//       in file usage, we could get evicted (and hence closed) while we're
+	//       trying to write to a file. In practice, will this happen? We would
+	//       have to get 1000 or more other files before our current file
+	//       operation finishes.
+
+	// Get it from the cache, if possible
+	item, ok := o.fopenCache.Get(fi.name)
+	if ok {
+		switch t := item.(type) {
+		default:
+			// Cached value was not a file. Remove it.
+			o.fopenCache.Remove(fi.name)
+		case *os.File:
+			return t, nil
+		}
+	}
+
 	fullName := o.getCurrentFileName(fi.name)
 	fullPath := filepath.Dir(fullName)
 	if err = os.MkdirAll(fullPath, o.folderPerm); err != nil {
@@ -250,6 +302,9 @@ func (o *S3SplitFileOutput) openCurrent(fi *SplitFileInfo) (file *os.File, err e
 	}
 
 	file, err = os.OpenFile(fullName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
+	if err == nil {
+		o.fopenCache.Add(fi.name, file)
+	}
 	return
 }
 
@@ -262,7 +317,7 @@ func (o *S3SplitFileOutput) getFinalizedFileName(fileName string) (fullPath stri
 }
 
 func (o *S3SplitFileOutput) finalizeOne(fi *SplitFileInfo) (err error) {
-	fi.file.Close()
+	o.fopenCache.Remove(fi.name)
 	oldName := o.getCurrentFileName(fi.name)
 	newName := o.getFinalizedFileName(fi.name)
 	//fmt.Printf("Moving '%s' to '%s'\n", oldName, newName)
@@ -365,11 +420,6 @@ func (o *S3SplitFileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 					lastUpdate: time.Now().UTC(),
 					size:       0,
 				}
-				f, e := o.openCurrent(fileInfo)
-				if e != nil {
-					or.LogError(fmt.Errorf("Error opening file: %s", e))
-				}
-				fileInfo.file = f
 				o.dimFiles[dimPath] = fileInfo
 			}
 
@@ -502,6 +552,10 @@ func (o *S3SplitFileOutput) publisher(or OutputRunner, wg *sync.WaitGroup) {
 }
 
 func (o *S3SplitFileOutput) ReportMsg(msg *message.Message) error {
+	// If the OpenFileCount is consistently at or near OpenFileLimit, consider
+	// increasing the max_open_files parameter.
+	message.NewInt64Field(msg, "OpenFileCount", int64(o.fopenCache.Len()), "count")
+	message.NewInt64Field(msg, "OpenFileLimit", int64(o.MaxOpenFiles), "count")
 	message.NewInt64Field(msg, "ProcessFileCount", atomic.LoadInt64(&o.processFileCount), "count")
 	message.NewInt64Field(msg, "ProcessFileFailures", atomic.LoadInt64(&o.processFileFailures), "count")
 	message.NewInt64Field(msg, "ProcessFilePartialFailures", atomic.LoadInt64(&o.processFilePartialFailures), "count")

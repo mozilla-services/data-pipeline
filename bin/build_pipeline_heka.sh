@@ -51,6 +51,10 @@ if [ ! -f "patches_applied" ]; then
 
     echo "Adding external plugin for s3splitfile output"
     echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline $BUILD_BRANCH heka/plugins/s3splitfile __ignore_root)" >> cmake/plugin_loader.cmake
+
+    echo "Adding external plugin for golang-lru output"
+    echo "add_external_plugin(git https://github.com/mreid-moz/golang-lru acc5bd27065280640fa0a79a973076c6abaccec8)" >> cmake/plugin_loader.cmake
+
 fi
 
 source build.sh
