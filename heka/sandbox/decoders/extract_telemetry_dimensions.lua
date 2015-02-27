@@ -116,6 +116,10 @@ function process_message()
     msg.Fields.sampleId = sample(msg.Fields.clientId, 100)
 
     -- Send new message along.
-    inject_message(msg)
+    local err
+    ok, err = pcall(inject_message, msg)
+    if not ok then
+        return -1, err
+    end
     return 0
 end
