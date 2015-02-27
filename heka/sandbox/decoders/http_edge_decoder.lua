@@ -158,8 +158,8 @@ function process_message()
     -- Override Logger if specified.
     if cfg["logger"] then main_msg.Logger = cfg["logger"] end
 
-    -- This DocumentID is what we should use to de-duplicate submissions.
-    main_msg.Fields.DocumentID = table.remove(components, 1)
+    -- This documentId is what we should use to de-duplicate submissions.
+    main_msg.Fields.documentId = table.remove(components, 1)
 
     local num_components = #components
     if num_components > 0 then
