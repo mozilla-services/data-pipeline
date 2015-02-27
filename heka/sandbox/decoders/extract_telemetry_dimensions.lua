@@ -56,11 +56,11 @@ function process_message()
     -- These fields should match the ones specified in the namespace_config for
     -- the "telemetry" endpoint of the HTTP Edge Server.
     msg.Fields.documentId       = read_message("Fields[documentId]")
-    msg.Fields.docType          = read_message("Fields[reason]")
+    msg.Fields.docType          = read_message("Fields[docType]")
     msg.Fields.appName          = read_message("Fields[appName]")
     msg.Fields.appVersion       = read_message("Fields[appVersion]")
     msg.Fields.appUpdateChannel = read_message("Fields[appUpdateChannel]")
-    msg.Fields.appBuildId       = read_message("Fields[appBuildID]")
+    msg.Fields.appBuildId       = read_message("Fields[appBuildId]")
 
     if parsed.ver then
         -- Old-style telemetry.
