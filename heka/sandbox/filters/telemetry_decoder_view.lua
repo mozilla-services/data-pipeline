@@ -14,7 +14,9 @@ require "string"
 local SEC_PER_ROW   = 60
 local ROWS          = 2880
 
-bf                  = bloom_filter.new(3*1e6, 0.01) -- todo up the size when not under the sandbox manager
+local items         = read_config("bloom_items") or 3*1e6
+local probability   = read_config("bloom_probability") or 0.01
+bf                  = bloom_filter.new(items, probability)
 cb                  = circular_buffer.new(ROWS, 3, SEC_PER_ROW)
 local TOTAL         = cb:set_header(1, "Total")
 local FAILURES      = cb:set_header(2, "Failures")
