@@ -45,6 +45,11 @@ function process_message()
     local ok
     ok, msg.Payload = uncompress(read_message("Payload"))
     if not ok then return -1, msg.Payload end
+    -- This size check should match the output_limit config param. We want to
+    -- check the size early to avoid parsing JSON if we don't have to.
+    if string.len(msg.Payload) > 2097152 then
+        return -1, "Uncompressed Payload too large: " .. string.len(msg.Payload)
+    end
 
     -- Attempt to parse the payload as JSON.
     local parsed
