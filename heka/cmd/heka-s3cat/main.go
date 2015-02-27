@@ -36,11 +36,20 @@ func main() {
 	flagAWSKey := flag.String("aws-key", "", "AWS Key")
 	flagAWSSecretKey := flag.String("aws-secret-key", "", "AWS Secret Key")
 	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
+	flagMaxMessageSize := flag.Uint64("max-message-size", 4*1024*1024, "maximum message size in bytes")
 	flag.Parse()
 
 	if !*flagStdin && flag.NArg() < 1 {
 		flag.PrintDefaults()
 		os.Exit(1)
+	}
+
+	if *flagMaxMessageSize < uint64(4294967295) {
+		maxSize := uint32(*flagMaxMessageSize)
+		message.SetMaxMessageSize(maxSize)
+	} else {
+		fmt.Printf("Message size is too large: %d\n", flagMaxMessageSize)
+		os.Exit(8)
 	}
 
 	var err error
