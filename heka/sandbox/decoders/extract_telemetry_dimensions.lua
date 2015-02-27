@@ -55,7 +55,7 @@ function process_message()
     -- them later with values from the parsed JSON Payload if available.
     -- These fields should match the ones specified in the namespace_config for
     -- the "telemetry" endpoint of the HTTP Edge Server.
-    msg.Fields.docId            = read_message("Fields[DocumentID]")
+    msg.Fields.DocumentID       = read_message("Fields[DocumentID]")
     msg.Fields.docType          = read_message("Fields[reason]")
     msg.Fields.appName          = read_message("Fields[appName]")
     msg.Fields.appVersion       = read_message("Fields[appVersion]")
