@@ -41,7 +41,7 @@ local function update_delta(ts, col, id, parray, cur)
     else
         if type(cur) == "number" then
             parray[id] = cur
-            cb:set(ts, col, 0)
+            cb:set(ts, col, 0/0) -- advance the buffer with a NaN entry
         end
     end
 end
