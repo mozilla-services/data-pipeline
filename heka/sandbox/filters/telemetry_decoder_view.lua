@@ -41,7 +41,7 @@ local function update_delta(ts, col, id, parray, cur)
     else
         if type(cur) == "number" then
             parray[id] = cur
-            cb:set(ts, col, 0)
+            cb:set(ts, col, 0/0) -- advance the buffer with a NaN entry
         end
     end
 end
@@ -73,13 +73,12 @@ function process_message ()
                 id = tonumber(id)
             end
 
-            -- todo we may want to break this out by ProcessMessage*-TelemetryDecoder
-            if type(v.ProcessMessageCount) == "table" then
-                update_delta(ts, TOTAL, id, id_count, v.ProcessMessageCount.value)
+            if type(v["ProcessMessageCount-TelemetryDecoder"]) == "table" then
+                update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value)
             end
 
-            if type(v.ProcessMessageFailures) == "table" then
-                update_delta(ts, FAILURES, id, id_failures, v.ProcessMessageFailures.value)
+            if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
+                update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
             end
         end
     elseif typ == "telemetry" then
