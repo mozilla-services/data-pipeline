@@ -83,9 +83,9 @@ function process_message ()
             end
         end
     elseif typ == "telemetry" then
-        local did = read_message("Fields[DocumentID]")
+        local did = read_message("Fields[documentId]")
         if not did then
-            return -1, "No DocumentID"
+            return -1, "No documentId"
         end
 
         local added = bf:add(did)
