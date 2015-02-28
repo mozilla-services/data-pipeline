@@ -23,6 +23,7 @@ import (
 	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 	"github.com/mozilla-services/heka/message"
 	"io"
+	"math"
 	"os"
 	"time"
 )
@@ -44,7 +45,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *flagMaxMessageSize < uint64(4294967295) {
+	if *flagMaxMessageSize < math.MaxUint32 {
 		maxSize := uint32(*flagMaxMessageSize)
 		message.SetMaxMessageSize(maxSize)
 	} else {
