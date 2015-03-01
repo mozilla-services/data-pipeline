@@ -100,7 +100,7 @@ last_cleared = nil
 
 function timer_event(ns)
     if last_cleared and ns - last_cleared >= 1e9 * ROWS * SEC_PER_ROW then
-        bf.clear()
+        bf:clear()
         last_cleared = ns
     elseif not last_cleared then
         last_cleared = ns
