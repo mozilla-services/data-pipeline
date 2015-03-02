@@ -308,8 +308,7 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 			fmt.Printf("Error listing: %s\n", err)
 			// TODO: retry?
 			kc <- S3ListResult{s3.Key{}, err}
-			done = true
-			continue
+			break
 		}
 
 		if !response.IsTruncated {
