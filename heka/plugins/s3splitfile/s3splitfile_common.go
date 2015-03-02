@@ -99,7 +99,7 @@ type ListDimensionChecker struct {
 }
 
 func (ldc ListDimensionChecker) IsAllowed(v string) bool {
-	_, ok := ldc.allowed[v]
+	_, ok := ldc.allowed[SanitizeDimension(v)]
 	return ok
 }
 
@@ -107,7 +107,7 @@ func (ldc ListDimensionChecker) IsAllowed(v string) bool {
 func NewListDimensionChecker(allowed []string) *ListDimensionChecker {
 	dimMap := map[string]struct{}{}
 	for _, a := range allowed {
-		dimMap[a] = struct{}{}
+		dimMap[SanitizeDimension(a)] = struct{}{}
 	}
 	return &ListDimensionChecker{dimMap}
 }
@@ -308,6 +308,8 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 			fmt.Printf("Error listing: %s\n", err)
 			// TODO: retry?
 			kc <- S3ListResult{s3.Key{}, err}
+			done = true
+			continue
 		}
 
 		if !response.IsTruncated {
