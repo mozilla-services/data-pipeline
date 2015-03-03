@@ -12,13 +12,28 @@ local msg = {
 Timestamp   = nil,
 Type        = "telemetry",
 Payload     = nil,
-Fields      = { sourceName = "telemetry" }
+EnvVersion  = 1
 }
 
 local UNK_DIM = "UNKNOWN"
 local UNK_GEO = "??"
+local environment_objects = {"build", "settings", "profile", "partner", "system", "addons"}
+local main_ping_objects = {"info", "simpleMeasurements", "histograms", "keyedHistograms", "chromeHangs", "threadHangStats", "log", "fileIOReports", "lateWrites", "addonDetails", "addonHistograms", "UIMeasurements", "slowSQL", "slowSQLstartup", "childPayloads"}
 
-function uncompress(payload)
+local function split_objects(root, section, objects)
+    if type(root) ~= "table" then return end
+
+    for i, name in ipairs(objects) do
+        if type(root[name]) == "table" then
+            local ok, json = pcall(cjson.encode, root[name])
+            if ok then
+                msg.Fields[string.format("%s.%s", section, name)] = json
+            end
+        end
+    end
+end
+
+local function uncompress(payload)
     local b1, b2 = string.byte(payload, 1, 2)
 
     if b1 == 0x1f and b2 == 0x8b then  -- test for gzip magic header bytes
@@ -32,7 +47,7 @@ function uncompress(payload)
     return true, payload
 end
 
-function sample(id, sampleRange)
+local function sample(id, sampleRange)
     if type(id) ~= "string" then
         return nil
     end
@@ -42,24 +57,25 @@ end
 
 function process_message()
     -- Attempt to uncompress the payload if it is gzipped.
-    local ok
-    ok, msg.Payload = uncompress(read_message("Payload"))
-    if not ok then return -1, msg.Payload end
+    local payload = read_message("Payload")
+    local ok, json = uncompress(payload)
+    if not ok then return -1, json end
     -- This size check should match the output_limit config param. We want to
     -- check the size early to avoid parsing JSON if we don't have to.
-    if string.len(msg.Payload) > 2097152 then
-        return -1, "Uncompressed Payload too large: " .. string.len(msg.Payload)
+    if string.len(json) > 2097152 then
+        return -1, "Uncompressed Payload too large: " .. string.len(json)
     end
 
     -- Attempt to parse the payload as JSON.
     local parsed
-    ok, parsed = pcall(cjson.decode, msg.Payload)
+    ok, parsed = pcall(cjson.decode, json)
     if not ok then return -1, parsed end
 
     -- Carry forward the dimensions from the submission URL Path. Overwrite
     -- them later with values from the parsed JSON Payload if available.
     -- These fields should match the ones specified in the namespace_config for
     -- the "telemetry" endpoint of the HTTP Edge Server.
+    msg.Fields                  = { sourceName = "telemetry" }
     msg.Fields.documentId       = read_message("Fields[documentId]")
     msg.Fields.docType          = read_message("Fields[docType]")
     msg.Fields.appName          = read_message("Fields[appName]")
@@ -69,6 +85,7 @@ function process_message()
 
     if parsed.ver then
         -- Old-style telemetry.
+        msg.Payload = json
         msg.Fields.sourceVersion    = tostring(parsed.ver)
 
         local info = parsed.info
@@ -87,6 +104,13 @@ function process_message()
         msg.Fields.clientId         = parsed.clientID
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
+        if parsed.type == "main" then
+            msg.Payload = payload -- keep the gzipped payload since we are moving most of the content into fields
+            split_objects(parsed.environment, "environment", environment_objects)
+            split_objects(parsed.payload, "main", main_ping_objects)
+        else
+            msg.Payload = json
+        end
         msg.Fields.sourceVersion    = tostring(parsed.version)
         msg.Fields.docType          = parsed.type or UNK_DIM
 
