@@ -6,10 +6,12 @@
 Creates a summary view of the TelemetryDecoder Statistics.
 --]]
 
+require "os"
 require "bloom_filter"
 require "circular_buffer"
 require "cjson"
 require "string"
+require "table"
 
 local SEC_PER_ROW   = 60
 local ROWS          = 2880
@@ -24,6 +26,54 @@ local DUPLICATES    = cb:set_header(3, "Duplicates")
 id_count            = {} -- array of decoder ids and the last seen count
 id_failures         = {} -- array of decoder ids and the last seen failure count
 
+local max_entries = 24 * 180
+local sec_in_hour = 60 * 60
+report_json = {}
+
+local function create_hour(hour, t)
+    if #t == 0 or hour > t[#t].time_t then -- only advance the hour, gaps are ok but should not occur
+        if #t == max_entries then
+            table.remove(t, 1)
+        end
+        t[#t+1] = {time_t = hour,
+                   date = os.date('!%Y-%m-%dT%H:%M:%SZ', hour),
+                   total_pings = 0,
+                   malformed_pings = 0,
+                   duplicate_pings = 0}
+        return #t
+    end
+    return nil
+end
+
+local function find_hour(hour, t)
+    for i = #t, 1, -1 do
+        local time_t = t[i].time_t
+        if hour > time_t then
+            return nil
+        elseif hour == time_t then
+            return i
+        end
+    end
+end
+
+local function set(t, h, field, v)
+    local idx = find_hour(h, t)
+    if not idx then
+        idx = create_hour(h, t)
+    end
+    if t[idx][field] then
+        t[idx][field] = v
+    end
+end
+
+local function pre_initialize()
+    local t = os.time()
+    t = t - (t % sec_in_hour)
+    for i = t - ((max_entries-1) * sec_in_hour), t, sec_in_hour do
+        create_hour(i, report_json)
+    end
+end
+pre_initialize()
 
 local function update_delta(ts, col, id, parray, cur)
     local previous = parray[id]
@@ -106,5 +156,14 @@ function timer_event(ns)
         last_cleared = ns
     end
 
+    local e = cb:current_time()
+    local s = e - (e % (sec_in_hour * 1e9))
+    local sec = s / 1e9
+
+    set (report_json, sec, "total_pings", cb:compute("sum", TOTAL, s, e))
+    set (report_json, sec, "malformed_pings", cb:compute("sum", FAILURES, s, e))
+    set (report_json, sec, "duplicate_pings", cb:compute("sum", DUPLICATES, s, e))
+
     inject_payload("cbuf", "Telemetry Decoder Statistics", cb)
+    inject_payload("json", "Telemetry Decoder Report JSON", cjson.encode(report_json))
 end
