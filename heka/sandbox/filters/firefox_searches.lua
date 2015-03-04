@@ -60,7 +60,7 @@ end
 
 local time = os.time
 function process_message ()
-    local json = read_message("Fields[main.keyedHistograms]")
+    local json = read_message("Fields[payload.keyedHistograms]")
     if not json then return -1, "no keyedHistograms" end
 
     local ok, khist = pcall(cjson.decode, json)

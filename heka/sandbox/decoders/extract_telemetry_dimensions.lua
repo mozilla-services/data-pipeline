@@ -107,7 +107,7 @@ function process_message()
         if parsed.type == "main" then
             msg.Payload = payload -- keep the gzipped payload since we are moving most of the content into fields
             split_objects(parsed.environment, "environment", environment_objects)
-            split_objects(parsed.payload, "main", main_ping_objects)
+            split_objects(parsed.payload, "payload", main_ping_objects)
         else
             msg.Payload = json
         end
