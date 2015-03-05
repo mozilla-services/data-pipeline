@@ -40,22 +40,21 @@ if [ ! -f "patches_applied" ]; then
     echo "Patching to build 'heka-s3list' and 'heka-s3cat'"
     patch CMakeLists.txt < $BASE/heka/patches/0003-Add-more-cmds.patch
 
-    # TODO: do this using cmake externals instead of shell-fu.
-    echo "Installing source files for extra cmds"
-    cp -R $BASE/heka/cmd/heka-export ./cmd/
-    cp -R $BASE/heka/cmd/heka-s3list ./cmd/
-    cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
-
-    echo 'Installing lua filters/modules/decoders'
-    rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
-
     echo "Adding external plugin for s3splitfile output"
     echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline $BUILD_BRANCH heka/plugins/s3splitfile __ignore_root)" >> cmake/plugin_loader.cmake
 
     echo "Adding external plugin for golang-lru output"
     echo "add_external_plugin(git https://github.com/mreid-moz/golang-lru acc5bd27065280640fa0a79a973076c6abaccec8)" >> cmake/plugin_loader.cmake
-
 fi
+
+# TODO: do this using cmake externals instead of shell-fu.
+echo "Installing/updating source files for extra cmds"
+cp -R $BASE/heka/cmd/heka-export ./cmd/
+cp -R $BASE/heka/cmd/heka-s3list ./cmd/
+cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
+
+echo 'Installing/updating lua filters/modules/decoders'
+rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
 
 source build.sh
 
@@ -108,6 +107,9 @@ echo 'Installing lua_hash lib'
 cd $BASE
 # Build a hash module with the zlib checksum functions
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
+
+echo 'Updating plugins with local changes'
+rsync -av $BASE/heka/plugins/ $BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
 
 cd $BASE/build/heka/build
 
