@@ -81,7 +81,7 @@ function process_message()
     landfill_msg.Timestamp  = read_message("Timestamp")
     landfill_msg.Type       = read_message("Type")
     landfill_msg.Hostname   = read_message("Hostname")
-    landfill_msg.Pid        = read_message("Timestamp")
+    landfill_msg.Pid        = read_message("Pid")
     -- UUID is auto-generated and meaningless anyways
     landfill_msg.Logger     = read_message("Logger")
     landfill_msg.Payload    = read_message("Payload")
