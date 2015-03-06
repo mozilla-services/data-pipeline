@@ -3,6 +3,8 @@
 This repository contains the extra bits and pieces needed to build heka
 for use in the [Cloud Services Data Pipeline](https://wiki.mozilla.org/CloudServices/DataPipeline).
 
+Visit us on irc.mozilla.org in `#datapipeline`.
+
 ## Building a Data Pipeline RPM
 
 Run `bin/build_pipeline_heka.sh` from the top level of this repo to build a heka RPM.
