@@ -28,6 +28,7 @@ local function split_objects(root, section, objects)
             local ok, json = pcall(cjson.encode, root[name])
             if ok then
                 msg.Fields[string.format("%s.%s", section, name)] = json
+                root[name] = nil -- remove extracted objects
             end
         end
     end
@@ -105,9 +106,11 @@ function process_message()
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
         if parsed.type == "main" then
-            msg.Payload = payload -- keep the gzipped payload since we are moving most of the content into fields
             split_objects(parsed.environment, "environment", environment_objects)
             split_objects(parsed.payload, "payload", main_ping_objects)
+            local ok, json = pcall(cjson.encode, parsed) -- re-encode the remaining data
+            if not ok then return -1, json end
+            msg.Payload = json
         else
             msg.Payload = json
         end
