@@ -113,8 +113,16 @@ rsync -av $BASE/heka/plugins/ $BASE/build/heka/build/heka/src/github.com/mozilla
 
 cd $BASE/build/heka/build
 
-# Build RPM
-make package
+case $UNAME in
+Darwin)
+    # Don't bother trying to build a package on OSX
+    make
+    ;;
+*)
+    # Build RPM
+    make package
+    ;;
+esac
 if hash rpmrebuild 2>/dev/null; then
     echo "Rebuilding RPM with date iteration and svc suffix"
     rpmrebuild -d . --release=0.$(date +%Y%m%d)svc -p -n heka-*-linux-amd64.rpm
