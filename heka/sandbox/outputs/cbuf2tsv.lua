@@ -52,7 +52,7 @@ function process_message()
     local cb_spr = 0
     local cb_rows = 0
     local body = {}
-    local cnt = 0;
+    local cnt = 0
 
     local payload = read_message("Payload")
     for l in string.gmatch(payload, ".-\n") do
@@ -97,7 +97,7 @@ function process_message()
 
     local fh = assert(io.open(string.format("%s/%s.%s.tsv", output_path, logger, name), "w"))
     fh:write(header, "\n", table.concat(body))
-    fh:close();
+    fh:close()
     return 0
 end
 
