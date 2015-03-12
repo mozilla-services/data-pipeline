@@ -102,6 +102,7 @@ function process_message()
         msg.Fields.appBuildId       = app.buildId
         msg.Fields.vendor           = app.vendor
         msg.Fields.clientId         = parsed.clientId
+        msg.Fields.creationDate     = parsed.creationDate
 
         msg.Fields.os = nil
         if parsed.environment and
