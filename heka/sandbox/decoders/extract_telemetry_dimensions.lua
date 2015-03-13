@@ -83,7 +83,7 @@ local function sample(id, sampleRange)
 end
 
 function parse_creation_date(date)
-   local t = dt.rfc3339:match(date)
+   local t = dt.rfc3339:match(date or "")
    if not t then
       return nil
    end
