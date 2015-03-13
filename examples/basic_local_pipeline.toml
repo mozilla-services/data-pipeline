@@ -9,7 +9,7 @@ max_message_size = 8388608
 [TestInput]
 type = "HttpListenInput"
 address = "127.0.0.1:8080"
-request_headers = ["Content-Length", "X-Forwarded-For"]
+request_headers = ["Content-Length", "X-Forwarded-For", "DNT"]
 decoder = "HttpEdgeDecoder"
 send_decode_failures = true
 
