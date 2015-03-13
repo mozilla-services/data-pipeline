@@ -167,6 +167,7 @@ function process_message()
     msg.Fields.geoCountry = read_message("Fields[geoCountry]") or UNK_GEO
     msg.Timestamp         = read_message("Timestamp")
     msg.Fields.Host       = read_message("Fields[Host]")
+    msg.Fields.DNT        = read_message("Fields[DNT]")
 
     msg.Fields.submissionDate = os.date("%Y%m%d", msg.Timestamp / 1e9)
 
