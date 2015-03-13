@@ -17,8 +17,33 @@ EnvVersion  = 1
 
 local UNK_DIM = "UNKNOWN"
 local UNK_GEO = "??"
-local environment_objects = {"build", "settings", "profile", "partner", "system", "addons"}
-local main_ping_objects = {"info", "simpleMeasurements", "histograms", "keyedHistograms", "chromeHangs", "threadHangStats", "log", "fileIOReports", "lateWrites", "addonDetails", "addonHistograms", "UIMeasurements", "slowSQL", "slowSQLstartup", "childPayloads"}
+
+local environment_objects = {
+    "addons",
+    "build",
+    "partner",
+    "profile",
+    "settings",
+    "system"
+    }
+
+local main_ping_objects = {
+    "addonDetails",
+    "addonHistograms",
+    "childPayloads", -- only present with e10s
+    "chromeHangs",
+    "fileIOReports",
+    "histograms",
+    "info",
+    "keyedHistograms",
+    "lateWrites",
+    "log",
+    "simpleMeasurements",
+    "slowSQL",
+    "slowSQLstartup",
+    "threadHangStats",
+    "UIMeasurements"
+    }
 
 local function split_objects(root, section, objects)
     if type(root) ~= "table" then return end
