@@ -83,10 +83,13 @@ local function sample(id, sampleRange)
 end
 
 function parse_creation_date(date)
-   local t = dt.rfc3339:match(date or "")
+   if type(date) ~= "string" then return nil end
+
+   local t = dt.rfc3339:match(date)
    if not t then
       return nil
    end
+
    ns = dt.time_to_ns(t) -- The timezone of the ping has always zero UTC offset
    return ns
 end
@@ -165,6 +168,10 @@ function process_message()
         msg.Fields.vendor           = app.vendor
         msg.Fields.clientId         = parsed.clientId
         msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
+
+        if not msg.Fields.creationTimestamp then
+           return -1, "missing creationDate"
+        end
 
         msg.Fields.os = nil
         if parsed.environment and
