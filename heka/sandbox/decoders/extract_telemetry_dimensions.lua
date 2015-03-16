@@ -90,8 +90,7 @@ function parse_creation_date(date)
       return nil
    end
 
-   ns = dt.time_to_ns(t) -- The timezone of the ping has always zero UTC offset
-   return ns
+   return dt.time_to_ns(t) -- The timezone of the ping has always zero UTC offset
 end
 
 function process_message()
