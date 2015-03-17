@@ -5,13 +5,6 @@
 --[[
 Firefox Usage Hours
 
-Config:
-
-- mode (string, optional, default "match")
-    Sets the subsessionLength extraction mode to 'match' or 'parse'. Match will
-    simply search for the uptime key/value anywhere in the string.  Parse will
-    JSON decoded the entire message to extract this one value.
-
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -19,7 +12,7 @@ Config:
     [FirefoxUsage]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_usage.lua"
-    message_matcher = "Type == 'telemetry'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main'"
     ticker_interval = 60
     preserve_data = true
 --]]
@@ -39,7 +32,8 @@ day_cb  = circular_buffer.new(DAYS, 1, SEC_IN_DAY)
 day_cb:set_header(1, "Active Hours")
 current_day = -1
 
-local month_names = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+local month_names = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+    "Sep", "Oct", "Nov", "Dec"}
 local MONTHS = #month_names
 months = {}
 for i=1,MONTHS do
@@ -55,7 +49,7 @@ local function clear_months(s, n)
     end
 end
 
-local function update_month(ts, uptime, day_changed)
+local function update_month(ts, uptime, day_changed, day_advanced)
     local month = current_month
     if current_month == -1 or day_changed then
         local t = date("*t", ts / 1e9)
@@ -63,82 +57,51 @@ local function update_month(ts, uptime, day_changed)
         if current_month == -1 then current_month = month end
     end
 
-    local delta = month - current_month
-    if delta > 0 then
-        clear_months(current_month, delta)
-        current_month = month
-    elseif delta < -1 then -- if older than a month roll over the year
-        clear_months(current_month, MONTHS + delta)
-        current_month = month
+    if day_advanced then
+        local delta = month - current_month
+        if delta > 0 then
+            clear_months(current_month, delta)
+            current_month = month
+        elseif delta < 0 then -- roll over the year
+            clear_months(current_month, MONTHS + delta)
+            current_month = month
+        end
     end
     months[month] = months[month] + uptime
 end
 
-local function parse()
-    local json = read_message("Payload")
+----
+
+function process_message()
+    local json = read_message("Fields[payload.info]")
     local ok, json = pcall(cjson.decode, json)
     if not ok then
         return -1, json
     end
 
-    if type(json.payload) ~= "table" then
-        return -1, "Missing payload object"
+    local uptime = json.subsessionLength
+    if type(uptime) ~= "number" or uptime < 0 or uptime >= 180 * SEC_IN_DAY then
+        return -1, "missing/invalid subsessionLength"
     end
+    if uptime == 0 then return 0 end
 
-    if type(json.payload.info) ~= "table" then
-        return -1, "Missing payload.info object"
-    end
-
-    local uptime = json.payload.info.subsessionLength
-    if type(uptime) ~= "number" then
-        return -1, "Missing payload.info.subsessionLength"
-    end
     uptime = uptime / 3600 -- convert to hours
 
     local ts  = read_message("Timestamp")
     local day = floor(ts / (SEC_IN_DAY * 1e9))
     local day_changed = day ~= current_day
+    local day_advanced = false
     if day > current_day then
         current_day = day
+        day_advanced = true
+    elseif current_day - day > 360 * SEC_IN_DAY then
+        return -1, "data is too old"
     end
 
     day_cb:add(ts, 1, uptime)
-    update_month(ts, uptime, day_changed)
+    update_month(ts, uptime, day_changed, day_advanced)
 
     return 0
-end
-
-local function match()
-    local json = read_message("Payload")
-    local uptime = string.match(json, '"subsessionLength":%s*(%d+%.?%d*)')
-    if not uptime then
-        return -1, "Missing uptime"
-    end
-    uptime = tonumber(uptime) / 3600 -- convert to hours
-
-    local ts  = read_message("Timestamp")
-    local day = floor(ts / (SEC_IN_DAY * 1e9))
-    local day_changed = day ~= current_day
-    if day > current_day then
-        current_day = day
-    end
-
-    day_cb:add(ts, 1, uptime)
-    update_month(ts, uptime, day_changed)
-
-    return 0
-end
-
-----
-
--- todo after reviewing the utilization numbers keep the 'best' mode and remove the other
-local mode = read_config("mode") or "match"
-if mode == "match" then
-    process_message = match
-elseif mode == "parse" then
-    process_message = parse
-else
-    error("Invalid configuration mode: " .. mode)
 end
 
 function timer_event(ns)
