@@ -7,6 +7,7 @@ require "cjson"
 require "hash"
 require "os"
 local gzip = require "gzip"
+local dt = require("date_time")
 
 local msg = {
 Timestamp   = nil,
@@ -79,6 +80,17 @@ local function sample(id, sampleRange)
     end
 
     return hash.crc32(id) % sampleRange
+end
+
+function parse_creation_date(date)
+   if type(date) ~= "string" then return nil end
+
+   local t = dt.rfc3339:match(date)
+   if not t then
+      return nil
+   end
+
+   return dt.time_to_ns(t) -- The timezone of the ping has always zero UTC offset
 end
 
 function process_message()
@@ -154,6 +166,11 @@ function process_message()
         msg.Fields.appBuildId       = app.buildId
         msg.Fields.vendor           = app.vendor
         msg.Fields.clientId         = parsed.clientId
+        msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
+
+        if not msg.Fields.creationTimestamp then
+           return -1, "missing creationDate"
+        end
 
         msg.Fields.os = nil
         if parsed.environment and
