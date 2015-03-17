@@ -24,7 +24,7 @@ import (
 
 func main() {
 	flagSchema := flag.String("schema", "", "Filename of the schema to use as a filter")
-	flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
+	flagBucket := flag.String("bucket", "", "S3 Bucket name")
 	flagBucketPrefix := flag.String("bucket-prefix", "", "S3 Bucket path prefix")
 	flagAWSKey := flag.String("aws-key", "", "AWS Key")
 	flagAWSSecretKey := flag.String("aws-secret-key", "", "AWS Secret Key")
@@ -70,8 +70,18 @@ func main() {
 		fmt.Printf("Parameter 'aws-region' must be a valid AWS Region\n")
 		os.Exit(5)
 	}
+
+	if "" == *flagBucket {
+		fmt.Printf("Parameter 'bucket' is required\n")
+		os.Exit(9)
+	}
 	s := s3.New(auth, region)
 	b = s.Bucket(*flagBucket)
+
+	if b == nil {
+		fmt.Printf("Parameter 'bucket' is invalid\n")
+		os.Exit(9)
+	}
 
 	var errCount int
 	var totalCount int

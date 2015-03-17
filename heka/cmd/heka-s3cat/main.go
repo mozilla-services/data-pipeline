@@ -33,7 +33,7 @@ func main() {
 	flagFormat := flag.String("format", "txt", "output format [txt|json|heka|count]")
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagStdin := flag.Bool("stdin", false, "read list of s3 key names from stdin")
-	flagBucket := flag.String("bucket", "default-bucket", "S3 Bucket name")
+	flagBucket := flag.String("bucket", "", "S3 Bucket name")
 	flagAWSKey := flag.String("aws-key", "", "AWS Key")
 	flagAWSSecretKey := flag.String("aws-secret-key", "", "AWS Secret Key")
 	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
@@ -81,8 +81,18 @@ func main() {
 		fmt.Printf("Parameter 'aws-region' must be a valid AWS Region\n")
 		os.Exit(5)
 	}
+
+	if "" == *flagBucket {
+		fmt.Printf("Parameter 'bucket' is required\n")
+		os.Exit(9)
+	}
 	s := s3.New(auth, region)
 	bucket := s.Bucket(*flagBucket)
+
+	if bucket == nil {
+		fmt.Printf("Parameter 'bucket' is invalid\n")
+		os.Exit(9)
+	}
 
 	if *flagStdin {
 		scanner := bufio.NewScanner(os.Stdin)
