@@ -12,8 +12,7 @@ Firefox Active Instances
     [FirefoxActiveInstances]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_active_instances.lua"
-    # todo fix the matcher: remove vendor when appVendor lands
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox' && (Fields[appVendor] == 'Mozilla' || Fields[vendor] == 'Mozilla')"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox' && Fields[appVendor] == 'Mozilla'"
     ticker_interval = 60
     preserve_data = true
 --]]
