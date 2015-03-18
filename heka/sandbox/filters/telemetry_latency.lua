@@ -3,28 +3,28 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-1) How many days do we need to look back for k% of profiles to be up-to-date?
-   Each profile is associated to the date in which we last received a submission
+1) How many days do we need to look back for k% of active profiles to be up-to-date?
+   Each active profile is associated to the date in which we last received a submission
    for it on our servers. Periodically, we compute for all profiles the difference
    between the current date and the date of reception and finally plot a histogram
    of the differences expressed in number of days.
 
-2) How may days do we need to look back to observe k% of profile activity?
-   Each profile is associated with its last activity date. Periodically, we compute
-   for all profiles the difference from the last activity date to the current date
+2) How may days do we need to look back to observe k% of active profile activity?
+   Each active profile is associated with its last activity date. Periodically, we compute
+   for all active profiles the difference from the last activity date to the current date
    and finally plot a histogram of the differences expressed in number of days.
 
-3) What’s the delay in hours between the start of the profile activity and the time
-   we receive the submission? When we receive a new submission for a profile we
-   compute the delay from the start of the profile activity to the time we received
-   the submission on our servers. Periodically, we plot a histogram of the latencies
-   for the profiles in hours.
+3) What’s the delay in hours between the start of a session activity for an active profile 
+   and the time we receive the submission? When we receive a new submission for an active
+   profile we compute the delay from the start of the submission activity to the time we
+   received the submission on our servers. Periodically, we plot a histogram of the latencies
+   expressed in hours.
 
 Note that:
    - As timeseries of histograms or heatmaps are not supported by the Heka plotting
      facilities, only the median and some other percentiles are being output.
 
-   - Profiles are considered lost every LOST_PROFILE_THRESHOLD days.
+   - An active profile is one who has used the browser in the last six weeks (42 days)
 
 *Example Heka Configuration*
 
