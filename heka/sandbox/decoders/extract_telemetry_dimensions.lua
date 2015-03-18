@@ -138,7 +138,7 @@ function process_message()
         -- Do not want default values for these.
         msg.Fields.appBuildId       = info.appBuildID
         msg.Fields.os               = info.OS
-        msg.Fields.vendor           = info.vendor
+        msg.Fields.appVendor        = info.vendor
         msg.Fields.clientId         = parsed.clientID
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
@@ -164,7 +164,7 @@ function process_message()
 
         -- Do not want default values for these.
         msg.Fields.appBuildId       = app.buildId
-        msg.Fields.vendor           = app.vendor
+        msg.Fields.appVendor        = app.vendor
         msg.Fields.clientId         = parsed.clientId
         msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
 

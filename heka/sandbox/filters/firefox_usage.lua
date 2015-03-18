@@ -12,7 +12,7 @@ Firefox Usage Hours
     [FirefoxUsage]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_usage.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox' && Fields[appVendor] == 'Mozilla'"
     ticker_interval = 60
     preserve_data = true
 --]]
