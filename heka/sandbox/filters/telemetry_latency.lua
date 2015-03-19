@@ -3,22 +3,16 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-1) How many days do we need to look back for k% of active profiles to be up-to-date?
-   Each active profile is associated to the date in which we last received a submission
-   for it on our servers. Periodically, we compute for all profiles the difference
-   between the current date and the date of reception and finally plot a histogram
-   of the differences expressed in number of days.
+1) What’s the delay in hours between the date a ping was created and the time it 
+   was received on our servers? When a new submission for an active profile is received,
+   the latency between the ping creation date and the reception time is computed.
+   Periodically, a histogram of the latencies is plot.
 
-2) How may days do we need to look back to observe k% of active profile activity?
-   Each active profile is associated with its last activity date. Periodically, we compute
-   for all active profiles the difference from the last activity date to the current date
-   and finally plot a histogram of the differences expressed in number of days.
-
-3) What’s the delay in hours between the start of a session activity for an active profile 
-   and the time we receive the submission? When we receive a new submission for an active
-   profile we compute the delay from the start of the submission activity to the time we
-   received the submission on our servers. Periodically, we plot a histogram of the latencies
-   expressed in hours.
+2) How many days do we need to look back to see at least one submission for k% of 
+   active profiles? Each active profile is associated to the date for which a submission 
+   was last received on our servers. Periodically, we compute for all profiles the 
+   difference between the current date and the date of reception and finally plot 
+   a histogram of the differences expressed in number of days.
 
 Note that:
    - As timeseries of histograms or heatmaps are not supported by the Heka plotting
@@ -55,11 +49,8 @@ local PERCENTILE_99 = 3
 local seen_by_channel = {}
 local seen_history_by_channel = {}
 
-local active_by_channel = {}
-local active_history_by_channel = {}
-
-local delay_by_channel = {}
-local delay_history_by_channel = {}
+local creation_delay_by_channel = {}
+local creation_delay_history_by_channel = {}
 
 local rows = read_config("rows") or 1440
 local sec_per_row = read_config("sec_per_row") or 60
@@ -103,11 +94,10 @@ function process_message ()
       local ts = read_message("Timestamp")
       local channel = read_message("Fields[appUpdateChannel]") or "UNKNOWN"
       local client_id = read_message("Fields[clientId]")
-      local activity_ts = read_message("Fields[creationTimestamp]") -- exists only in new "unified" pings
+      local creation_ts = read_message("Fields[creationTimestamp]") -- exists only in new "unified" pings
 
       process_client_metric(seen_by_channel, channel, client_id, ts)
-      process_client_metric(active_by_channel, channel, client_id, activity_ts)
-      process_client_metric(delay_by_channel, channel, client_id, ts - activity_ts)
+      process_client_metric(creation_delay_by_channel, channel, client_id, ts - creation_ts)
    end
 
    return 0
@@ -141,14 +131,13 @@ end
 
 local function remove_inactive_client(channel, client_id)
    seen_by_channel[channel][client_id] = nil
-   active_by_channel[channel][client_id] = nil
-   delay_by_channel[channel][client_id] = nil
+   creation_delay_by_channel[channel][client_id] = nil
 end
 
 local function remove_inactive_clients(current_ts)
-   for channel, active in pairs(active_by_channel) do
-      for client_id, last_active_ts in pairs(active) do
-         if (current_ts - last_active_ts)/NSPERDAY > LOST_PROFILE_THRESHOLD then
+   for channel, seen in pairs(seen_by_channel) do
+      for client_id, last_seen_ts in pairs(seen) do
+         if (current_ts - last_seen_ts)/NSPERDAY > LOST_PROFILE_THRESHOLD then
             remove_inactive_client(channel, client_id)
          end
       end
@@ -157,10 +146,8 @@ end
 
 function timer_event(ns)
    remove_inactive_clients(ns)
-   timer_event_metric("up-to-date", "days", seen_by_channel, seen_history_by_channel, ns,
+   timer_event_metric("seen", "days", seen_by_channel, seen_history_by_channel, ns,
                       function(ns, v) return math.floor((ns - v)/NSPERDAY) end)
-   timer_event_metric("active", "days", active_by_channel, active_history_by_channel, ns,
-                      function(ns, v) return math.floor((ns - v)/NSPERDAY) end)
-   timer_event_metric("delay", "hours", delay_by_channel, delay_history_by_channel, ns,
+   timer_event_metric("creation delay", "hours", creation_delay_by_channel, creation_delay_history_by_channel, ns,
                       function(ns, v) return math.floor(v/NSPERHOUR) end)
 end
