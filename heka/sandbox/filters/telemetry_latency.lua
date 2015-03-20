@@ -14,7 +14,7 @@
    active profile is received, the latency between the ping creation date and the 
    reception time is computed. Periodically, a histogram of the latencies is plot.
 
-2) How many days do we need to look back to see at least one submission for k% of 
+4) How many days do we need to look back to see at least one submission for k% of 
    active profiles? Each active profile is associated to the date for which a submission 
    was last received on our servers. Periodically, we compute for all profiles the 
    difference between the current date and the date of reception and finally plot 
@@ -120,14 +120,16 @@ function process_message ()
 
    if version == PING_VERSION and sample_id == 0 then
       local ts = read_message("Timestamp")
-      local channel = read_message("Fields[appUpdateChannel]") or "UNKNOWN"
       local client_id = read_message("Fields[clientId]")
       local creation_ts = read_message("Fields[creationTimestamp]") -- exists only in new "unified" pings
+      local channel = read_message("Fields[appUpdateChannel]") or "UNKNOWN"
+      local reason = read_message("Fields[reason]")
+      local ch_reason = channel .. ":" .. reason
 
-      process_client_metric(seen_by_channel, channel, client_id, ts)
-      process_client_metric(creation_delay_by_channel, channel, client_id, ts - creation_ts)
-      process_subsession_metric(ts, creation_delay24h_by_channel, 24, channel, ts - creation_ts)
-      process_subsession_metric(ts, creation_delay7d_by_channel, 7*24, channel, ts - creation_ts)
+      process_client_metric(seen_by_channel, ch_reason, client_id, ts)
+      process_client_metric(creation_delay_by_channel, ch_reason, client_id, ts - creation_ts)
+      process_subsession_metric(ts, creation_delay24h_by_channel, 24, ch_reason, ts - creation_ts)
+      process_subsession_metric(ts, creation_delay7d_by_channel, 7*24, ch_reason, ts - creation_ts)
    end
 
    return 0
