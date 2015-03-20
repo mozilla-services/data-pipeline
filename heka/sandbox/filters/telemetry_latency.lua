@@ -33,7 +33,7 @@ Note that:
     [TelemetryLatency]
     type = "SandboxFilter"
     filename = "lua_filters/telemetry_latency.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == 4"
     ticker_interval = 60
     preserve_data = false
 --]]
@@ -45,7 +45,6 @@ require "math"
 require "os"
 
 local LOST_PROFILE_THRESHOLD = 42 -- https://people.mozilla.org/~bsmedberg/fhr-reporting/#usage
-local PING_VERSION = "4"
 local NSPERHOUR = 60*60*1e9
 local NSPERDAY = 24*NSPERHOUR
 local SECPERHOUR = NSPERHOUR/1e9
@@ -115,22 +114,17 @@ local function process_subsession_metric(ts, metric_by_channel, hours, channel, 
 end
 
 function process_message ()
-   local sample_id = read_message("Fields[sampleId]")
-   local version = read_message("Fields[sourceVersion]")
+   local ts = read_message("Timestamp")
+   local client_id = read_message("Fields[clientId]")
+   local creation_ts = read_message("Fields[creationTimestamp]") -- exists only in new "unified" pings
+   local channel = read_message("Fields[appUpdateChannel]") or "UNKNOWN"
+   local reason = read_message("Fields[reason]")
+   local ch_reason = channel .. ":" .. reason
 
-   if version == PING_VERSION and sample_id == 0 then
-      local ts = read_message("Timestamp")
-      local client_id = read_message("Fields[clientId]")
-      local creation_ts = read_message("Fields[creationTimestamp]") -- exists only in new "unified" pings
-      local channel = read_message("Fields[appUpdateChannel]") or "UNKNOWN"
-      local reason = read_message("Fields[reason]")
-      local ch_reason = channel .. ":" .. reason
-
-      process_client_metric(seen_by_channel, ch_reason, client_id, ts)
-      process_client_metric(creation_delay_by_channel, ch_reason, client_id, ts - creation_ts)
-      process_subsession_metric(ts, creation_delay24h_by_channel, 24, ch_reason, ts - creation_ts)
-      process_subsession_metric(ts, creation_delay7d_by_channel, 7*24, ch_reason, ts - creation_ts)
-   end
+   process_client_metric(seen_by_channel, ch_reason, client_id, ts)
+   process_client_metric(creation_delay_by_channel, ch_reason, client_id, ts - creation_ts)
+   process_subsession_metric(ts, creation_delay24h_by_channel, 24, ch_reason, ts - creation_ts)
+   process_subsession_metric(ts, creation_delay7d_by_channel, 7*24, ch_reason, ts - creation_ts)
 
    return 0
 end

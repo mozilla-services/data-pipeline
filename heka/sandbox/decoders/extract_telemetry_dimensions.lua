@@ -121,13 +121,13 @@ function process_message()
     msg.Fields.appUpdateChannel = read_message("Fields[appUpdateChannel]")
     msg.Fields.appBuildId       = read_message("Fields[appBuildId]")
 
-    local info = parsed.info
-    if type(info) ~= "table" then return -1, "missing info object" end
-
     if parsed.ver then
         -- Old-style telemetry.
         msg.Payload = json
         msg.Fields.sourceVersion    = tostring(parsed.ver)
+
+        local info = parsed.info
+        if type(info) ~= "table" then return -1, "missing info object" end
 
         -- Get some more dimensions.
         msg.Fields.docType          = info.reason or UNK_DIM
@@ -139,6 +139,7 @@ function process_message()
         msg.Fields.appBuildId       = info.appBuildID
         msg.Fields.os               = info.OS
         msg.Fields.appVendor        = info.vendor
+        msg.Fields.reason           = info.reason
         msg.Fields.clientId         = parsed.clientID
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
@@ -172,6 +173,11 @@ function process_message()
            return -1, "missing creationDate"
         end
 
+        if type(parsed.payload.info) ~= "table" then
+           return -1, "missing info object"
+        end
+        msg.Fields.reason = parsed.payload.info.reason
+
         msg.Fields.os = nil
         if parsed.environment and
            parsed.environment.system and
@@ -189,7 +195,6 @@ function process_message()
     msg.Fields.submissionDate = os.date("%Y%m%d", msg.Timestamp / 1e9)
 
     msg.Fields.sampleId = sample(msg.Fields.clientId, 100)
-    msg.Fields.reason = info.reason
 
     -- Send new message along.
     local err
