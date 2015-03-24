@@ -13,12 +13,12 @@ package main
 
 import (
 	"bufio"
-	// "code.google.com/p/gogoprotobuf/proto"
-	// "encoding/json"
+	"code.google.com/p/gogoprotobuf/proto"
+	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
+	"github.com/AdRoll/goamz/aws"
+	"github.com/AdRoll/goamz/s3"
 	// "github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 	"github.com/mozilla-services/heka/message"
 	"io/ioutil"
@@ -71,8 +71,8 @@ func (o *OffsetCache) Size() int {
 //var offsets = nil
 
 func main() {
-	// flagMatch := flag.String("match", "TRUE", "message_matcher filter expression")
-	// flagFormat := flag.String("format", "txt", "output format [txt|json|heka|count]")
+	flagMatch := flag.String("match", "TRUE", "message_matcher filter expression")
+	flagFormat := flag.String("format", "txt", "output format [txt|json|heka|count]")
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagOffsets := flag.String("offsets", "", "file containing offset info")
 	flagBucket := flag.String("bucket", "", "S3 Bucket name")
@@ -100,11 +100,11 @@ func main() {
 	}
 
 	var err error
-	// var match *message.MatcherSpecification
-	// if match, err = message.CreateMatcherSpecification(*flagMatch); err != nil {
-	// 	fmt.Printf("Match specification - %s\n", err)
-	// 	os.Exit(2)
-	// }
+	var match *message.MatcherSpecification
+	if match, err = message.CreateMatcherSpecification(*flagMatch); err != nil {
+		fmt.Printf("Match specification - %s\n", err)
+		os.Exit(2)
+	}
 
 	var out *os.File
 	if "" == *flagOutput {
@@ -142,13 +142,14 @@ func main() {
 	clientIdChannel := make(chan string, 1000)
 	recordChannel := make(chan []byte, 1000)
 	done := make(chan bool)
+	clientsDone := make(chan string, 1000)
 	doneSaving := make(chan bool)
 
 	for i := 1; i <= workers; i++ {
 		fmt.Printf("Starting worker %d\n", i)
-		go getClientRecords(bucket, offsets, clientIdChannel, recordChannel, done)
+		go getClientRecords(bucket, offsets, clientIdChannel, recordChannel, done, clientsDone)
 	}
-	go saveRecords(recordChannel, doneSaving)
+	go saveRecords(recordChannel, doneSaving, *flagFormat, match, out)
 
 	startTime := time.Now().UTC()
 	totalClientIds := 0
@@ -156,14 +157,28 @@ func main() {
 	for scanner.Scan() {
 		clientId := scanner.Text()
 
-		fmt.Printf("TODO: get %s\n", clientId)
+		// fmt.Printf("TODO: get %s\n", clientId)
 		totalClientIds++
 		clientIdChannel <- clientId
 	}
-	close(clientIdChannel)
 
+	fmt.Printf("closing clientIdChannel\n")
+	close(clientIdChannel)
 	<-done
+
+	var completed string
+	// Now wait for all the clients to complete:
+	for i := 1; i <= totalClientIds; i++ {
+		fmt.Printf("Waiting for client %d of %d...\n", i, totalClientIds)
+		completed, ok = <-clientsDone
+		fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, totalClientIds)
+	}
+
+	// TODO: if we get here before we've finished reading any records, we'll exit early.
+	// Maybe a per-clientId done-ness indicator was the right way.
+	fmt.Printf("closing recordChannel\n")
 	close(recordChannel)
+
 	<-doneSaving
 	duration := time.Now().UTC().Sub(startTime).Seconds()
 	fmt.Printf("All done processing %d clientIds in %.2f seconds\n", totalClientIds, duration)
@@ -180,8 +195,8 @@ func makeInt(numstr string) (uint32, error) {
 	return uint32(i), nil
 }
 
-func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-chan string, recordChannel chan<- []byte, done chan<- bool) {
-	fmt.Printf("One client starting up\n")
+func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-chan string, recordChannel chan<- []byte, done chan<- bool, clientsDone chan<- string) {
+	// fmt.Printf("One client starting up\n")
 	ok := true
 	for ok {
 		clientId, ok := <-todoChannel
@@ -195,36 +210,28 @@ func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-cha
 			"Range": []string{""},
 		}
 
-		fmt.Printf("Fetching data for %s\n", clientId)
+		// fmt.Printf("Fetching data for %s\n", clientId)
 		for _, o := range offsets.Get(clientId) {
 
-			headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length)
+			headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length-1)
 			// rangeHeader := fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length)
 			fmt.Printf("Getting %s: %s @ %d+%d // %v\n", clientId, o.Key, o.Offset, o.Length, headers)
-			// record, err := getClientRecord(bucket, o)
-			// if err != nil {
-			// 	fmt.Printf("Error fetching %s @ %d+%d: %s\n", o.Key, o.Offset, o.Length, err)
-			// 	continue
-			// }
-			// fmt.Printf("Successfully fetched %s @ %d+%d: %s\n", o.Key, o.Offset, o.Length, err)
-			// recordChannel <- record
+			record, err := getClientRecord(bucket, &o, headers)
+			if err != nil {
+				fmt.Printf("Error fetching %s @ %d+%d: %s\n", o.Key, o.Offset, o.Length, err)
+				continue
+			}
+			fmt.Printf("Successfully fetched %s @ %d+%d: %d\n", o.Key, o.Offset, o.Length, len(record))
+			recordChannel <- record
 		}
-		// recordChannel <- []byte(clientId[0:10])
-		// recordChannel <- []byte(clientId[10:20])
-		// // time.Sleep(time.Second * 1)
-		// recordChannel <- []byte(clientId[20:30])
+		clientsDone <- clientId
 	}
 }
 
-var headers = map[string][]string{
-	"Range": []string{""},
-}
-
-// headers["Range"] =
-
-func getClientRecord(bucket *s3.Bucket, o MessageLocation) ([]byte, error) {
-	headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length)
+func getClientRecord(bucket *s3.Bucket, o *MessageLocation, headers map[string][]string) ([]byte, error) {
+	// fmt.Printf("Before\n")
 	resp, err := bucket.GetResponseWithHeaders(o.Key, headers)
+	// fmt.Printf("After\n")
 	if err != nil {
 		return nil, err
 	}
@@ -232,13 +239,17 @@ func getClientRecord(bucket *s3.Bucket, o MessageLocation) ([]byte, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	if len(body) != int(o.Length) {
 		fmt.Printf("Unexpected body length: %d != %d\n", len(body), o.Length)
-	} else {
-		fmt.Printf("Fetched record of %d.\n", o.Length)
+		// } else {
+		// 	fmt.Printf("Fetched record of %d.\n", o.Length)
 	}
 	return body, err
 }
 
-func saveRecords(recordChannel <-chan []byte, done chan<- bool) {
+func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, match *message.MatcherSpecification, out *os.File) {
+	processed := 0
+	matched := 0
+	bytes := 0
+	msg := new(message.Message)
 	ok := true
 	for ok {
 		record, ok := <-recordChannel
@@ -248,8 +259,48 @@ func saveRecords(recordChannel <-chan []byte, done chan<- bool) {
 			break
 		}
 
-		fmt.Printf("Saving data for %d\n", len(record))
+		bytes += len(record)
+
+		processed += 1
+		if err := proto.Unmarshal(record, msg); err != nil {
+			fmt.Printf("Error unmarshalling message: %s\n", err)
+			continue
+		}
+
+		if !match.Match(msg) {
+			continue
+		}
+
+		matched += 1
+
+		// fmt.Printf("Saving data for %s\n", msg.GetPayload())
+		switch format {
+		case "count":
+			// no op
+		case "json":
+			contents, _ := json.Marshal(msg)
+			fmt.Fprintf(out, "%s\n", contents)
+		case "heka":
+			// TODO: frame it.
+			fmt.Fprintf(out, "%s", record)
+		default:
+			fmt.Fprintf(out, "Timestamp: %s\n"+
+				"Type: %s\n"+
+				"Hostname: %s\n"+
+				"Pid: %d\n"+
+				"UUID: %s\n"+
+				"Logger: %s\n"+
+				"Payload: %s\n"+
+				"EnvVersion: %s\n"+
+				"Severity: %d\n"+
+				"Fields: %+v\n\n",
+				time.Unix(0, msg.GetTimestamp()), msg.GetType(),
+				msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+				msg.GetSeverity(), msg.Fields)
+		}
 	}
+	fmt.Printf("Processed: %d, matched: %d messages (%.2f MB)\n", processed, matched, (float64(bytes) / 1024.0 / 1024.0))
 }
 
 func readOffsets(filename string) (*OffsetCache, error) {
