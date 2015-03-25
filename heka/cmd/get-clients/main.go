@@ -146,42 +146,60 @@ func main() {
 	doneSaving := make(chan bool)
 
 	for i := 1; i <= workers; i++ {
-		fmt.Printf("Starting worker %d\n", i)
+		//fmt.Printf("Starting worker %d\n", i)
 		go getClientRecords(bucket, offsets, clientIdChannel, recordChannel, done, clientsDone)
 	}
 	go saveRecords(recordChannel, doneSaving, *flagFormat, match, out)
 
 	startTime := time.Now().UTC()
 	totalClientIds := 0
+	pendingClientIds := 0
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		clientId := scanner.Text()
 
 		// fmt.Printf("TODO: get %s\n", clientId)
 		totalClientIds++
+		pendingClientIds++
 		clientIdChannel <- clientId
+		if pendingClientIds == 1000 {
+			// Wait for one to finish so we don't fill up our channels:
+			waitForClients(clientsDone, 1)
+			pendingClientIds--
+		}
 	}
 
-	fmt.Printf("closing clientIdChannel\n")
+	//fmt.Printf("closing clientIdChannel\n")
 	close(clientIdChannel)
 	<-done
 
-	var completed string
-	// Now wait for all the clients to complete:
-	for i := 1; i <= totalClientIds; i++ {
-		fmt.Printf("Waiting for client %d of %d...\n", i, totalClientIds)
-		completed, ok = <-clientsDone
-		fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, totalClientIds)
-	}
+	fmt.Printf("Waiting for %d more clients\n", pendingClientIds)
+	waitForClients(clientsDone, pendingClientIds)
 
-	// TODO: if we get here before we've finished reading any records, we'll exit early.
-	// Maybe a per-clientId done-ness indicator was the right way.
 	fmt.Printf("closing recordChannel\n")
 	close(recordChannel)
 
 	<-doneSaving
 	duration := time.Now().UTC().Sub(startTime).Seconds()
 	fmt.Printf("All done processing %d clientIds in %.2f seconds\n", totalClientIds, duration)
+}
+
+func waitForClients(clientsDone <-chan string, count int) {
+	var completed string
+	// Now wait for all the clients to complete:
+	for i := 1; i <= count; i++ {
+		//fmt.Printf("Waiting for client %d of %d...\n", i, count)
+		completed = <-clientsDone
+		fmt.Printf("Client completed: %s\n", completed)
+		//fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, count)
+	}
+
+	// TODO: if we get here before we've finished reading any records, we'll exit early.
+	// Maybe a per-clientId done-ness indicator was the right way.
+	// if shouldClose {
+	// 	fmt.Printf("closing recordChannel\n")
+	// 	close(recordChannel)
+	// }
 }
 
 func makeInt(numstr string) (uint32, error) {
@@ -215,13 +233,13 @@ func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-cha
 
 			headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length-1)
 			// rangeHeader := fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length)
-			fmt.Printf("Getting %s: %s @ %d+%d // %v\n", clientId, o.Key, o.Offset, o.Length, headers)
+			//fmt.Printf("Getting %s: %s @ %d+%d // %v\n", clientId, o.Key, o.Offset, o.Length, headers)
 			record, err := getClientRecord(bucket, &o, headers)
 			if err != nil {
 				fmt.Printf("Error fetching %s @ %d+%d: %s\n", o.Key, o.Offset, o.Length, err)
 				continue
 			}
-			fmt.Printf("Successfully fetched %s @ %d+%d: %d\n", o.Key, o.Offset, o.Length, len(record))
+			//fmt.Printf("Successfully fetched %s @ %d+%d: %d\n", o.Key, o.Offset, o.Length, len(record))
 			recordChannel <- record
 		}
 		clientsDone <- clientId
