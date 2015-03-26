@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"github.com/AdRoll/goamz/aws"
 	"github.com/AdRoll/goamz/s3"
-	// "github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
 	"github.com/mozilla-services/heka/message"
 	"io/ioutil"
 	"math"
@@ -30,8 +29,7 @@ import (
 )
 
 type MessageLocation struct {
-	Key string
-	// ClientId string
+	Key    string
 	Offset uint32
 	Length uint32
 }
@@ -94,6 +92,8 @@ func main() {
 	workers := 1
 	if *flagWorkers < math.MaxUint32 {
 		workers = int(*flagWorkers)
+	} else if *flagWorkers == 0 {
+		fmt.Printf("Cannot run with zero workers. Using 1.\n")
 	} else {
 		fmt.Printf("Too many workers: %d. Are you crazy?\n", flagWorkers)
 		os.Exit(8)
@@ -117,7 +117,6 @@ func main() {
 		defer out.Close()
 	}
 
-	// TODO: read offsets file globally
 	offsets, err := readOffsets(*flagOffsets)
 	if err != nil {
 		fmt.Printf("Error reading offsets file: %s\n", err)
