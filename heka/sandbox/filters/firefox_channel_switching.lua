@@ -9,14 +9,14 @@ Firefox Channel Switching
 
 .. code-block:: ini
 
-    [FireFoxChannelSwitching]
+    [FirefoxChannelSwitching]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_channel_switching.lua"
     message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox'" # don't restrict by vendor
     memory_limit = 1000000000
     ticker_interval = 60
     preserve_data = true
-        [FireFoxChannelSwitching.config]
+        [FirefoxChannelSwitching.config]
         anomaly_config = 'mww_nonparametric("nightly", 3, 3, 4, 0.6) mww_nonparametric("beta", 3, 3, 4, 0.6)'
 --]]
 
@@ -76,7 +76,7 @@ function process_message()
     if not cid then return -1, "missing clientId" end
 
     local chan = read_message("Fields[appUpdateChannel]")
-    if not cid then return -1, "missing appUpdateChannel" end
+    if not chan then return -1, "missing appUpdateChannel" end
 
     chan = normalize_channel:match(chan)
 
