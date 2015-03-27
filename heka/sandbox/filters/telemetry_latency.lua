@@ -28,12 +28,14 @@ Note that:
 
 *Example Heka Configuration*
 
+The memory limit for this filter should be set to 200MiB.
+
 .. code-block:: ini
 
     [TelemetryLatency]
     type = "SandboxFilter"
     filename = "lua_filters/telemetry_latency.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == 4"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == 4 && Fields[appUpdateChannel] == 'nightly'"
     ticker_interval = 60
     preserve_data = false
 --]]
