@@ -217,6 +217,13 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 			fmt.Fprintf(out, "%s\n", contents)
 		case "heka":
 			fmt.Fprintf(out, "%s", r.Record)
+		case "offsets":
+			clientId, ok := msg.GetFieldValue("clientId")
+			if ok {
+				fmt.Fprintf(out, "%s\t%s\t%d\t%d\n", r.Key, clientId, (r.Offset + uint64(headerLen)), (len(r.Record) - headerLen))
+			} else {
+				fmt.Printf("Missing client id in record %d\n", processed)
+			}
 		default:
 			fmt.Fprintf(out, "Timestamp: %s\n"+
 				"Type: %s\n"+
