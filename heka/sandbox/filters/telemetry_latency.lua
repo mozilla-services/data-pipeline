@@ -28,8 +28,6 @@ Note that:
 
 *Example Heka Configuration*
 
-The memory limit for this filter should be set to 200MiB.
-
 .. code-block:: ini
 
     [TelemetryLatency]
@@ -38,6 +36,7 @@ The memory limit for this filter should be set to 200MiB.
     message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == 4 && Fields[appUpdateChannel] == 'nightly'"
     ticker_interval = 60
     preserve_data = false
+    memory_limit = 209715200
 --]]
 
 require "circular_buffer"
