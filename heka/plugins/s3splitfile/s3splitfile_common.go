@@ -356,6 +356,8 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 type S3Record struct {
 	BytesRead int
 	Record    []byte
+	Key       string
+	Offset    uint64
 	Err       error
 }
 
@@ -367,10 +369,12 @@ func S3FileIterator(bucket *s3.Bucket, s3Key string) <-chan S3Record {
 	return recordChannel
 }
 
-func makeS3Record(bytesRead int, data []byte, err error) (result S3Record) {
+func makeS3Record(s3Key string, offset uint64, bytesRead int, data []byte, err error) (result S3Record) {
 	r := S3Record{}
 	r.BytesRead = bytesRead
 	r.Err = err
+	r.Key = s3Key
+	r.Offset = offset
 	r.Record = make([]byte, len(data))
 	copy(r.Record, data)
 	return r
@@ -421,12 +425,12 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 
 				done = true
 			} else if err == io.ErrShortBuffer {
-				recordChan <- makeS3Record(n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				recordChan <- makeS3Record(s3Key, size, n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
 				continue
 			} else {
 				// Some other kind of error occurred.
 				// TODO: retry? Keep a key->offset counter and start over?
-				recordChan <- makeS3Record(n, record, err)
+				recordChan <- makeS3Record(s3Key, size, n, record, err)
 				done = true
 				continue
 			}
@@ -438,7 +442,7 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 			continue
 		}
 
-		recordChan <- makeS3Record(n, record, err)
+		recordChan <- makeS3Record(s3Key, size, n, record, err)
 	}
 
 	return
