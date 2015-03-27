@@ -218,6 +218,7 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 		case "heka":
 			fmt.Fprintf(out, "%s", r.Record)
 		case "offsets":
+			// Use offsets mode for indexing the S3 files by clientId
 			clientId, ok := msg.GetFieldValue("clientId")
 			if ok {
 				fmt.Fprintf(out, "%s\t%s\t%d\t%d\n", r.Key, clientId, (r.Offset + uint64(headerLen)), (len(r.Record) - headerLen))
