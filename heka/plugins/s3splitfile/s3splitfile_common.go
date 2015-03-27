@@ -354,10 +354,10 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 // Encapsulates a single record within an S3 file, allowing detection of errors
 // along the way.
 type S3Record struct {
-	BytesRead int
-	Record    []byte
 	Key       string
 	Offset    uint64
+	BytesRead int
+	Record    []byte
 	Err       error
 }
 
@@ -397,22 +397,23 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 	defer close(recordChan)
 	sRunner, err := makeSplitterRunner()
 	if err != nil {
-		recordChan <- S3Record{0, []byte{}, err}
+		recordChan <- S3Record{s3Key, 0, 0, []byte{}, err}
 		return
 	}
 	reader, err := bucket.GetReader(s3Key)
 	if err != nil {
-		recordChan <- S3Record{0, []byte{}, err}
+		recordChan <- S3Record{s3Key, 0, 0, []byte{}, err}
 		return
 	}
 	defer reader.Close()
 
-	var size int64
+	var size, offset uint64
 
 	done := false
 	for !done {
 		n, record, err := sRunner.GetRecordFromStream(reader)
-		size += int64(n)
+		offset = size
+		size += uint64(n)
 
 		if err != nil {
 			if err == io.EOF {
@@ -425,12 +426,12 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 
 				done = true
 			} else if err == io.ErrShortBuffer {
-				recordChan <- makeS3Record(s3Key, size, n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				recordChan <- makeS3Record(s3Key, offset, n, record, fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
 				continue
 			} else {
 				// Some other kind of error occurred.
 				// TODO: retry? Keep a key->offset counter and start over?
-				recordChan <- makeS3Record(s3Key, size, n, record, err)
+				recordChan <- makeS3Record(s3Key, offset, n, record, err)
 				done = true
 				continue
 			}
@@ -442,7 +443,7 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 			continue
 		}
 
-		recordChan <- makeS3Record(s3Key, size, n, record, err)
+		recordChan <- makeS3Record(s3Key, offset, n, record, err)
 	}
 
 	return
