@@ -50,7 +50,6 @@ func (o *OffsetCache) Add(clientId string, offset MessageLocation) {
 	}
 
 	o.messages[clientId] = append(entries, offset)
-	// fmt.Printf("%s now has %d items\n", clientId, len(o.messages[clientId]))
 	o.count++
 }
 
@@ -65,8 +64,6 @@ func (o *OffsetCache) Get(clientId string) []MessageLocation {
 func (o *OffsetCache) Size() int {
 	return o.count
 }
-
-//var offsets = nil
 
 func main() {
 	flagMatch := flag.String("match", "TRUE", "message_matcher filter expression")
@@ -145,7 +142,6 @@ func main() {
 	doneSaving := make(chan bool)
 
 	for i := 1; i <= workers; i++ {
-		//fmt.Printf("Starting worker %d\n", i)
 		go getClientRecords(bucket, offsets, clientIdChannel, recordChannel, done, clientsDone)
 	}
 	go saveRecords(recordChannel, doneSaving, *flagFormat, match, out)
@@ -156,8 +152,6 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		clientId := scanner.Text()
-
-		// fmt.Printf("TODO: get %s\n", clientId)
 		totalClientIds++
 		pendingClientIds++
 		clientIdChannel <- clientId
@@ -174,8 +168,6 @@ func main() {
 
 	fmt.Printf("Waiting for %d more clients\n", pendingClientIds)
 	waitForClients(clientsDone, pendingClientIds)
-
-	fmt.Printf("closing recordChannel\n")
 	close(recordChannel)
 
 	<-doneSaving
@@ -185,20 +177,10 @@ func main() {
 
 func waitForClients(clientsDone <-chan string, count int) {
 	var completed string
-	// Now wait for all the clients to complete:
+	// Wait for one or more clientIds to complete
 	for i := 1; i <= count; i++ {
-		//fmt.Printf("Waiting for client %d of %d...\n", i, count)
 		completed = <-clientsDone
-		fmt.Printf("Client completed: %s\n", completed)
-		//fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, count)
 	}
-
-	// TODO: if we get here before we've finished reading any records, we'll exit early.
-	// Maybe a per-clientId done-ness indicator was the right way.
-	// if shouldClose {
-	// 	fmt.Printf("closing recordChannel\n")
-	// 	close(recordChannel)
-	// }
 }
 
 func makeInt(numstr string) (uint32, error) {
@@ -213,7 +195,6 @@ func makeInt(numstr string) (uint32, error) {
 }
 
 func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-chan string, recordChannel chan<- []byte, done chan<- bool, clientsDone chan<- string) {
-	// fmt.Printf("One client starting up\n")
 	ok := true
 	for ok {
 		clientId, ok := <-todoChannel
@@ -227,18 +208,14 @@ func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-cha
 			"Range": []string{""},
 		}
 
-		// fmt.Printf("Fetching data for %s\n", clientId)
 		for _, o := range offsets.Get(clientId) {
 
 			headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length-1)
-			// rangeHeader := fmt.Sprintf("bytes=%d-%d", o.Offset, o.Offset+o.Length)
-			//fmt.Printf("Getting %s: %s @ %d+%d // %v\n", clientId, o.Key, o.Offset, o.Length, headers)
 			record, err := getClientRecord(bucket, &o, headers)
 			if err != nil {
 				fmt.Printf("Error fetching %s @ %d+%d: %s\n", o.Key, o.Offset, o.Length, err)
 				continue
 			}
-			//fmt.Printf("Successfully fetched %s @ %d+%d: %d\n", o.Key, o.Offset, o.Length, len(record))
 			recordChannel <- record
 		}
 		clientsDone <- clientId
@@ -246,9 +223,7 @@ func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-cha
 }
 
 func getClientRecord(bucket *s3.Bucket, o *MessageLocation, headers map[string][]string) ([]byte, error) {
-	// fmt.Printf("Before\n")
 	resp, err := bucket.GetResponseWithHeaders(o.Key, headers)
-	// fmt.Printf("After\n")
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +231,6 @@ func getClientRecord(bucket *s3.Bucket, o *MessageLocation, headers map[string][
 	body, err := ioutil.ReadAll(resp.Body)
 	if len(body) != int(o.Length) {
 		fmt.Printf("Unexpected body length: %d != %d\n", len(body), o.Length)
-		// } else {
-		// 	fmt.Printf("Fetched record of %d.\n", o.Length)
 	}
 	return body, err
 }
@@ -290,7 +263,6 @@ func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, m
 
 		matched += 1
 
-		// fmt.Printf("Saving data for %s\n", msg.GetPayload())
 		switch format {
 		case "count":
 			// no op
@@ -298,7 +270,7 @@ func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, m
 			contents, _ := json.Marshal(msg)
 			fmt.Fprintf(out, "%s\n", contents)
 		case "heka":
-			// TODO: frame it.
+			// TODO: frame the record with a header + separator
 			fmt.Fprintf(out, "%s", record)
 		default:
 			fmt.Fprintf(out, "Timestamp: %s\n"+
@@ -348,7 +320,6 @@ func readOffsets(filename string) (*OffsetCache, error) {
 			return nil, err
 		}
 		offsets.Add(pieces[1], MessageLocation{pieces[0], o, l})
-		// offsets = append(offsets, MessageLocation{pieces[0], pieces[1], o, l})
 	}
 	fmt.Printf("Successfully processed %d offset lines\n", lineNum)
 	return offsets, nil
