@@ -113,7 +113,7 @@ func main() {
 			totalFiles++
 			pendingFiles++
 			filenameChannel <- filename
-			if pendingFiles == 1000 {
+			if pendingFiles >= 1000 {
 				waitFor(doneChannel, 1)
 				pendingFiles--
 			}
@@ -124,7 +124,7 @@ func main() {
 			totalFiles++
 			pendingFiles++
 			filenameChannel <- filename
-			if pendingFiles == 1000 {
+			if pendingFiles >= 1000 {
 				waitFor(doneChannel, 1)
 				pendingFiles--
 			}
@@ -132,6 +132,7 @@ func main() {
 		close(filenameChannel)
 	}
 
+	fmt.Printf("Waiting for last %d files\n", pendingFiles)
 	waitFor(doneChannel, pendingFiles)
 	close(recordChannel)
 	bytesRead := <-allDone
@@ -162,7 +163,6 @@ func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3
 	var processed int64
 
 	for r := range s3splitfile.S3FileIterator(bucket, s3Key) {
-		// record := r.Record
 		err := r.Err
 
 		if err != nil && err != io.EOF {
@@ -170,7 +170,6 @@ func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3
 		} else {
 			if len(r.Record) > 0 {
 				processed += 1
-				// headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
 				recordChannel <- r
 			}
 		}
@@ -220,10 +219,11 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 		case "offsets":
 			// Use offsets mode for indexing the S3 files by clientId
 			clientId, ok := msg.GetFieldValue("clientId")
+			recordLength := len(r.Record) - headerLen)
 			if ok {
-				fmt.Fprintf(out, "%s\t%s\t%d\t%d\n", r.Key, clientId, (r.Offset + uint64(headerLen)), (len(r.Record) - headerLen))
+				fmt.Fprintf(out, "%s\t%s\t%d\t%d\n", r.Key, clientId, (r.Offset + uint64(headerLen)), recordLength)
 			} else {
-				fmt.Printf("Missing client id in record %d\n", processed)
+				fmt.Printf("Missing client id in %s @ %d+%d\n", r.Key, r.Offset, recordLength)
 			}
 		default:
 			fmt.Fprintf(out, "Timestamp: %s\n"+
@@ -249,9 +249,9 @@ func waitFor(completedChannel <-chan string, count int) {
 	var completed string
 	// Now wait for all the clients to complete:
 	for i := 1; i <= count; i++ {
-		//fmt.Printf("Waiting for client %d of %d...\n", i, count)
+		// fmt.Printf("Waiting for client %d of %d...\n", i, count)
 		completed = <-completedChannel
 		fmt.Printf("Completed: %s\n", completed)
-		//fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, count)
+		// fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, count)
 	}
 }
