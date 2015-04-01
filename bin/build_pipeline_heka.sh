@@ -16,7 +16,7 @@ BASE=$(pwd)
 #   export LUA_INCLUDE_PATH=/usr/include/lua5.1
 if [ -z "$LUA_INCLUDE_PATH" ]; then
     # Default to the headers included with heka.
-    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include
+    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include/lsb
 fi
 
 if [ ! -d build ]; then
