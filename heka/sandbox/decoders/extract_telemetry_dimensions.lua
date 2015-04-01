@@ -139,6 +139,7 @@ function process_message()
         msg.Fields.appBuildId       = info.appBuildID
         msg.Fields.os               = info.OS
         msg.Fields.appVendor        = info.vendor
+        msg.Fields.reason           = info.reason
         msg.Fields.clientId         = parsed.clientID
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
@@ -171,6 +172,11 @@ function process_message()
         if not msg.Fields.creationTimestamp then
            return -1, "missing creationDate"
         end
+
+        if type(parsed.payload.info) ~= "table" then
+           return -1, "missing info object"
+        end
+        msg.Fields.reason = parsed.payload.info.reason
 
         msg.Fields.os = nil
         if parsed.environment and
