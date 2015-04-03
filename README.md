@@ -12,7 +12,7 @@ Run `bin/build_pipeline_heka.sh` from the top level of this repo to build a heka
 ## Using the Data Pipeline
 
 If you are simply looking to test out some data analysis plugins and don't want to setup your own pipeline here is the fastest way to get going:
-https://mana.mozilla.org/wiki/display/CLOUDSERVICES/Using+the+sandbox+manager+in+the+dev+prototype+pipeline
+https://mana.mozilla.org/wiki/display/CLOUDSERVICES/Using+the+sandbox+manager+in+the+prod+prototype+pipeline
 
 ## Running/Testing Your Own Data Pipeline
 
