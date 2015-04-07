@@ -6,7 +6,7 @@
 
 /*
 
-A command-line utility for getting data by clientid.
+A command-line utility for getting data by clientId.
 
 */
 package main
@@ -162,7 +162,6 @@ func main() {
 		}
 	}
 
-	//fmt.Printf("closing clientIdChannel\n")
 	close(clientIdChannel)
 	<-done
 
@@ -176,10 +175,9 @@ func main() {
 }
 
 func waitForClients(clientsDone <-chan string, count int) {
-	var completed string
 	// Wait for one or more clientIds to complete
 	for i := 1; i <= count; i++ {
-		completed = <-clientsDone
+		<-clientsDone
 	}
 }
 
@@ -240,7 +238,11 @@ func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, m
 	matched := 0
 	bytes := 0
 	msg := new(message.Message)
+	header := new(message.Header)
 	ok := true
+	recordSep := []byte{message.RECORD_SEPARATOR}
+	unitSep := []byte{message.UNIT_SEPARATOR}
+
 	for ok {
 		record, ok := <-recordChannel
 		if !ok {
@@ -270,8 +272,18 @@ func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, m
 			contents, _ := json.Marshal(msg)
 			fmt.Fprintf(out, "%s\n", contents)
 		case "heka":
-			// TODO: frame the record with a header + separator
-			fmt.Fprintf(out, "%s", record)
+			// Frame the record with a header + separators
+			header.SetMessageLength(uint32(len(record)))
+			headerBytes, err := header.Marshal()
+			if err != nil {
+				fmt.Printf("Error marshaling record header: %s\n", err)
+				continue
+			}
+			out.Write(recordSep)
+			out.Write([]byte{byte(len(headerBytes))})
+			out.Write(headerBytes)
+			out.Write(unitSep)
+			out.Write(record)
 		default:
 			fmt.Fprintf(out, "Timestamp: %s\n"+
 				"Type: %s\n"+
