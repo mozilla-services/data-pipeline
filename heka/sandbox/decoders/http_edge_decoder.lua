@@ -178,6 +178,7 @@ function process_message()
     local xff = landfill_msg.Fields["X-Forwarded-For"]
     local remote_addr = landfill_msg.Fields["RemoteAddr"]
     main_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
+    landfill_msg.Fields.geoCountry = main_msg.Fields.geoCountry
 
     -- Remove the PII Bugzilla 1143818
     landfill_msg.Fields["X-Forwarded-For"] = nil
