@@ -143,20 +143,31 @@ function process_message()
         msg.Fields.clientId         = parsed.clientID
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
-        if parsed.type == "main" then
-            split_objects(parsed.environment, "environment", environment_objects)
-            split_objects(parsed.payload, "payload", main_ping_objects)
-            local ok, json = pcall(cjson.encode, parsed) -- re-encode the remaining data
-            if not ok then return -1, json end
-            msg.Payload = json
-        else
-            msg.Payload = json
+
+        -- pull out/verify the data/schema before any restructuring
+        local app = parsed.application
+        if type(app) ~= "table" then
+            return -1, "missing application object"
         end
+
+        if type(parsed.payload) == "table" and
+           type(parsed.payload.info) == "table" then
+            msg.Fields.reason = parsed.payload.info.reason
+        end
+
+        msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
+        if not msg.Fields.creationTimestamp then
+           return -1, "missing creationDate"
+        end
+
+        if type(parsed.environment) == "table" and
+           type(parsed.environment.system) == "table" and
+           type(parsed.environment.system.os) == "table" then
+            msg.Fields.os = parsed.environment.system.os.name
+        end
+
         msg.Fields.sourceVersion    = tostring(parsed.version)
         msg.Fields.docType          = parsed.type or UNK_DIM
-
-        local app = parsed.application
-        if type(app) ~= "table" then return -1, "missing 'application' object" end
 
         -- Get some more dimensions.
         msg.Fields.appName          = app.name or UNK_DIM
@@ -167,22 +178,16 @@ function process_message()
         msg.Fields.appBuildId       = app.buildId
         msg.Fields.appVendor        = app.vendor
         msg.Fields.clientId         = parsed.clientId
-        msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
 
-        if not msg.Fields.creationTimestamp then
-           return -1, "missing creationDate"
-        end
-
-        if type(parsed.payload.info) ~= "table" then
-           return -1, "missing info object"
-        end
-        msg.Fields.reason = parsed.payload.info.reason
-
-        msg.Fields.os = nil
-        if parsed.environment and
-           parsed.environment.system and
-           parsed.environment.system.os then
-            msg.Fields.os = parsed.environment.system.os.name
+        -- restructure the main ping message
+        if parsed.type == "main" then
+            split_objects(parsed.environment, "environment", environment_objects)
+            split_objects(parsed.payload, "payload", main_ping_objects)
+            local ok, json = pcall(cjson.encode, parsed) -- re-encode the remaining data
+            if not ok then return -1, json end
+            msg.Payload = json
+        else
+            msg.Payload = json
         end
     end
 
