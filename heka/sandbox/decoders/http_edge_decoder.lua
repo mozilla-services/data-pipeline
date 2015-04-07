@@ -6,6 +6,7 @@
 
 require "cjson"
 require "lpeg"
+require "os"
 require "string"
 require "table"
 require 'geoip.city'
@@ -98,6 +99,7 @@ function process_message()
             landfill_msg.Fields[name] = value
         end
     end
+    landfill_msg.Fields.submissionDate = os.date("%Y%m%d", landfill_msg.Timestamp / 1e9)
 
     local landfill_status, landfill_err = pcall(inject_message, landfill_msg)
     if not landfill_status then
