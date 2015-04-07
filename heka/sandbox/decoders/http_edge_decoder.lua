@@ -117,8 +117,10 @@ function process_message()
     -- Note: 'Hostname' is the host name of the server that received the
     -- message, while 'Host' is the name of the HTTP endpoint the client
     -- used (such as "incoming.telemetry.mozilla.org").
-    main_msg.Hostname = landfill_msg.Hostname
+    main_msg.Hostname    = landfill_msg.Hostname
     main_msg.Fields.Host = landfill_msg.Fields.Host
+    main_msg.Fields.DNT  = landfill_msg.Fields.DNT
+    main_msg.Fields.Date = landfill_msg.Fields.Date
 
     -- Path should be of the form:
     --     ^/submit/namespace/id[/extra/path/components]$
