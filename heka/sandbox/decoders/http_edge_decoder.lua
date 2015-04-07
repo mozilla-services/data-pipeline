@@ -179,6 +179,10 @@ function process_message()
     local remote_addr = landfill_msg.Fields["RemoteAddr"]
     main_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
 
+    -- Remove the PII Bugzilla 1143818
+    landfill_msg.Fields["X-Forwarded-For"] = nil
+    landfill_msg.Fields["RemoteAddr"] = nil
+
     -- Send new message along.
     local main_status, main_err = pcall(inject_message, main_msg)
     if not main_status then
