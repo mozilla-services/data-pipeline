@@ -147,7 +147,7 @@ function process_message()
         -- pull out/verify the data/schema before any restructuring
         local app = parsed.application
         if type(app) ~= "table" then
-            return -1, "missing 'application' object"
+            return -1, "missing application object"
         end
 
         if type(parsed.payload.info) ~= "table" then
