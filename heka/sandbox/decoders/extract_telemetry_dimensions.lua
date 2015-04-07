@@ -150,19 +150,19 @@ function process_message()
             return -1, "missing application object"
         end
 
-        if type(parsed.payload.info) ~= "table" then
-           return -1, "missing info object"
+        if type(parsed.payload) == "table" and
+           type(parsed.payload.info) == "table" then
+            msg.Fields.reason = parsed.payload.info.reason
         end
-        msg.Fields.reason = parsed.payload.info.reason
 
         msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
         if not msg.Fields.creationTimestamp then
            return -1, "missing creationDate"
         end
 
-        if parsed.environment and
-           parsed.environment.system and
-           parsed.environment.system.os then
+        if type(parsed.environment) == "table" and
+           type(parsed.environment.system) == "table" and
+           type(parsed.environment.system.os) == "table" then
             msg.Fields.os = parsed.environment.system.os.name
         end
 
