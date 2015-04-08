@@ -101,6 +101,15 @@ function process_message()
     end
     landfill_msg.Fields.submissionDate = os.date("%Y%m%d", landfill_msg.Timestamp / 1e9)
 
+    -- Insert geo info.
+    local xff = landfill_msg.Fields["X-Forwarded-For"]
+    local remote_addr = landfill_msg.Fields["RemoteAddr"]
+    landfill_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
+
+    -- Remove the PII Bugzilla 1143818
+    landfill_msg.Fields["X-Forwarded-For"] = nil
+    landfill_msg.Fields["RemoteAddr"] = nil
+
     local landfill_status, landfill_err = pcall(inject_message, landfill_msg)
     if not landfill_status then
         return -1, landfill_err
@@ -117,10 +126,11 @@ function process_message()
     -- Note: 'Hostname' is the host name of the server that received the
     -- message, while 'Host' is the name of the HTTP endpoint the client
     -- used (such as "incoming.telemetry.mozilla.org").
-    main_msg.Hostname    = landfill_msg.Hostname
-    main_msg.Fields.Host = landfill_msg.Fields.Host
-    main_msg.Fields.DNT  = landfill_msg.Fields.DNT
-    main_msg.Fields.Date = landfill_msg.Fields.Date
+    main_msg.Hostname          = landfill_msg.Hostname
+    main_msg.Fields.Host       = landfill_msg.Fields.Host
+    main_msg.Fields.DNT        = landfill_msg.Fields.DNT
+    main_msg.Fields.Date       = landfill_msg.Fields.Date
+    main_msg.Fields.geoCountry = landfill_msg.Fields.geoCountry
 
     -- Path should be of the form:
     --     ^/submit/namespace/id[/extra/path/components]$
@@ -177,16 +187,6 @@ function process_message()
             main_msg.Fields.PathComponents = components
         end
     end
-
-    -- Insert geo info.
-    local xff = landfill_msg.Fields["X-Forwarded-For"]
-    local remote_addr = landfill_msg.Fields["RemoteAddr"]
-    main_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
-    landfill_msg.Fields.geoCountry = main_msg.Fields.geoCountry
-
-    -- Remove the PII Bugzilla 1143818
-    landfill_msg.Fields["X-Forwarded-For"] = nil
-    landfill_msg.Fields["RemoteAddr"] = nil
 
     -- Send new message along.
     local main_status, main_err = pcall(inject_message, main_msg)
