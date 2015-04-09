@@ -6,8 +6,8 @@
 
 /** @brief Lua hash functions @file */
 
-#include <lauxlib.h>
-#include <lua.h>
+#include "lauxlib.h"
+#include "lua.h"
 #include <zlib.h>
 
 static int zlib_adler32(lua_State* lua)
