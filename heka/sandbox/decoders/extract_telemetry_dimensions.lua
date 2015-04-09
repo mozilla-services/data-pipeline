@@ -107,7 +107,7 @@ local function parse_creation_date(date)
 end
 
 local function process_json(msg, json, parsed)
-    local cliendId
+    local clientId
     if parsed.ver then
         -- Old-style telemetry.
         local info = parsed.info
@@ -135,7 +135,7 @@ local function process_json(msg, json, parsed)
         if type(app) ~= "table" then return "missing application object" end
 
         local cts = parse_creation_date(parsed.creationDate)
-        if not cts then return "missing creationDate"end
+        if not cts then return "missing creationDate" end
         update_field(msg.Fields, "creationTimestamp", cts)
 
         if type(parsed.payload) == "table" and
@@ -175,6 +175,7 @@ local function process_json(msg, json, parsed)
         end
     end
     update_field(msg.Fields, "sampleId", sample(clientId, 100))
+    return nil -- processing was successful
 end
 
 local function send_message(msg, phase, err)
@@ -209,7 +210,7 @@ function process_message()
     -- This size check should match the output_limit config param. We want to
     -- check the size early to avoid parsing JSON if we don't have to.
     if string.len(json) > 2097152 then
-        send_message(msg, "json", "Uncompressed Payload too large: " .. string.len(json))
+        return send_message(msg, "size", "Uncompressed Payload too large: " .. string.len(json))
     end
     local ok, parsed = pcall(cjson.decode, json)
     if not ok then return send_message(msg, "json", parsed) end
