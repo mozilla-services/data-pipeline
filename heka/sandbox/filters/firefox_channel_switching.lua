@@ -19,6 +19,7 @@ Firefox Channel Switching
         [FirefoxChannelSwitching.config]
         anomaly_config = 'mww_nonparametric("nightly", 3, 3, 4, 0.6) mww_nonparametric("beta", 3, 3, 4, 0.6)'
 --]]
+_PRESERVATION_VERSION = 1
 
 require "circular_buffer"
 require "cuckoo_filter"
@@ -49,8 +50,8 @@ channels = {
     {name = "beta"           , cb = create_cbuf(), cf = cuckoo_filter.new(10e6)},
     {name = "nightly"        , cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
 
-    -- skipping aurora since it uses a different profile we cannot track the switches
-    -- {name = "aurora", cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
+    -- aurora uses a different profile so we should not be able to track the switches
+    {name = "aurora", cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
 
     -- ignoring until we have a use case
     -- {name = "release-partner", cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
@@ -69,6 +70,7 @@ l.C"beta" +
 -- l.P"release-cck-" / "release-partner" +
 -- l.C"esr" * -1 +
 -- l.P"esr-cck-" / "esr-partner" +
+l.C"aurora" * -1 +
 l.Cc"other"
 
 function process_message()
@@ -82,7 +84,7 @@ function process_message()
 
     local ts = read_message("Timestamp")
     local matched, added, deleted = nil, false, false
-    for i=1, CHANNELS_SIZE - 1 do
+    for i=1, CHANNELS_SIZE do
         local v = channels[i]
         if v.name == chan then
             added = v.cf:add(cid)
