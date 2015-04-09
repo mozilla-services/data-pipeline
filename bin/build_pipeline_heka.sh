@@ -30,6 +30,9 @@ if [ ! -d heka ]; then
 fi
 
 cd heka
+# pin the Heka version
+git fetch
+git checkout a2e16ce3d8a12043a391a9314dedebf33efea323
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
