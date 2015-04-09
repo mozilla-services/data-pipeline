@@ -56,6 +56,12 @@ cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
 echo 'Installing/updating lua filters/modules/decoders'
 rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
 
+PLUGIN_TARGET=$BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
+if [ -d $PLUGIN_TARGET ]; then
+    echo 'Updating plugins with local changes'
+    rsync -av $BASE/heka/plugins/ $PLUGIN_TARGET
+fi
+
 source build.sh
 
 echo 'Installing lua-geoip libs'
@@ -107,9 +113,6 @@ echo 'Installing lua_hash lib'
 cd $BASE
 # Build a hash module with the zlib checksum functions
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
-
-echo 'Updating plugins with local changes'
-rsync -av $BASE/heka/plugins/ $BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
 
 cd $BASE/build/heka/build
 
