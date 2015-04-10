@@ -16,7 +16,7 @@ BASE=$(pwd)
 #   export LUA_INCLUDE_PATH=/usr/include/lua5.1
 if [ -z "$LUA_INCLUDE_PATH" ]; then
     # Default to the headers included with heka.
-    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include
+    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include/luasandbox
 fi
 
 if [ ! -d build ]; then
@@ -30,6 +30,9 @@ if [ ! -d heka ]; then
 fi
 
 cd heka
+# pin the Heka version
+git fetch
+git checkout a2e16ce3d8a12043a391a9314dedebf33efea323
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -56,6 +59,12 @@ cp -R $BASE/heka/cmd/get-clients ./cmd/
 
 echo 'Installing/updating lua filters/modules/decoders'
 rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
+
+PLUGIN_TARGET=$BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
+if [ -d $PLUGIN_TARGET ]; then
+    echo 'Updating plugins with local changes'
+    rsync -av $BASE/heka/plugins/ $PLUGIN_TARGET
+fi
 
 source build.sh
 
@@ -86,7 +95,7 @@ Darwin)
     ;;
 esac
 
-HEKA_MODS=$BASE/build/heka/build/heka/modules
+HEKA_MODS=$BASE/build/heka/build/heka/lib/luasandbox/modules
 mkdir -p $HEKA_MODS/geoip
 gcc $SO_FLAGS database.o city.o -o $HEKA_MODS/geoip/city.so
 gcc $SO_FLAGS database.o country.o -o $HEKA_MODS/geoip/country.so
@@ -108,9 +117,6 @@ echo 'Installing lua_hash lib'
 cd $BASE
 # Build a hash module with the zlib checksum functions
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
-
-echo 'Updating plugins with local changes'
-rsync -av $BASE/heka/plugins/ $BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
 
 cd $BASE/build/heka/build
 
