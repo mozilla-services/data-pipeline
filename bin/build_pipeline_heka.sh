@@ -16,7 +16,7 @@ BASE=$(pwd)
 #   export LUA_INCLUDE_PATH=/usr/include/lua5.1
 if [ -z "$LUA_INCLUDE_PATH" ]; then
     # Default to the headers included with heka.
-    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include/lsb
+    LUA_INCLUDE_PATH=$BASE/build/heka/build/heka/include/luasandbox
 fi
 
 if [ ! -d build ]; then
@@ -30,6 +30,9 @@ if [ ! -d heka ]; then
 fi
 
 cd heka
+# pin the Heka version
+git fetch
+git checkout a2e16ce3d8a12043a391a9314dedebf33efea323
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -91,7 +94,7 @@ Darwin)
     ;;
 esac
 
-HEKA_MODS=$BASE/build/heka/build/heka/modules
+HEKA_MODS=$BASE/build/heka/build/heka/lib/luasandbox/modules
 mkdir -p $HEKA_MODS/geoip
 gcc $SO_FLAGS database.o city.o -o $HEKA_MODS/geoip/city.so
 gcc $SO_FLAGS database.o country.o -o $HEKA_MODS/geoip/country.so
