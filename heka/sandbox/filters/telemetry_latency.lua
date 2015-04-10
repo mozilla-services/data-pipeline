@@ -33,7 +33,7 @@ Note that:
     [TelemetryLatency]
     type = "SandboxFilter"
     filename = "lua_filters/telemetry_latency.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == 4 && Fields[appUpdateChannel] == 'nightly'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == '4' && Fields[appUpdateChannel] == 'nightly'"
     ticker_interval = 60
     preserve_data = false
     memory_limit = 209715200
