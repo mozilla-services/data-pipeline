@@ -32,7 +32,7 @@ fi
 cd heka
 # pin the Heka version
 git fetch
-git checkout a2e16ce3d8a12043a391a9314dedebf33efea323
+git checkout 8be7be2d5efdaefee61833e72b63f991507a800d
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -56,7 +56,7 @@ cp -R $BASE/heka/cmd/heka-export ./cmd/
 cp -R $BASE/heka/cmd/heka-s3list ./cmd/
 cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
 
-echo 'Installing/updating lua filters/modules/decoders'
+echo 'Installing/updating lua filters/modules/decoders/encoders'
 rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
 
 source build.sh
