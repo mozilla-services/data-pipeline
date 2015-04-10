@@ -50,7 +50,7 @@ channels = {
     {name = "beta"           , cb = create_cbuf(), cf = cuckoo_filter.new(10e6)},
     {name = "nightly"        , cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
 
-    -- aurora uses a different profile so we should not be able to track the switches
+    -- aurora uses a different profile so we do not expect to see any switches
     {name = "aurora", cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
 
     -- ignoring until we have a use case
