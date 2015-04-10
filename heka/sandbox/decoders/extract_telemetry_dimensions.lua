@@ -6,15 +6,9 @@ require "string"
 require "cjson"
 require "hash"
 require "os"
+require "table"
 local gzip = require "gzip"
 local dt = require("date_time")
-
-local msg = {
-Timestamp   = nil,
-Type        = "telemetry",
-Payload     = nil,
-EnvVersion  = 1
-}
 
 local UNK_DIM = "UNKNOWN"
 local UNK_GEO = "??"
@@ -46,14 +40,33 @@ local main_ping_objects = {
     "UIMeasurements"
     }
 
-local function split_objects(root, section, objects)
+-- telemetry messages should not contain duplicate keys so this function
+-- replaces/removes the first key that exists or adds a new key to the end
+local function update_field(fields, name, value)
+    if value then value = {name = name, value = value} end
+
+    for i,v in ipairs(fields) do
+        if name == v.name then
+            if value then
+                fields[i] = value
+            else
+                table.remove(fields, i)
+            end
+            return
+        end
+    end
+
+    if value then fields[#fields + 1] = value end
+end
+
+local function split_objects(fields, root, section, objects)
     if type(root) ~= "table" then return end
 
     for i, name in ipairs(objects) do
         if type(root[name]) == "table" then
             local ok, json = pcall(cjson.encode, root[name])
             if ok then
-                msg.Fields[string.format("%s.%s", section, name)] = json
+                update_field(fields, string.format("%s.%s", section, name), json)
                 root[name] = nil -- remove extracted objects
             end
         end
@@ -82,7 +95,7 @@ local function sample(id, sampleRange)
     return hash.crc32(id) % sampleRange
 end
 
-function parse_creation_date(date)
+local function parse_creation_date(date)
    if type(date) ~= "string" then return nil end
 
    local t = dt.rfc3339:match(date)
@@ -93,120 +106,118 @@ function parse_creation_date(date)
    return dt.time_to_ns(t) -- The timezone of the ping has always zero UTC offset
 end
 
-function process_message()
-    -- Attempt to uncompress the payload if it is gzipped.
-    local payload = read_message("Payload")
-    local ok, json = uncompress(payload)
-    if not ok then return -1, json end
-    -- This size check should match the output_limit config param. We want to
-    -- check the size early to avoid parsing JSON if we don't have to.
-    if string.len(json) > 2097152 then
-        return -1, "Uncompressed Payload too large: " .. string.len(json)
-    end
-
-    -- Attempt to parse the payload as JSON.
-    local parsed
-    ok, parsed = pcall(cjson.decode, json)
-    if not ok then return -1, parsed end
-
-    -- Carry forward the dimensions from the submission URL Path. Overwrite
-    -- them later with values from the parsed JSON Payload if available.
-    -- These fields should match the ones specified in the namespace_config for
-    -- the "telemetry" endpoint of the HTTP Edge Server.
-    msg.Fields                  = { sourceName = "telemetry" }
-    msg.Fields.documentId       = read_message("Fields[documentId]")
-    msg.Fields.docType          = read_message("Fields[docType]")
-    msg.Fields.appName          = read_message("Fields[appName]")
-    msg.Fields.appVersion       = read_message("Fields[appVersion]")
-    msg.Fields.appUpdateChannel = read_message("Fields[appUpdateChannel]")
-    msg.Fields.appBuildId       = read_message("Fields[appBuildId]")
-
+local function process_json(msg, json, parsed)
+    local clientId
     if parsed.ver then
         -- Old-style telemetry.
-        msg.Payload = json
-        msg.Fields.sourceVersion    = tostring(parsed.ver)
-
         local info = parsed.info
-        if type(info) ~= "table" then return -1, "missing info object" end
+        if type(info) ~= "table" then return "missing info object" end
+
+        msg.Payload = json
+        update_field(msg.Fields, "sourceVersion", tostring(parsed.ver))
 
         -- Get some more dimensions.
-        msg.Fields.docType          = info.reason or UNK_DIM
-        msg.Fields.appName          = info.appName or UNK_DIM
-        msg.Fields.appVersion       = info.appVersion or UNK_DIM
-        msg.Fields.appUpdateChannel = info.appUpdateChannel or UNK_DIM
+        update_field(msg.Fields, "docType"           , info.reason or UNK_DIM)
+        update_field(msg.Fields, "appName"           , info.appName or UNK_DIM)
+        update_field(msg.Fields, "appVersion"        , info.appVersion or UNK_DIM)
+        update_field(msg.Fields, "appUpdateChannel"  , info.appUpdateChannel or UNK_DIM)
 
         -- Do not want default values for these.
-        msg.Fields.appBuildId       = info.appBuildID
-        msg.Fields.os               = info.OS
-        msg.Fields.appVendor        = info.vendor
-        msg.Fields.reason           = info.reason
-        msg.Fields.clientId         = parsed.clientID
+        update_field(msg.Fields, "appBuildId", info.appBuildID)
+        update_field(msg.Fields, "os"        , info.OS)
+        update_field(msg.Fields, "appVendor" , info.vendor)
+        update_field(msg.Fields, "reason"    , info.reason)
+        clientId = parsed.clientID -- uppercase ID is correct
+        update_field(msg.Fields, "clientId"  , clientId)
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
-
-        -- pull out/verify the data/schema before any restructuring
         local app = parsed.application
-        if type(app) ~= "table" then
-            return -1, "missing application object"
-        end
+        if type(app) ~= "table" then return "missing application object" end
+
+        local cts = parse_creation_date(parsed.creationDate)
+        if not cts then return "missing creationDate" end
+        update_field(msg.Fields, "creationTimestamp", cts)
 
         if type(parsed.payload) == "table" and
            type(parsed.payload.info) == "table" then
-            msg.Fields.reason = parsed.payload.info.reason
-        end
-
-        msg.Fields.creationTimestamp = parse_creation_date(parsed.creationDate)
-        if not msg.Fields.creationTimestamp then
-           return -1, "missing creationDate"
+               update_field(msg.Fields, "reason", parsed.payload.info.reason)
         end
 
         if type(parsed.environment) == "table" and
            type(parsed.environment.system) == "table" and
            type(parsed.environment.system.os) == "table" then
-            msg.Fields.os = parsed.environment.system.os.name
+               update_field(msg.Fields, "os", parsed.environment.system.os.name)
         end
 
-        msg.Fields.sourceVersion    = tostring(parsed.version)
-        msg.Fields.docType          = parsed.type or UNK_DIM
+        update_field(msg.Fields, "sourceVersion", tostring(parsed.version))
+        update_field(msg.Fields, "docType"      , parsed.type or UNK_DIM)
 
         -- Get some more dimensions.
-        msg.Fields.appName          = app.name or UNK_DIM
-        msg.Fields.appVersion       = app.version or UNK_DIM
-        msg.Fields.appUpdateChannel = app.channel or UNK_DIM
+        update_field(msg.Fields, "appName"           , app.name or UNK_DIM)
+        update_field(msg.Fields, "appVersion"        , app.version or UNK_DIM)
+        update_field(msg.Fields, "appUpdateChannel"  , app.channel or UNK_DIM)
 
         -- Do not want default values for these.
-        msg.Fields.appBuildId       = app.buildId
-        msg.Fields.appVendor        = app.vendor
-        msg.Fields.clientId         = parsed.clientId
+        update_field(msg.Fields, "appBuildId", app.buildId)
+        update_field(msg.Fields, "appVendor" , app.vendor)
+        clientId = parsed.clientId
+        update_field(msg.Fields, "clientId"  , clientId)
 
         -- restructure the main ping message
         if parsed.type == "main" then
-            split_objects(parsed.environment, "environment", environment_objects)
-            split_objects(parsed.payload, "payload", main_ping_objects)
+            split_objects(msg.Fields, parsed.environment, "environment", environment_objects)
+            split_objects(msg.Fields, parsed.payload, "payload", main_ping_objects)
             local ok, json = pcall(cjson.encode, parsed) -- re-encode the remaining data
-            if not ok then return -1, json end
+            if not ok then return json end
             msg.Payload = json
         else
             msg.Payload = json
         end
     end
+    update_field(msg.Fields, "sampleId", sample(clientId, 100))
+    return nil -- processing was successful
+end
 
-    -- Carry forward more incoming fields.
-    msg.Fields.geoCountry = read_message("Fields[geoCountry]") or UNK_GEO
-    msg.Timestamp         = read_message("Timestamp")
-    msg.Fields.Host       = read_message("Fields[Host]")
-    msg.Fields.DNT        = read_message("Fields[DNT]")
-    msg.Fields.clientDate = read_message("Fields[Date]")
-
-    msg.Fields.submissionDate = os.date("%Y%m%d", msg.Timestamp / 1e9)
-
-    msg.Fields.sampleId = sample(msg.Fields.clientId, 100)
-
-    -- Send new message along.
-    local err
-    ok, err = pcall(inject_message, msg)
+local function send_message(msg, phase, err)
+    if err then
+        msg.Type = "telemetry.error"
+        update_field(msg.Fields, "DecodeErrorType", phase)
+        update_field(msg.Fields, "DecodeError", err)
+    end
+    local ok, err = pcall(inject_message, msg)
     if not ok then
         return -1, err
     end
     return 0
+end
+
+function process_message()
+    local raw = read_message("raw")
+    local ok, msg = pcall(decode_message, raw)
+    if not ok then return -1, msg end
+
+    msg.Type = "telemetry"
+    msg.EnvVersion = 1
+    if not msg.Fields then msg.Fields = {} end
+
+    update_field(msg.Fields, "sourceName", "telemetry")
+    update_field(msg.Fields, "submissionDate", os.date("%Y%m%d", msg.Timestamp / 1e9))
+
+    -- Attempt to uncompress the payload if it is gzipped.
+    local ok, json = uncompress(msg.Payload)
+    if not ok then return send_message(msg, "gzip", json) end
+
+    -- This size check should match the output_limit config param. We want to
+    -- check the size early to avoid parsing JSON if we don't have to.
+    if string.len(json) > 2097152 then
+        return send_message(msg, "size", "Uncompressed Payload too large: " .. string.len(json))
+    end
+    local ok, parsed = pcall(cjson.decode, json)
+    if not ok then return send_message(msg, "json", parsed) end
+
+    -- Extract additional fields from the json
+    local err = process_json(msg, json, parsed)
+    if err then return send_message(msg, "payload", err) end
+
+    return send_message(msg)
 end
