@@ -87,12 +87,12 @@ func main() {
 	}
 
 	workers := 1
-	if *flagWorkers < math.MaxUint32 {
-		workers = int(*flagWorkers)
-	} else if *flagWorkers == 0 {
+	if *flagWorkers == 0 {
 		fmt.Printf("Cannot run with zero workers. Using 1.\n")
+	} else if *flagWorkers < math.MaxUint32 {
+		workers = int(*flagWorkers)
 	} else {
-		fmt.Printf("Too many workers: %d. Are you crazy?\n", flagWorkers)
+		fmt.Printf("Too many workers: %d. Use a reasonable value (up to a few hundred).\n", flagWorkers)
 		os.Exit(8)
 	}
 
@@ -165,8 +165,10 @@ func main() {
 	close(clientIdChannel)
 	<-done
 
-	fmt.Printf("Waiting for %d more clients\n", pendingClientIds)
-	waitForClients(clientsDone, pendingClientIds)
+	if pendingClientIds > 0 {
+		fmt.Printf("Waiting for %d more clients\n", pendingClientIds)
+		waitForClients(clientsDone, pendingClientIds)
+	}
 	close(recordChannel)
 
 	<-doneSaving
@@ -174,13 +176,14 @@ func main() {
 	fmt.Printf("All done processing %d clientIds in %.2f seconds\n", totalClientIds, duration)
 }
 
+// Wait for one or more clientIds to complete
 func waitForClients(clientsDone <-chan string, count int) {
-	// Wait for one or more clientIds to complete
 	for i := 1; i <= count; i++ {
 		<-clientsDone
 	}
 }
 
+// Parse a string as a uint32 value.
 func makeInt(numstr string) (uint32, error) {
 	i, err := strconv.ParseInt(string(numstr), 10, 64)
 	if err != nil {
@@ -192,6 +195,8 @@ func makeInt(numstr string) (uint32, error) {
 	return uint32(i), nil
 }
 
+// Read all records for a each clientId read from todoChannel, write htem out to
+// recordChannel.
 func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-chan string, recordChannel chan<- []byte, done chan<- bool, clientsDone chan<- string) {
 	ok := true
 	for ok {
@@ -220,6 +225,8 @@ func getClientRecords(bucket *s3.Bucket, offsets *OffsetCache, todoChannel <-cha
 	}
 }
 
+// Read a single client record using a partial read from S3 using the given
+// headers, which should contain a "Range: bytes=M-N" header.
 func getClientRecord(bucket *s3.Bucket, o *MessageLocation, headers map[string][]string) ([]byte, error) {
 	resp, err := bucket.GetResponseWithHeaders(o.Key, headers)
 	if err != nil {
@@ -233,6 +240,8 @@ func getClientRecord(bucket *s3.Bucket, o *MessageLocation, headers map[string][
 	return body, err
 }
 
+// Save matching client records locally to the given output file in the given
+// format.
 func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, match *message.MatcherSpecification, out *os.File) {
 	processed := 0
 	matched := 0
@@ -304,6 +313,11 @@ func saveRecords(recordChannel <-chan []byte, done chan<- bool, format string, m
 	fmt.Printf("Processed: %d, matched: %d messages (%.2f MB)\n", processed, matched, (float64(bytes) / 1024.0 / 1024.0))
 }
 
+// Read offset information from a file, use it to populate an offset cache.
+// Expected file format is one record per line of the form:
+//   s3key<tab>clientId<tab>offset<tab>recordLength<newline>
+// Example:
+//   telemetry/20150412/telemetry/4/main/Firefox/nightly/40.0a1/201504120000.heka	881417ba-b009-3041-8452-58784b1889d6	8580641	81739
 func readOffsets(filename string) (*OffsetCache, error) {
 	file, err := os.Open(filename)
 	if err != nil {
