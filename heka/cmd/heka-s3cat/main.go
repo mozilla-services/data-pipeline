@@ -55,10 +55,12 @@ func main() {
 	}
 
 	workers := 1
-	if *flagWorkers < math.MaxUint32 {
+	if *flagWorkers == 0 {
+		fmt.Printf("Cannot run with zero workers. Using 1.\n")
+	} else if *flagWorkers < math.MaxUint32 {
 		workers = int(*flagWorkers)
 	} else {
-		fmt.Printf("Too many workers: %d\n", flagWorkers)
+		fmt.Printf("Too many workers: %d. Use a reasonable value (up to a few hundred).\n", flagWorkers)
 		os.Exit(8)
 	}
 
@@ -145,6 +147,7 @@ func main() {
 	fmt.Printf("All done processing %d files, %.2fMB in %.2f seconds (%.2fMB/s)\n", totalFiles, mb, duration, (mb / duration))
 }
 
+// Cat all filenames read from filenameChannel
 func cat(bucket *s3.Bucket, filenameChannel <-chan string, recordChannel chan<- s3splitfile.S3Record, doneChannel chan<- string) {
 	ok := true
 	for ok {
@@ -159,6 +162,7 @@ func cat(bucket *s3.Bucket, filenameChannel <-chan string, recordChannel chan<- 
 	}
 }
 
+// Cat the records from a single S3 key
 func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3Record) {
 	var processed int64
 
@@ -178,6 +182,8 @@ func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3
 	fmt.Printf("%s: Processed: %d messages\n", s3Key, processed)
 }
 
+// Save matching client records locally to the given output file in the given
+// format.
 func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpecification, format string, out *os.File, done chan<- int) {
 	processed := 0
 	matched := 0
@@ -207,7 +213,6 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 
 		matched += 1
 
-		// fmt.Printf("Saving data for %s\n", msg.GetPayload())
 		switch format {
 		case "count":
 			// no op
@@ -249,9 +254,7 @@ func waitFor(completedChannel <-chan string, count int) {
 	var completed string
 	// Now wait for all the clients to complete:
 	for i := 1; i <= count; i++ {
-		// fmt.Printf("Waiting for client %d of %d...\n", i, count)
 		completed = <-completedChannel
 		fmt.Printf("Completed: %s\n", completed)
-		// fmt.Printf("Finished reading %s, %d of %d completed.\n", completed, i, count)
 	}
 }
