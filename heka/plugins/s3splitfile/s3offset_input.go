@@ -45,8 +45,8 @@ type S3OffsetInput struct {
 
 type S3OffsetInputConfig struct {
 	// So we can default to using ProtobufDecoder.
-	Decoder string
-
+	Decoder            string
+	Splitter           string
 	ClientIdListFile   string `toml:"client_id_list"`
 	StartDate          string `toml:"start_date"`
 	EndDate            string `toml:"end_date"`
@@ -63,17 +63,19 @@ type S3OffsetInputConfig struct {
 
 func (input *S3OffsetInput) ConfigStruct() interface{} {
 	return &S3OffsetInputConfig{
-		Decoder:        "ProtobufDecoder",
-		StartDate:      "20150101",
-		EndDate:        time.Now().UTC().Format("20060102"),
-		AWSKey:         "",
-		AWSSecretKey:   "",
-		AWSRegion:      "us-west-2",
-		S3MetaBucket:   "",
-		S3Bucket:       "",
-		S3BucketPrefix: "",
-		S3Retries:      5,
-		S3WorkerCount:  10,
+		Decoder:            "ProtobufDecoder",
+		Splitter:           "NullSplitter",
+		StartDate:          "20150101",
+		EndDate:            time.Now().UTC().Format("20060102"),
+		AWSKey:             "",
+		AWSSecretKey:       "",
+		AWSRegion:          "us-west-2",
+		S3MetaBucket:       "",
+		S3MetaBucketPrefix: "",
+		S3Bucket:           "",
+		S3BucketPrefix:     "",
+		S3Retries:          5,
+		S3WorkerCount:      16,
 	}
 }
 
