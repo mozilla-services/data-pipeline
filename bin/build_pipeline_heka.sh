@@ -125,14 +125,20 @@ case $UNAME in
 Darwin)
     # Don't bother trying to build a package on OSX
     make
+
+    # Try setting the LD path (just in case this script was sourced)
+    export DYLD_LIBRARY_PATH=build/heka/build/heka/lib
     echo "If you see an error like:"
     echo "    dyld: Library not loaded: libluasandbox.0.dylib"
     echo "You must first set the LD path:"
-    echo "    export DYLD_LIBRARY_PATH=build/heka/build/heka/lib"
+    echo "    export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH"
     ;;
 *)
     # Build RPM
     make package
+    export LD_LIBRARY_PATH=build/heka/build/heka/lib
+    echo "If you see an error about libluasandbox, you must first set the LD path:"
+    echo "    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
     ;;
 esac
 if hash rpmrebuild 2>/dev/null; then
