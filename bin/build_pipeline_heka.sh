@@ -8,7 +8,9 @@ set -o errexit
 
 BUILD_BRANCH=$1
 if [ -z "$BUILD_BRANCH" ]; then
-    BUILD_BRANCH=master
+    #BUILD_BRANCH=master
+    # FIXME: restore to "master" after successful merge/build.
+    BUILD_BRANCH=adroll
 fi
 
 BASE=$(pwd)
@@ -32,7 +34,7 @@ fi
 cd heka
 # pin the Heka version
 git fetch
-git checkout a2e16ce3d8a12043a391a9314dedebf33efea323
+git checkout f21bfe94152de7d145f4dc00ef212ce64d3f21dc
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -123,6 +125,10 @@ case $UNAME in
 Darwin)
     # Don't bother trying to build a package on OSX
     make
+    echo "If you see an error like:"
+    echo "    dyld: Library not loaded: libluasandbox.0.dylib"
+    echo "You must first set the LD path:"
+    echo "    export DYLD_LIBRARY_PATH=build/heka/build/heka/lib"
     ;;
 *)
     # Build RPM
