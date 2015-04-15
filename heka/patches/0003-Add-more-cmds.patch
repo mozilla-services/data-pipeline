@@ -11,16 +11,17 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index a5cdd21..705d223 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -37,6 +37,8 @@ set(INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
+@@ -37,6 +37,9 @@ set(INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
  set(LOGSTREAMER_EXE "${PROJECT_PATH}/bin/heka-logstreamer${CMAKE_EXECUTABLE_SUFFIX}")
  set(HEKA_CAT_EXE "${PROJECT_PATH}/bin/heka-cat${CMAKE_EXECUTABLE_SUFFIX}")
  set(HEKA_EXPORT_EXE "${PROJECT_PATH}/bin/heka-export${CMAKE_EXECUTABLE_SUFFIX}")
 +set(HEKA_S3LIST_EXE "${PROJECT_PATH}/bin/heka-s3list${CMAKE_EXECUTABLE_SUFFIX}")
 +set(HEKA_S3CAT_EXE "${PROJECT_PATH}/bin/heka-s3cat${CMAKE_EXECUTABLE_SUFFIX}")
++set(GET_CLIENTS_EXE "${PROJECT_PATH}/bin/get-clients${CMAKE_EXECUTABLE_SUFFIX}")
  
  option(INCLUDE_SANDBOX "Include Lua sandbox" on)
  option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
-@@ -225,6 +227,20 @@ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+@@ -225,6 +228,27 @@ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
  
  install(PROGRAMS "${HEKA_EXPORT_EXE}" DESTINATION bin)
  
@@ -37,6 +38,13 @@ index a5cdd21..705d223 100644
 +WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 +
 +install(PROGRAMS "${HEKA_S3CAT_EXE}" DESTINATION bin)
++
++add_custom_target(get-clients ALL
++${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/get-clients
++DEPENDS hekad
++WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
++
++install(PROGRAMS "${GET_CLIENTS_EXE}" DESTINATION bin)
 +
  add_custom_target(sbmgr ALL
  ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-sbmgr
