@@ -25,7 +25,7 @@ You can set up a bare-bones data pipeline of your own.  You will get an endpoint
     ```
 
 2. Build and configure heka. If you are unable to build heka, drop by #datapipeline on irc.mozilla.org and we will try to provide you a pre-built version.
-  1. Run `bash bin/build_pipeline_heka.sh`
+  1. Run `source bin/build_pipeline_heka.sh`
   2. Install lua modules
 
         ```

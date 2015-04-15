@@ -3,14 +3,13 @@
 # Exit on error:
 set -o errexit
 
+pushd .
 # Machine config:
 # sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild
 
 BUILD_BRANCH=$1
 if [ -z "$BUILD_BRANCH" ]; then
-    #BUILD_BRANCH=master
-    # FIXME: restore to "master" after successful merge/build.
-    BUILD_BRANCH=adroll
+    BUILD_BRANCH=master
 fi
 
 BASE=$(pwd)
@@ -145,3 +144,4 @@ if hash rpmrebuild 2>/dev/null; then
     echo "Rebuilding RPM with date iteration and svc suffix"
     rpmrebuild -d . --release=0.$(date +%Y%m%d)svc -p -n heka-*-linux-amd64.rpm
 fi
+popd
