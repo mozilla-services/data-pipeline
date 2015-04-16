@@ -8,8 +8,8 @@ package s3splitfile
 
 import (
 	"fmt"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
+	"github.com/AdRoll/goamz/aws"
+	"github.com/AdRoll/goamz/s3"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"

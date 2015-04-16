@@ -3,6 +3,7 @@
 # Exit on error:
 set -o errexit
 
+pushd .
 # Machine config:
 # sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild
 
@@ -32,7 +33,7 @@ fi
 cd heka
 # pin the Heka version
 git fetch
-git checkout 8be7be2d5efdaefee61833e72b63f991507a800d
+git checkout f21bfe94152de7d145f4dc00ef212ce64d3f21dc
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -58,6 +59,12 @@ cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
 
 echo 'Installing/updating lua filters/modules/decoders/encoders'
 rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
+
+PLUGIN_TARGET=$BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
+if [ -d $PLUGIN_TARGET ]; then
+    echo 'Updating plugins with local changes'
+    rsync -av $BASE/heka/plugins/ $PLUGIN_TARGET
+fi
 
 source build.sh
 
@@ -111,22 +118,30 @@ cd $BASE
 # Build a hash module with the zlib checksum functions
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
 
-echo 'Updating plugins with local changes'
-rsync -av $BASE/heka/plugins/ $BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
-
 cd $BASE/build/heka/build
 
 case $UNAME in
 Darwin)
     # Don't bother trying to build a package on OSX
     make
+
+    # Try setting the LD path (just in case this script was sourced)
+    export DYLD_LIBRARY_PATH=build/heka/build/heka/lib
+    echo "If you see an error like:"
+    echo "    dyld: Library not loaded: libluasandbox.0.dylib"
+    echo "You must first set the LD path:"
+    echo "    export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH"
     ;;
 *)
     # Build RPM
     make package
+    export LD_LIBRARY_PATH=build/heka/build/heka/lib
+    echo "If you see an error about libluasandbox, you must first set the LD path:"
+    echo "    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
     ;;
 esac
 if hash rpmrebuild 2>/dev/null; then
     echo "Rebuilding RPM with date iteration and svc suffix"
     rpmrebuild -d . --release=0.$(date +%Y%m%d)svc -p -n heka-*-linux-amd64.rpm
 fi
+popd

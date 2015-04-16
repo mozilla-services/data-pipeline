@@ -33,7 +33,7 @@ Note that:
     [TelemetryLatency]
     type = "SandboxFilter"
     filename = "lua_filters/telemetry_latency.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == 4 && Fields[appUpdateChannel] == 'nightly'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[sampleId] == 0 && Fields[sourceVersion] == '4' && Fields[appUpdateChannel] == 'nightly'"
     ticker_interval = 60
     preserve_data = false
     memory_limit = 209715200
@@ -191,7 +191,7 @@ local function remove_old_subsessions(ts, metric_by_channel)
       num_total_entries = #ss_entry.list
 
       for i = 1, num_total_entries - num_recent_entries, 1 do
-         ss_entry.list.remove(1) -- slow, but does it matter if we run this every hour?
+         table.remove(ss_entry.list, 1) -- slow, but does it matter if we run this every hour?
       end
    end
 end
