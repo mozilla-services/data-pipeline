@@ -98,19 +98,13 @@ func (input *S3OffsetInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("Parameter 'aws_region' must be a valid AWS Region")
 	}
 	s := s3.New(auth, region)
-	// TODO: ensure we can read from the buckets.
+	// TODO: ensure we can read from (and list, for meta) the buckets.
 	input.bucket = s.Bucket(conf.S3Bucket)
 	input.metaBucket = s.Bucket(conf.S3MetaBucket)
 
 	// Remove any excess path separators from the bucket prefix.
-	conf.S3BucketPrefix = strings.Trim(conf.S3BucketPrefix, "/")
-	if conf.S3BucketPrefix != "" {
-		conf.S3BucketPrefix += "/"
-	}
-	conf.S3MetaBucketPrefix = strings.Trim(conf.S3MetaBucketPrefix, "/")
-	if conf.S3MetaBucketPrefix != "" {
-		conf.S3MetaBucketPrefix += "/"
-	}
+	conf.S3BucketPrefix = CleanBucketPrefix(conf.S3BucketPrefix)
+	conf.S3MetaBucketPrefix = CleanBucketPrefix(conf.S3MetaBucketPrefix)
 
 	input.stop = make(chan bool)
 	input.offsetChan = make(chan MessageLocation, 1000)
@@ -143,18 +137,13 @@ func (input *S3OffsetInput) Run(runner pipeline.InputRunner, helper pipeline.Plu
 			if r.Err != nil {
 				runner.LogError(fmt.Errorf("Error getting S3 list: %s", r.Err))
 			} else {
-				runner.LogMessage(fmt.Sprintf("Found: %s", r.Key.Key))
 				base := path.Base(r.Key.Key)[0:8]
 				// Check if r is in the desired date range.
 				if base >= input.StartDate && base <= input.EndDate {
 					err := input.grep(r)
 					if err != nil {
 						runner.LogMessage(fmt.Sprintf("Error reading index: %s", err))
-					} else {
-						runner.LogMessage(fmt.Sprintf("Success reading index: %s ???", r.Key.Key))
 					}
-				} else {
-					runner.LogMessage(fmt.Sprintf("Skipping index: %s", r.Key.Key))
 				}
 			}
 		}
@@ -241,6 +230,7 @@ func (input *S3OffsetInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGr
 			}
 
 			startTime = time.Now().UTC()
+
 			// Read one message from the given location
 			headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", loc.Offset, loc.Offset+loc.Length-1)
 			record, err := getClientRecord(input.bucket, &loc, headers)
@@ -258,7 +248,6 @@ func (input *S3OffsetInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGr
 }
 
 func (input *S3OffsetInput) ReportMsg(msg *message.Message) error {
-	// TODO: update these guys.
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&input.processMessageCount), "count")
 	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&input.processMessageFailures), "count")
 	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&input.processMessageBytes), "B")
