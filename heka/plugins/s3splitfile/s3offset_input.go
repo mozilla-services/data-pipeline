@@ -56,7 +56,6 @@ type S3OffsetInputConfig struct {
 	S3MetaBucket       string `toml:"s3_meta_bucket"`
 	S3MetaBucketPrefix string `toml:"s3_meta_bucket_prefix"`
 	S3Bucket           string `toml:"s3_bucket"`
-	S3BucketPrefix     string `toml:"s3_bucket_prefix"`
 	S3Retries          uint32 `toml:"s3_retries"`
 	S3WorkerCount      uint32 `toml:"s3_worker_count"`
 }
@@ -73,7 +72,6 @@ func (input *S3OffsetInput) ConfigStruct() interface{} {
 		S3MetaBucket:       "",
 		S3MetaBucketPrefix: "",
 		S3Bucket:           "",
-		S3BucketPrefix:     "",
 		S3Retries:          5,
 		S3WorkerCount:      16,
 	}
@@ -103,7 +101,6 @@ func (input *S3OffsetInput) Init(config interface{}) (err error) {
 	input.metaBucket = s.Bucket(conf.S3MetaBucket)
 
 	// Remove any excess path separators from the bucket prefix.
-	conf.S3BucketPrefix = CleanBucketPrefix(conf.S3BucketPrefix)
 	conf.S3MetaBucketPrefix = CleanBucketPrefix(conf.S3MetaBucketPrefix)
 
 	input.stop = make(chan bool)
@@ -197,8 +194,6 @@ func (input *S3OffsetInput) grep(result S3ListResult) (err error) {
 		}
 		input.offsetChan <- MessageLocation{pieces[0], o, l}
 	}
-
-	fmt.Printf("Read %d lines from %s\n", lineNum, result.Key.Key)
 	return scanner.Err()
 }
 
@@ -308,8 +303,8 @@ func getClientRecord(bucket *s3.Bucket, o *MessageLocation, headers map[string][
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	if len(body) != int(o.Length) {
-		fmt.Printf("Unexpected body length: %d != %d\n", len(body), o.Length)
+	if err == nil && len(body) != int(o.Length) {
+		err = fmt.Errorf("Unexpected body length: %d != %d\n", len(body), o.Length)
 	}
 	return body, err
 }
