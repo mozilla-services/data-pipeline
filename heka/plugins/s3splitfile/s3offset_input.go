@@ -208,6 +208,8 @@ func (input *S3OffsetInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGr
 		startTime time.Time
 		duration  float64
 		headers   map[string][]string
+		record    []byte
+		err       error
 	)
 
 	headers = map[string][]string{
@@ -230,12 +232,20 @@ func (input *S3OffsetInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGr
 			}
 
 			startTime = time.Now().UTC()
-
 			// Read one message from the given location
 			headers["Range"][0] = fmt.Sprintf("bytes=%d-%d", loc.Offset, loc.Offset+loc.Length-1)
-			record, err := getClientRecord(input.bucket, &loc, headers)
+			atomic.AddInt64(&input.processMessageCount, 1)
+			atomic.AddInt64(&input.processMessageBytes, int64(loc.Length))
+			for attempt := uint32(1); attempt <= input.S3Retries; attempt++ {
+				record, err = getClientRecord(input.bucket, &loc, headers)
+				if err != nil {
+					runner.LogMessage(fmt.Sprintf("Error #%d fetching %s @ %d+%d: %s\n", attempt, loc.Key, loc.Offset, loc.Length, err))
+				} else {
+					break
+				}
+			}
 			if err != nil {
-				runner.LogMessage(fmt.Sprintf("Error fetching %s @ %d+%d: %s\n", loc.Key, loc.Offset, loc.Length, err))
+				atomic.AddInt64(&input.processMessageFailures, 1)
 				continue
 			}
 			splitterRunner.DeliverRecord(record, deliverer)
