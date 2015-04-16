@@ -9,13 +9,18 @@
 # https://github.com/mozilla/telemetry-server/tree/master/provisioning/aws
 
 import argparse
-import simplejson as json
+import json
 import sys
 import traceback
 import time
-import boto.ec2
-from boto.ec2.blockdevicemapping import BlockDeviceType
-from boto.ec2.blockdevicemapping import BlockDeviceMapping
+
+try:
+    import boto.ec2
+    from boto.ec2.blockdevicemapping import BlockDeviceType
+    from boto.ec2.blockdevicemapping import BlockDeviceMapping
+except:
+    sys.stderr.write("Requires boto; try 'pip install boto'\n")
+    exit(1)
 
 default_config = {
     "image": "ami-ace67f9c",
@@ -29,8 +34,12 @@ default_config = {
         "/dev/xvdb": "ephemeral0",
         "/dev/xvdc": "ephemeral1"
     },
+    "owner": "datapipeline",
     "tags": {
-        "Name": "data-pipeline-analysis"
+        "Name": "pipeline-analysis",
+        "App": "pipeline",
+        "Type": "analysis",
+        "Env": "dev",
     }
 }
 
@@ -39,10 +48,8 @@ class Launcher(object):
     def __init__(self):
         parser = self.get_arg_parser()
         args = parser.parse_args()
-        self.aws_key = args.aws_key
-        self.aws_secret_key = args.aws_secret_key
         self.read_user_data()
-        self.setup_config(args.config_file)
+        self.setup_config(args)
 
     def get_arg_parser(self):
         parser = argparse.ArgumentParser(description='Launch EC2 instances')
@@ -55,34 +62,34 @@ class Launcher(object):
         parser.add_argument(
             "-k", "--aws-key",
             help="AWS Key",
-            required=True,
             default=None
         )
         parser.add_argument(
             "-s", "--aws-secret-key",
             help="AWS Secret Key",
-            required=False,
             default=None
         )
         return parser
 
     def read_user_data(self):
-        fh = open("userdata.sh", "r")
-        self.user_data = fh.read()
-        fh.close()
+        with open("userdata.sh", "r") as fh:
+            self.user_data = fh.read()
 
-    def setup_config(self, config_file):
-        self.config = default_config
-        if config_file:
-            user_config = json.load(config_file)
-            for key in user_config:
-                self.config[key] = user_config[key]
+    def setup_config(self, args):
+        self.config = default_config.copy()
+        if args.config_file:
+            user_config = json.load(args.config_file)
+            self.config.update(user_config)
+        if args.aws_key:
+            self.config["aws_key"] = args.aws_key
+        if args.aws_secret_key:
+            self.config["aws_secret_key"] = args.aws_secret_key
 
     def fire_up_instance(self):
         self.conn = boto.ec2.connect_to_region(
             self.config["region"],
-            aws_access_key_id=self.aws_key,
-            aws_secret_access_key=self.aws_secret_key
+            aws_access_key_id=self.config.get("aws_key", None),
+            aws_secret_access_key=self.config.get("aws_secret_key", None)
         )
 
         mapping = BlockDeviceMapping()
@@ -102,15 +109,18 @@ class Launcher(object):
 
         instance = reservation.instances[0]
 
+        owner_tag = {"Owner": self.config["owner"]}
+        self.conn.create_tags([instance.id], owner_tag)
         self.conn.create_tags([instance.id], self.config["tags"])
+
         while instance.state == 'pending':
             print "Instance is pending -- Waiting 10s for instance", \
                 instance.id, "to start up..."
             time.sleep(10)
             instance.update()
 
-        print "Instance", instance.id, "is", instance.state
-        print "ubuntu@%s" % instance.public_dns_name
+        print ("Instance {0} is {1}".format(instance.id, instance.state))
+        print ("ubuntu@{0}".format(instance.public_dns_name))
 
 
 def main():
