@@ -3,6 +3,7 @@
 # Exit on error:
 set -o errexit
 
+pushd .
 # Machine config:
 # sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild
 
@@ -32,7 +33,7 @@ fi
 cd heka
 # pin the Heka version
 git fetch
-git checkout a2e16ce3d8a12043a391a9314dedebf33efea323
+git checkout f21bfe94152de7d145f4dc00ef212ce64d3f21dc
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -123,13 +124,24 @@ case $UNAME in
 Darwin)
     # Don't bother trying to build a package on OSX
     make
+
+    # Try setting the LD path (just in case this script was sourced)
+    export DYLD_LIBRARY_PATH=build/heka/build/heka/lib
+    echo "If you see an error like:"
+    echo "    dyld: Library not loaded: libluasandbox.0.dylib"
+    echo "You must first set the LD path:"
+    echo "    export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH"
     ;;
 *)
     # Build RPM
     make package
+    export LD_LIBRARY_PATH=build/heka/build/heka/lib
+    echo "If you see an error about libluasandbox, you must first set the LD path:"
+    echo "    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
     ;;
 esac
 if hash rpmrebuild 2>/dev/null; then
     echo "Rebuilding RPM with date iteration and svc suffix"
     rpmrebuild -d . --release=0.$(date +%Y%m%d)svc -p -n heka-*-linux-amd64.rpm
 fi
+popd

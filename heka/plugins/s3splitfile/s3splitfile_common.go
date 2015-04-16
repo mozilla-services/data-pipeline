@@ -9,7 +9,7 @@ package s3splitfile
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/crowdmob/goamz/s3"
+	"github.com/AdRoll/goamz/s3"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"io"
