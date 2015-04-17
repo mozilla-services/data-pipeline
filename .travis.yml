@@ -18,4 +18,4 @@ script:
     - . env.sh
     - cd build
     - make test
-    - go test github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile
+    - go test github.com/mozilla-services/data-pipeline/s3splitfile

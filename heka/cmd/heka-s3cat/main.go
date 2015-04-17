@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"github.com/AdRoll/goamz/aws"
 	"github.com/AdRoll/goamz/s3"
-	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
+	"github.com/mozilla-services/data-pipeline/s3splitfile"
 	"github.com/mozilla-services/heka/message"
 	"io"
 	"math"
