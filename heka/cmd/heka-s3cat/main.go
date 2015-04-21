@@ -57,7 +57,7 @@ func main() {
 	workers := 1
 	if *flagWorkers == 0 {
 		fmt.Printf("Cannot run with zero workers. Using 1.\n")
-	} else if *flagWorkers < math.MaxUint32 {
+	} else if *flagWorkers < 2000 {
 		workers = int(*flagWorkers)
 	} else {
 		fmt.Printf("Too many workers: %d. Use a reasonable value (up to a few hundred).\n", flagWorkers)
