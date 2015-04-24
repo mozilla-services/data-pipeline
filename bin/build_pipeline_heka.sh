@@ -45,7 +45,7 @@ if [ ! -f "patches_applied" ]; then
     patch CMakeLists.txt < $BASE/heka/patches/0003-Add-more-cmds.patch
 
     echo "Adding external plugin for s3splitfile output"
-    echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline $BUILD_BRANCH heka/plugins/s3splitfile __ignore_root)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline/s3splitfile :local)" >> cmake/plugin_loader.cmake
 
     echo "Adding external plugin for golang-lru output"
     echo "add_external_plugin(git https://github.com/mreid-moz/golang-lru acc5bd27065280640fa0a79a973076c6abaccec8)" >> cmake/plugin_loader.cmake
@@ -60,11 +60,9 @@ cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
 echo 'Installing/updating lua filters/modules/decoders/encoders'
 rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
 
-PLUGIN_TARGET=$BASE/build/heka/build/heka/src/github.com/mozilla-services/data-pipeline/heka/plugins/
-if [ -d $PLUGIN_TARGET ]; then
-    echo 'Updating plugins with local changes'
-    rsync -av $BASE/heka/plugins/ $PLUGIN_TARGET
-fi
+echo 'Updating plugins with local changes'
+mkdir -p $BASE/build/heka/externals
+rsync -av $BASE/heka/plugins/ $BASE/build/heka/externals/
 
 source build.sh
 

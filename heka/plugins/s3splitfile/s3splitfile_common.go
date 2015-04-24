@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"math"
 	"regexp"
+	"strings"
 )
 
 type PublishAttempt struct {
@@ -441,5 +442,13 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 		recordChan <- makeS3Record(n, record, err)
 	}
 
+	return
+}
+
+func CleanBucketPrefix(prefix string) (cleaned string) {
+	cleaned = strings.Trim(prefix, "/")
+	if cleaned != "" {
+		cleaned += "/"
+	}
 	return
 }

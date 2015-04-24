@@ -16,9 +16,8 @@ import (
 	"fmt"
 	"github.com/AdRoll/goamz/aws"
 	"github.com/AdRoll/goamz/s3"
-	"github.com/mozilla-services/data-pipeline/heka/plugins/s3splitfile"
+	"github.com/mozilla-services/data-pipeline/s3splitfile"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -54,10 +53,7 @@ func main() {
 
 	var b *s3.Bucket
 
-	prefix := strings.Trim(*flagBucketPrefix, "/")
-	if prefix != "" {
-		prefix += "/"
-	}
+	prefix := s3splitfile.CleanBucketPrefix(*flagBucketPrefix)
 
 	// Initialize the S3 bucket
 	auth, err := aws.GetAuth(*flagAWSKey, *flagAWSSecretKey, "", time.Now())
