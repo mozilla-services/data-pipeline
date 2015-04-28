@@ -60,8 +60,8 @@ l.Cc"Other"
 
 
 local function get_search_counts()
-    -- default, google, bing, yahoo, other
-    local cnts = {0, 0, 0, 0, 0}
+    -- google, bing, yahoo, other
+    local cnts = {0, 0, 0, 0}
     local json = read_message("Fields[payload.keyedHistograms]")
     if not json then return cnts end
 
@@ -73,7 +73,7 @@ local function get_search_counts()
         for i, e in ipairs({"[Gg]oogle", "[Bb]ing", "[Yy]ahoo", "."}) do
             if string.match(k, e) then
                 if type(v.sum) ~= "number" then return end
-                cnts[i+1] = cnts[i+1] + v.sum
+                cnts[i] = cnts[i] + v.sum
                 break
             end
         end
@@ -98,6 +98,19 @@ local function get_hours()
 end
 
 
+local function get_default()
+    local json = read_message("Fields[environment.settings]")
+    local ok, json = pcall(cjson.decode, json)
+    if not ok then return false end
+
+    local default = json.isDefaultBrowser
+    if type(default) == "boolean" then
+        return default
+    end
+    return false
+end
+
+
 ----
 
 local msg = {
@@ -112,7 +125,7 @@ local msg = {
         {name = "os"        , value = ""},
         {name = "hours"     , value = 0},
         {name = "crashes"   , value = 0, value_type = 2},
-        {name = "default"   , value = 0, value_type = 2},
+        {name = "default"   , value = false},
         {name = "google"    , value = 0, value_type = 2},
         {name = "bing"      , value = 0, value_type = 2},
         {name = "yahoo"     , value = 0, value_type = 2},
@@ -150,12 +163,13 @@ function process_message()
     -- todo need the crash data
     -- https://bugzilla.mozilla.org/show_bug.cgi?id=1121013
 
+    msg.Fields[8].value = get_default()
+
     local cnts = get_search_counts()
-    msg.Fields[8].value     = cnts[1] -- default
-    msg.Fields[9].value     = cnts[2] -- google
-    msg.Fields[10].value    = cnts[3] -- bing
-    msg.Fields[11].value    = cnts[4] -- yahoo
-    msg.Fields[12].value    = cnts[5] -- other
+    msg.Fields[9].value     = cnts[1] -- google
+    msg.Fields[10].value    = cnts[2] -- bing
+    msg.Fields[11].value    = cnts[3] -- yahoo
+    msg.Fields[12].value    = cnts[4] -- other
 
     inject_message(msg)
     return 0
