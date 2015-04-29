@@ -13,7 +13,6 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -90,10 +89,7 @@ func (input *S3SplitFileInput) Init(config interface{}) (err error) {
 	}
 
 	// Remove any excess path separators from the bucket prefix.
-	conf.S3BucketPrefix = strings.Trim(conf.S3BucketPrefix, "/")
-	if conf.S3BucketPrefix != "" {
-		conf.S3BucketPrefix += "/"
-	}
+	conf.S3BucketPrefix = CleanBucketPrefix(conf.S3BucketPrefix)
 
 	input.stop = make(chan bool)
 	input.listChan = make(chan string, 1000)
