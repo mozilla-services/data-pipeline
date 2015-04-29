@@ -23,20 +23,19 @@ except:
     exit(1)
 
 default_config = {
-    "image": "ami-ace67f9c",
+    "image": "ami-5189a661",
     "region": "us-west-2",
-    "key_name": "kparlante-pipeline-dev",
+    "key_name": "20130730-svcops-base-key-dev",
     "instance_type": "c3.2xlarge",
-    "security_groups": ["mreid-heka-build-and-test"],
+    "security_groups": ["pipeline-analysis"],
     "iam_role": "pipeline-dev-iam-access-IamInstanceProfile-YVZ950U23IFP",
-    "shutdown": "stop",
+    "shutdown": "terminate",
     "ephemeral_map": {
         "/dev/xvdb": "ephemeral0",
         "/dev/xvdc": "ephemeral1"
     },
     "owner": "datapipeline",
     "tags": {
-        "Name": "pipeline-analysis",
         "App": "pipeline",
         "Type": "analysis",
         "Env": "dev",
@@ -69,6 +68,11 @@ class Launcher(object):
             help="AWS Secret Key",
             default=None
         )
+        parser.add_argument(
+            "-o", "--owner",
+            help="AWS owner tag",
+            default=None
+        )
         return parser
 
     def read_user_data(self):
@@ -84,6 +88,8 @@ class Launcher(object):
             self.config["aws_key"] = args.aws_key
         if args.aws_secret_key:
             self.config["aws_secret_key"] = args.aws_secret_key
+        if args.owner:
+            self.config["owner"] = args.owner
 
     def fire_up_instance(self):
         self.conn = boto.ec2.connect_to_region(
@@ -109,8 +115,12 @@ class Launcher(object):
 
         instance = reservation.instances[0]
 
-        owner_tag = {"Owner": self.config["owner"]}
-        self.conn.create_tags([instance.id], owner_tag)
+        name_string = "{0}-{1}-{2}".format(
+            self.config["owner"],
+            self.config["tags"]["App"],
+            self.config["tags"]["Type"])
+        owner_tags = {"Name": name_string, "Owner": self.config["owner"]}
+        self.conn.create_tags([instance.id], owner_tags)
         self.conn.create_tags([instance.id], self.config["tags"])
 
         while instance.state == 'pending':
