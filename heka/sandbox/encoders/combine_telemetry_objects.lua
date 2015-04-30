@@ -40,6 +40,6 @@ function process_message()
     local ok, payload = pcall(cjson.encode, json)
     if not ok then return -1, payload end
 
-    inject_payload("txt", "output", msg.clientId, "\t[", jmeta, ",", payload, "]\n")
+    inject_payload("txt", "output", json.clientId, "\t[", jmeta, ",", payload, "]\n")
     return 0
 end
