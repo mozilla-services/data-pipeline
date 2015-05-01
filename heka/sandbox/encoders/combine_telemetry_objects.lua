@@ -14,6 +14,12 @@ function process_message()
 
     if type(msg.Fields) ~= "table" then return -1, "missing Fields" end
 
+    local meta = {
+        Timestamp = msg.Timestamp / 1e9,
+        Type = msg.Type,
+        Hostname = msg.Hostname,
+    }
+
     local ok, json = pcall(cjson.decode, read_message("Payload"))
     if not ok then return -1, json end
 
@@ -24,11 +30,16 @@ function process_message()
             if ok then
                 json[section][name] = object
             end
+        else
+            meta[msg.Fields[i].name] = msg.Fields[i].value[1]
         end
     end
+
+    local ok, jmeta = pcall(cjson.encode, meta)
+    if not ok then return -1, jmeta end
     local ok, payload = pcall(cjson.encode, json)
     if not ok then return -1, payload end
 
-    inject_payload("txt", "output", msg.clientId, "\t", payload, "\n")
+    inject_payload("txt", "output", json.clientId, "\t[", jmeta, ",", payload, "]\n")
     return 0
 end
