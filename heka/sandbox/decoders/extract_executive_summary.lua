@@ -67,12 +67,12 @@ local function get_search_counts()
 
     local ok, khist = pcall(cjson.decode, json)
     if not ok then return cnts end
-    if type(khist.SEARCH_COUNTS) ~= "table" then return end
+    if type(khist.SEARCH_COUNTS) ~= "table" then return cnts end
 
     for k, v in pairs(khist.SEARCH_COUNTS) do
         for i, e in ipairs({"[Gg]oogle", "[Bb]ing", "[Yy]ahoo", "."}) do
             if string.match(k, e) then
-                if type(v.sum) ~= "number" then return end
+                if type(v.sum) ~= "number" then return cnts end
                 cnts[i] = cnts[i] + v.sum
                 break
             end
