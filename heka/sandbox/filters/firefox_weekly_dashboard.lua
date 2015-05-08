@@ -13,7 +13,7 @@ Firefox Weekly Dashboard
     type = "SandboxFilter"
     filename = "lua_filters/firefox_weekly_dashboard.lua"
     message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
-    output_limit = 2000000
+    output_limit = 8000000
     memory_limit = 2000000000
     ticker_interval = 0
     preserve_data = false
@@ -153,7 +153,6 @@ function process_message()
     local ts  = read_message("Timestamp")
     local cid = read_message("Fields[clientId]")
     if type(cid) == "string" then
-    --if type(cid) == "number" then
         local day = floor(ts / (SEC_IN_DAY * 1e9))
         update_week(ts, cid, day)
     end

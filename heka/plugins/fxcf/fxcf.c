@@ -19,8 +19,8 @@
 #include "xxhash.h"
 
 #ifdef LUA_SANDBOX
-#include "luasandbox_output.h"
-#include "luasandbox_serialize.h"
+#include "../luasandbox_output.h"
+#include "../luasandbox_serialize.h"
 #endif
 
 static const char* mozsvc_fxcf = "mozsvc.fxcf";
@@ -31,7 +31,7 @@ typedef struct fx_data {
   unsigned char country;
   unsigned char channel :3;
   unsigned char os :2;
-  unsigned char dflt :1; // the default setting the last time we heard from them
+  unsigned char dflt :1; // the default setting as of the last submission
   unsigned char reserved :2;
   unsigned char dow; // day of the week the 8th bit is the new flag
 } fx_data;
