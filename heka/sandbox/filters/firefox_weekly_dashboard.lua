@@ -84,7 +84,7 @@ local function update_week(ts, cid, day)
     local country = fx.get_country_id(read_message("Fields[geo]"))
     local channel = fx.get_channel_id(read_message("Fields[channel]"))
     local _os     = fx.get_os_id(read_message("Fields[os]"))
-    local dflt    = fx.get_default(read_message("Fields[default]"))
+    local dflt    = fx.get_boolean_value(read_message("Fields[default]"))
 
     fx_cids:add(cid, country, channel, _os, (day + 3) % 7, dflt)
     local r = get_row(week, country, channel, _os)

@@ -78,8 +78,6 @@ local function get_search_counts()
             end
         end
     end
-    -- todo need the method for calculating the default searches on v4 data or
-    -- is it simply the count that matchers the SEARCH_DEFAULT_ENGINE entry?
     return cnts;
 end
 
@@ -98,7 +96,7 @@ local function get_hours()
 end
 
 
-local function get_default()
+local function is_default_browser()
     local json = read_message("Fields[environment.settings]")
     local ok, json = pcall(cjson.decode, json)
     if not ok then return false end
@@ -163,7 +161,7 @@ function process_message()
     -- todo need the crash data
     -- https://bugzilla.mozilla.org/show_bug.cgi?id=1121013
 
-    msg.Fields[8].value = get_default()
+    msg.Fields[8].value = is_default_browser()
 
     local cnts = get_search_counts()
     msg.Fields[9].value     = cnts[1] -- google

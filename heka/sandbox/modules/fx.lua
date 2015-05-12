@@ -112,9 +112,9 @@ function get_os_id(name)
 end
 
 
-function get_default(dflt)
-    if type(dflt) == "boolean" then
-        return dflt
+function get_boolean_value(v)
+    if type(v) == "boolean" then
+        return v
     end
     return false
 end
