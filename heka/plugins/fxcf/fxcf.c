@@ -460,7 +460,8 @@ static int fxcf_report(lua_State* lua)
         increment_column(lua, 7); // increment total
         if (data->dflt) increment_column(lua, 9);
         lua_pop(lua, 1); // remove table
-                         // clear day of the week bit flags
+
+        // reset the bit flags for the next report
         data->dow = 0;
         data->dflt = 0;
       }

@@ -9,6 +9,7 @@ local type = type
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module
 
+-- https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
 local country_names = {
     "Other","AD","AE","AF","AG","AI","AL","AM","AO","AQ","AR","AS","AT","AU",
     "AW","AX","AZ","BA","BB","BD","BE","BF","BG","BH","BI","BJ","BL","BM","BN",

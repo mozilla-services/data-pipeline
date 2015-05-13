@@ -169,6 +169,6 @@ function process_message()
     msg.Fields[11].value    = cnts[3] -- yahoo
     msg.Fields[12].value    = cnts[4] -- other
 
-    inject_message(msg)
+    pcall(inject_message, msg)
     return 0
 end
