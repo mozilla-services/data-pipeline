@@ -117,6 +117,11 @@ cd $BASE
 # Build a hash module with the zlib checksum functions
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
 
+echo 'Installing fxcf lib'
+cd $BASE
+# Build a hash module with the zlib checksum functions
+gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS -DLUA_SANDBOX --std=c99 heka/plugins/fxcf/fxcf.c heka/plugins/fxcf/xxhash.c -o $HEKA_MODS/fxcf.so
+
 cd $BASE/build/heka/build
 
 case $UNAME in
