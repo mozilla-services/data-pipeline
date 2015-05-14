@@ -13,6 +13,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,27 +40,29 @@ type S3SplitFileInputConfig struct {
 	// So we can default to using HekaFramingSplitter.
 	Splitter string
 
-	SchemaFile     string `toml:"schema_file"`
-	AWSKey         string `toml:"aws_key"`
-	AWSSecretKey   string `toml:"aws_secret_key"`
-	AWSRegion      string `toml:"aws_region"`
-	S3Bucket       string `toml:"s3_bucket"`
-	S3BucketPrefix string `toml:"s3_bucket_prefix"`
-	S3Retries      uint32 `toml:"s3_retries"`
-	S3WorkerCount  uint32 `toml:"s3_worker_count"`
+	SchemaFile             string `toml:"schema_file"`
+	AWSKey                 string `toml:"aws_key"`
+	AWSSecretKey           string `toml:"aws_secret_key"`
+	AWSRegion              string `toml:"aws_region"`
+	S3Bucket               string `toml:"s3_bucket"`
+	S3BucketPrefix         string `toml:"s3_bucket_prefix"`
+	S3ObjectBasenamePrefix string `toml:"s3_object_basename_prefix"`
+	S3Retries              uint32 `toml:"s3_retries"`
+	S3WorkerCount          uint32 `toml:"s3_worker_count"`
 }
 
 func (input *S3SplitFileInput) ConfigStruct() interface{} {
 	return &S3SplitFileInputConfig{
-		Decoder:        "ProtobufDecoder",
-		Splitter:       "HekaFramingSplitter",
-		AWSKey:         "",
-		AWSSecretKey:   "",
-		AWSRegion:      "us-west-2",
-		S3Bucket:       "",
-		S3BucketPrefix: "",
-		S3Retries:      5,
-		S3WorkerCount:  10,
+		Decoder:                "ProtobufDecoder",
+		Splitter:               "HekaFramingSplitter",
+		AWSKey:                 "",
+		AWSSecretKey:           "",
+		AWSRegion:              "us-west-2",
+		S3Bucket:               "",
+		S3BucketPrefix:         "",
+		S3ObjectBasenamePrefix: "",
+		S3Retries:              5,
+		S3WorkerCount:          10,
 	}
 }
 
@@ -121,8 +124,13 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 			if r.Err != nil {
 				runner.LogError(fmt.Errorf("Error getting S3 list: %s", r.Err))
 			} else {
-				runner.LogMessage(fmt.Sprintf("Found: %s", r.Key.Key))
-				input.listChan <- r.Key.Key
+				basename := r.Key.Key[strings.LastIndex(r.Key.Key, "/")+1:]
+				if strings.HasPrefix(basename, input.S3ObjectBasenamePrefix) {
+					runner.LogMessage(fmt.Sprintf("Found: %s", r.Key.Key))
+					input.listChan <- r.Key.Key
+				} else {
+					runner.LogMessage(fmt.Sprintf("Skipping: %s", r.Key.Key))
+				}
 			}
 		}
 		// All done listing, close the channel
