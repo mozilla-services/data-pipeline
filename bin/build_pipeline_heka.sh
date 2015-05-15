@@ -81,12 +81,12 @@ git checkout d9b36d7c70b7250a5c4e589d13c8b911df3c64fb
 # from 'make.sh'
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
 
-SO_FLAGS="-shared -fPIC"
+SO_FLAGS="-shared -fPIC -s -O2"
 UNAME=$(uname)
 case $UNAME in
 Darwin)
     echo "Looks like OSX"
-    SO_FLAGS="-bundle -undefined dynamic_lookup"
+    SO_FLAGS="-bundle -undefined dynamic_lookup -fPIC -O2"
     ;;
 *)
     echo "Looks like Linux"
@@ -110,17 +110,18 @@ cd lua-gzip
 # Use a known revision (current "master" as of 2015-02-12)
 git checkout fe9853ea561d0957a18eb3c4970ca249c0325d84
 
-gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
+gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
 
 echo 'Installing lua_hash lib'
 cd $BASE
 # Build a hash module with the zlib checksum functions
-gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
+gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
 
-echo 'Installing fxcf lib'
+echo 'Installing fx libs'
+mkdir -p $HEKA_MODS/fx
 cd $BASE
-# Build a hash module with the zlib checksum functions
-gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} $SO_FLAGS -DLUA_SANDBOX --std=c99 heka/plugins/fxcf/fxcf.c heka/plugins/fxcf/xxhash.c -o $HEKA_MODS/fxcf.so
+gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/executive_report.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/executive_report.so
+gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/broken_sessions.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/broken_sessions.so
 
 cd $BASE/build/heka/build
 

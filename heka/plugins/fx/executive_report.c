@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/** @brief Lua Firefox specific cuckoo filter with payload implementation
- *         @file */
+/** @brief Lua Firefox executive report cuckoo filter implementation @file */
 
 #include <limits.h>
 #include <math.h>
@@ -14,87 +13,42 @@
 #include <string.h>
 //#include <time.h> // todo comment out after profiling
 
+#include "../luasandbox_serialize.h"
+#include "common.h"
 #include "lauxlib.h"
 #include "lua.h"
 #include "xxhash.h"
 
-#ifdef LUA_SANDBOX
-#include "../luasandbox_output.h"
-#include "../luasandbox_serialize.h"
-#endif
+static const char* mozsvc_fxer = "mozsvc.fx.executive_report";
+static const char* mozsvc_fxer_table = "fx.executive_report";
 
-static const char* mozsvc_fxcf = "mozsvc.fxcf";
-
-#define BUCKET_SIZE 4
-
-typedef struct fx_data {
+typedef struct er_data {
   unsigned char country;
   unsigned char channel :3;
   unsigned char os :2;
   unsigned char dflt :1; // the default setting as of the last submission
   unsigned char reserved :2;
   unsigned char dow; // day of the week the 8th bit is the new flag
-} fx_data;
+} er_data;
 
-typedef struct fxcf_bucket
+typedef struct er_bucket
 {
   unsigned short entries[BUCKET_SIZE];
-  fx_data data[BUCKET_SIZE];
-} fxcf_bucket;
+  er_data data[BUCKET_SIZE];
+} er_bucket;
 
-typedef struct fxcf
+typedef struct fxer
 {
   size_t items;
   size_t bytes;
   size_t num_buckets;
   size_t cnt;
   int nlz;
-  fxcf_bucket buckets[];
-} fxcf;
+  er_bucket buckets[];
+} fxer;
 
 
-/**
- * Hacker's Delight - Henry S. Warren, Jr. page 48
- *
- * @param x
- *
- * @return unsigned Least power of 2 greater than or equal to x
- */
-static unsigned clp2(unsigned x)
-{
-  x = x - 1;
-  x = x | (x >> 1);
-  x = x | (x >> 2);
-  x = x | (x >> 4);
-  x = x | (x >> 8);
-  x = x | (x >> 16);
-  return x + 1;
-}
-
-
-/**
- * Hacker's Delight - Henry S. Warren, Jr. page 78
- *
- * @param x
- *
- * @return int Number of leading zeros
- */
-static int nlz(unsigned x)
-{
-  int n;
-
-  if (x == 0) return 32;
-  n = 1;
-  if ((x >> 16) == 0) {n = n + 16; x = x << 16;}
-  if ((x >> 24) == 0) {n = n + 8; x = x << 8;}
-  if ((x >> 28) == 0) {n = n + 4; x = x << 4;}
-  if ((x >> 30) == 0) {n = n + 2; x = x << 2;}
-  n = n - (x >> 31);
-  return n;
-}
-
-
-static int fxcf_new(lua_State* lua)
+static int fxer_new(lua_State* lua)
 {
   int n = lua_gettop(lua);
   luaL_argcheck(lua, n == 1, 0, "incorrect number of arguments");
@@ -102,9 +56,9 @@ static int fxcf_new(lua_State* lua)
   luaL_argcheck(lua, 4 < items, 1, "items must be > 4");
 
   unsigned buckets = clp2((unsigned)ceil(items / BUCKET_SIZE));
-  size_t bytes = sizeof(fxcf_bucket) * buckets;
-  size_t nbytes = sizeof(fxcf) + bytes;
-  fxcf* cf = (fxcf*)lua_newuserdata(lua, nbytes);
+  size_t bytes = sizeof(er_bucket) * buckets;
+  size_t nbytes = sizeof(fxer) + bytes;
+  fxer* cf = (fxer*)lua_newuserdata(lua, nbytes);
   cf->items = buckets * BUCKET_SIZE;
   cf->num_buckets = buckets;
   cf->bytes = bytes;
@@ -112,30 +66,23 @@ static int fxcf_new(lua_State* lua)
   cf->nlz = nlz(buckets) + 1;
   memset(cf->buckets, 0, cf->bytes);
 
-  luaL_getmetatable(lua, mozsvc_fxcf);
+  luaL_getmetatable(lua, mozsvc_fxer);
   lua_setmetatable(lua, -2);
   return 1;
 }
 
 
-static fxcf* check_fxcf(lua_State* lua, int args)
+static fxer* check_fxer(lua_State* lua, int args)
 {
-  void* ud = luaL_checkudata(lua, 1, mozsvc_fxcf);
+  void* ud = luaL_checkudata(lua, 1, mozsvc_fxer);
   luaL_argcheck(lua, ud != NULL, 1, "invalid userdata type");
   luaL_argcheck(lua, args == lua_gettop(lua), 0,
                 "incorrect number of arguments");
-  return (fxcf*)ud;
+  return (fxer*)ud;
 }
 
 
-static unsigned fingerprint(unsigned h)
-{
-  h = h >> 16;
-  return h ? h : 1;
-}
-
-
-static bool bucket_query_lookup(fxcf_bucket* b, unsigned fp, const fx_data* data)
+static bool bucket_query_lookup(er_bucket* b, unsigned fp)
 {
   for (int i = 0; i < BUCKET_SIZE; ++i) {
     if (b->entries[i] == fp) {
@@ -146,14 +93,14 @@ static bool bucket_query_lookup(fxcf_bucket* b, unsigned fp, const fx_data* data
 }
 
 
-static bool bucket_insert_lookup(fxcf_bucket* b, unsigned fp, const fx_data* data)
+static bool bucket_insert_lookup(er_bucket* b, unsigned fp, const er_data* data)
 {
   for (int i = 0; i < BUCKET_SIZE; ++i) {
     if (b->entries[i] == fp) {
       if (data) {
         b->data[i].country = data->country;
         b->data[i].channel = data->channel;
-        b->data[i].os = data->os; // os should never change for a clientId
+        b->data[i].os = data->os;
         b->data[i].dow |= data->dow;
       }
       return true;
@@ -163,12 +110,12 @@ static bool bucket_insert_lookup(fxcf_bucket* b, unsigned fp, const fx_data* dat
 }
 
 
-static bool bucket_delete(fxcf_bucket* b, unsigned fp)
+static bool bucket_delete(er_bucket* b, unsigned fp)
 {
   for (int i = 0; i < BUCKET_SIZE; ++i) {
     if (b->entries[i] == fp) {
       b->entries[i] = 0;
-      memset(&b->data[i], 0, sizeof(fx_data));
+      memset(&b->data[i], 0, sizeof(er_data));
       return true;
     }
   }
@@ -176,7 +123,7 @@ static bool bucket_delete(fxcf_bucket* b, unsigned fp)
 }
 
 
-static bool bucket_add(fxcf_bucket* b, unsigned fp, const fx_data* data)
+static bool bucket_add(er_bucket* b, unsigned fp, const er_data* data)
 {
   for (int i = 0; i < BUCKET_SIZE; ++i) {
     if (b->entries[i] == 0) {
@@ -190,8 +137,8 @@ static bool bucket_add(fxcf_bucket* b, unsigned fp, const fx_data* data)
 }
 
 
-static bool bucket_insert(fxcf* cf, unsigned i1, unsigned i2,
-                          unsigned fp, const fx_data* data)
+static bool bucket_insert(fxer* cf, unsigned i1, unsigned i2, unsigned fp,
+                          const er_data* data)
 {
   // since we must handle duplicates we consider any collision within the bucket
   // to be a duplicate. The 16 bit fingerprint makes the false postive rate very
@@ -207,7 +154,7 @@ static bool bucket_insert(fxcf* cf, unsigned i1, unsigned i2,
       } else {
         ri = i2;
       }
-      fx_data tmpdata;
+      er_data tmpdata;
       for (int i = 0; i < 512; ++i) {
         int entry = rand() % BUCKET_SIZE;
         unsigned tmp = cf->buckets[ri].entries[entry];
@@ -229,25 +176,15 @@ static bool bucket_insert(fxcf* cf, unsigned i1, unsigned i2,
 }
 
 
-static int fxcf_add(lua_State* lua)
+static int fxer_add(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 7);
+  fxer* cf = check_fxer(lua, 7);
   size_t len = 0;
-  double val = 0;
   unsigned country, channel, os, day, dflt;
-  void* key = NULL;
-  switch (lua_type(lua, 2)) {
-  case LUA_TSTRING:
-    key = (void*)lua_tolstring(lua, 2, &len);
-    break;
-  case LUA_TNUMBER:
-    val = lua_tonumber(lua, 2);
-    len = sizeof(double);
-    key = &val;
-    break;
-  default:
-    return luaL_argerror(lua, 2, "must be a string or number");
+  if (lua_type(lua, 2) != LUA_TSTRING) {
+    return luaL_argerror(lua, 2, "must be a string");
   }
+  const char* key = lua_tolstring(lua, 2, &len);
   if (lua_type(lua, 3) == LUA_TNUMBER) {
     country = (unsigned)lua_tointeger(lua, 3);
     if (country > 255) {
@@ -285,7 +222,7 @@ static int fxcf_add(lua_State* lua)
   } else {
     return luaL_argerror(lua, 7, "must a boolean");
   }
-  fx_data data;
+  er_data data;
   data.channel = channel;
   data.country = country;
   data.os = os;
@@ -304,57 +241,37 @@ static int fxcf_add(lua_State* lua)
 }
 
 
-static int fxcf_query(lua_State* lua)
+static int fxer_query(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 2);
+  fxer* cf = check_fxer(lua, 2);
   size_t len = 0;
-  double val = 0;
-  void* key = NULL;
-  switch (lua_type(lua, 2)) {
-  case LUA_TSTRING:
-    key = (void*)lua_tolstring(lua, 2, &len);
-    break;
-  case LUA_TNUMBER:
-    val = lua_tonumber(lua, 2);
-    len = sizeof(double);
-    key = &val;
-    break;
-  default:
-    return luaL_argerror(lua, 2, "must be a string or number");
+  if (lua_type(lua, 2) != LUA_TSTRING) {
+    return luaL_argerror(lua, 2, "must be a string");
   }
+  const char* key = lua_tolstring(lua, 2, &len);
   unsigned h = XXH32(key, (int)len, 1);
   unsigned fp = fingerprint(h);
   unsigned i1 = h % cf->num_buckets;
 
-  fx_data data;
-  bool found = bucket_query_lookup(&cf->buckets[i1], fp, &data);
+  er_data data;
+  bool found = bucket_query_lookup(&cf->buckets[i1], fp);
   if (!found) {
     unsigned i2 = i1 ^ (XXH32(&fp, sizeof(unsigned), 1) >> cf->nlz);
-    found = bucket_query_lookup(&cf->buckets[i2], fp, &data);
+    found = bucket_query_lookup(&cf->buckets[i2], fp);
   }
   lua_pushboolean(lua, found);
   return 1;
 }
 
 
-static int fxcf_delete(lua_State* lua)
+static int fxer_delete(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 2);
+  fxer* cf = check_fxer(lua, 2);
   size_t len = 0;
-  double val = 0;
-  void* key = NULL;
-  switch (lua_type(lua, 2)) {
-  case LUA_TSTRING:
-    key = (void*)lua_tolstring(lua, 2, &len);
-    break;
-  case LUA_TNUMBER:
-    val = lua_tonumber(lua, 2);
-    len = sizeof(double);
-    key = &val;
-    break;
-  default:
-    return luaL_argerror(lua, 2, "must be a string or number");
+  if (lua_type(lua, 2) != LUA_TSTRING) {
+    return luaL_argerror(lua, 2, "must be a string");
   }
+  const char* key = lua_tolstring(lua, 2, &len);
   unsigned h = XXH32(key, (int)len, 1);
   unsigned fp = fingerprint(h);
   unsigned i1 = h % cf->num_buckets;
@@ -372,26 +289,26 @@ static int fxcf_delete(lua_State* lua)
 }
 
 
-static int fxcf_count(lua_State* lua)
+static int fxer_count(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 1);
+  fxer* cf = check_fxer(lua, 1);
   lua_pushnumber(lua, cf->cnt);
   return 1;
 }
 
 
-static int fxcf_clear(lua_State* lua)
+static int fxer_clear(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 1);
+  fxer* cf = check_fxer(lua, 1);
   memset(cf->buckets, 0, cf->bytes);
   cf->cnt = 0;
   return 0;
 }
 
 
-static int fxcf_fromstring(lua_State* lua)
+static int fxer_fromstring(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 3);
+  fxer* cf = check_fxer(lua, 3);
   cf->cnt = (size_t)luaL_checknumber(lua, 2);
   size_t len = 0;
   const char* values = luaL_checklstring(lua, 3, &len);
@@ -416,16 +333,16 @@ static void increment_column(lua_State* lua, int col)
 }
 
 
-static int fxcf_report(lua_State* lua)
+static int fxer_report(lua_State* lua)
 {
-  fxcf* cf = check_fxcf(lua, 2);
+  fxer* cf = check_fxer(lua, 2);
   if (lua_type(lua, 2) != LUA_TTABLE) {
     return luaL_argerror(lua, 2, "must be a table");
   }
 
 //  clock_t t = clock();
   int fos; // five of seven
-  fx_data* data;
+  er_data* data;
   for (int i = 0; i < cf->num_buckets; ++i) {
     for (int j = 0; j < BUCKET_SIZE; ++j) {
       if (cf->buckets[i].entries[j] != 0) {
@@ -468,25 +385,24 @@ static int fxcf_report(lua_State* lua)
     }
   }
 //  t = clock() - t;
-//  fprintf(stderr, "fxcf_report time: %g\n", (double)t / CLOCKS_PER_SEC);
+//  fprintf(stderr, "fxer_report time: %g\n", (double)t / CLOCKS_PER_SEC);
   return 0;
 }
 
 
-#ifdef LUA_SANDBOX
-static int
-serialize_fxcf(lua_State* lua)
+static int serialize_fxer(lua_State* lua)
 {
   lsb_output_data* output = (lsb_output_data*)lua_touserdata(lua, -1);
   const char* key = (const char*)lua_touserdata(lua, -2);
-  fxcf* cf = (fxcf*)lua_touserdata(lua, -3);
+  fxer* cf = (fxer*)lua_touserdata(lua, -3);
   if (!(output && key && cf)) {
     return 0;
   }
   if (lsb_appendf(output,
-                  "if %s == nil then %s = fxcf.new(%u) end\n",
+                  "if %s == nil then %s = %s.new(%u) end\n",
                   key,
                   key,
+                  mozsvc_fxer_table,
                   (unsigned)cf->items)) {
     return 1;
   }
@@ -500,40 +416,37 @@ serialize_fxcf(lua_State* lua)
   }
   return 0;
 }
-#endif
 
 
-static const struct luaL_reg fxcflib_f[] =
+static const struct luaL_reg fxerlib_f[] =
 {
-  { "new", fxcf_new },
+  { "new", fxer_new },
   { NULL, NULL }
 };
 
 
-static const struct luaL_reg fxcflib_m[] =
+static const struct luaL_reg fxerlib_m[] =
 {
-  { "add", fxcf_add },
-  { "query", fxcf_query },
-  { "delete", fxcf_delete },
-  { "count", fxcf_count },
-  { "clear", fxcf_clear },
-  { "report", fxcf_report },
-  { "fromstring", fxcf_fromstring } // used for data restoration
-  , { NULL, NULL }
+  { "add", fxer_add },
+  { "query", fxer_query },
+  { "delete", fxer_delete },
+  { "count", fxer_count },
+  { "clear", fxer_clear },
+  { "report", fxer_report },
+  { "fromstring", fxer_fromstring }, // used for data restoration
+  { NULL, NULL }
 };
 
 
-int luaopen_fxcf(lua_State* lua)
+int luaopen_fx_executive_report(lua_State* lua)
 {
-#ifdef LUA_SANDBOX
   lua_newtable(lua);
-  lsb_add_serialize_function(lua, serialize_fxcf);
+  lsb_add_serialize_function(lua, serialize_fxer);
   lua_replace(lua, LUA_ENVIRONINDEX);
-#endif
-  luaL_newmetatable(lua, mozsvc_fxcf);
+  luaL_newmetatable(lua, mozsvc_fxer);
   lua_pushvalue(lua, -1);
   lua_setfield(lua, -2, "__index");
-  luaL_register(lua, NULL, fxcflib_m);
-  luaL_register(lua, "fxcf", fxcflib_f);
+  luaL_register(lua, NULL, fxerlib_m);
+  luaL_register(lua, mozsvc_fxer_table, fxerlib_f);
   return 1;
 }

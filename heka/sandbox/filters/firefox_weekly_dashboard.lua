@@ -23,8 +23,8 @@ Firefox Weekly Dashboard
         items = 100000000
 --]]
 
-local fx = require "fx"
-require "fxcf"
+fx = require "fx" -- this must be global when we are pulling in other fx submodules
+require "fx.executive_report"
 require "math"
 require "os"
 require "string"
@@ -43,7 +43,7 @@ current_week = -1
 for i=1,WEEKS do
     weeks[i] = {}
 end
-fx_cids = fxcf.new(items)
+fx_cids = fx.executive_report.new(items)
 
 local function get_row(week, geo, channel, _os)
     local idx = week % WEEKS + 1
