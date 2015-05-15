@@ -16,8 +16,12 @@ Monitor DNT header status
     ticker_interval = 10
     preserve_data = true
         [DNTUsage.config]
+        # Increment this if the format changes in a
+        # backwards-incompatible way
         preservation_version = 1
+        # Number of entries to keep in the circular buffer
         rows = 1440
+        # Length of each bucket in the circular buffer
         sec_per_row = 300
 
 --]]
@@ -25,6 +29,7 @@ _PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require "circular_buffer"
 
+-- Default to 2880 minute-long intervals
 local rows = read_config("rows") or 2880
 local sec_per_row = read_config("sec_per_row") or 60
 
@@ -54,5 +59,9 @@ function process_message ()
 end
 
 function timer_event(ns)
-    inject_payload("cbuf", "DNT Status", c)
+    -- Inject the entire circular buffer
+    inject_payload("cbuf", "DNT Status", c:format("cbuf"))
+
+    -- Inject the cbuf delta (changes since last timer event)
+    inject_payload("cbufd", "DNT Status", c:format("cbufd"))
 end
