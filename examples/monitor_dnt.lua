@@ -21,18 +21,18 @@ require "circular_buffer"
 
 local rows = read_config("rows") or 2880
 local sec_per_row = read_config("sec_per_row") or 60
-local ON  = 1
-local OFF = 2
-local UNK = 3
 
+-- Create a circular buffer with three columns
 local c = circular_buffer.new(rows, 3, sec_per_row, true)
-c:set_header(ON, "DNT On")
-c:set_header(OFF, "DNT Off")
-c:set_header(UNK, "DNT Unknown")
+
+-- Set the header names for the columns
+local ON  = c:set_header(1, "DNT On")
+local OFF = c:set_header(2, "DNT Off")
+local UNK = c:set_header(3, "DNT Unknown")
 
 function process_message ()
     local ts = read_message("Timestamp")
-    local item = read_message("Fields[DNT]") or "UNKNOWN"
+    local item = read_message("Fields[DNT]")
 
     if item == "1" then
         c:add(ts, ON, 1)
