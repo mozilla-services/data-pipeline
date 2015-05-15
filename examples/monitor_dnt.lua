@@ -9,21 +9,29 @@ Monitor DNT header status
 
 .. code-block:: ini
 
-    [DNT Usage]
+    [DNTUsage]
     type = "SandboxFilter"
     filename = "examples/monitor_dnt.lua"
     message_matcher = "Type == 'telemetry'"
     ticker_interval = 10
     preserve_data = true
+        [DNTUsage.config]
+        preservation_version = 1
+        rows = 1440
+        sec_per_row = 300
+
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require "circular_buffer"
 
 local rows = read_config("rows") or 2880
 local sec_per_row = read_config("sec_per_row") or 60
 
--- Create a circular buffer with three columns
-local c = circular_buffer.new(rows, 3, sec_per_row, true)
+-- Create a circular buffer with three columns. It must
+-- be a global variable in order for 'preserve_data' to
+-- have any effect.
+c = circular_buffer.new(rows, 3, sec_per_row, true)
 
 -- Set the header names for the columns
 local ON  = c:set_header(1, "DNT On")
