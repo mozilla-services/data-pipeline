@@ -13,6 +13,8 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
+	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,10 +29,11 @@ type S3SplitFileInput struct {
 	processMessageBytes       int64
 
 	*S3SplitFileInputConfig
-	bucket   *s3.Bucket
-	schema   Schema
-	stop     chan bool
-	listChan chan string
+	objectMatch *regexp.Regexp
+	bucket      *s3.Bucket
+	schema      Schema
+	stop        chan bool
+	listChan    chan string
 }
 
 type S3SplitFileInputConfig struct {
@@ -39,27 +42,29 @@ type S3SplitFileInputConfig struct {
 	// So we can default to using HekaFramingSplitter.
 	Splitter string
 
-	SchemaFile     string `toml:"schema_file"`
-	AWSKey         string `toml:"aws_key"`
-	AWSSecretKey   string `toml:"aws_secret_key"`
-	AWSRegion      string `toml:"aws_region"`
-	S3Bucket       string `toml:"s3_bucket"`
-	S3BucketPrefix string `toml:"s3_bucket_prefix"`
-	S3Retries      uint32 `toml:"s3_retries"`
-	S3WorkerCount  uint32 `toml:"s3_worker_count"`
+	SchemaFile         string `toml:"schema_file"`
+	AWSKey             string `toml:"aws_key"`
+	AWSSecretKey       string `toml:"aws_secret_key"`
+	AWSRegion          string `toml:"aws_region"`
+	S3Bucket           string `toml:"s3_bucket"`
+	S3BucketPrefix     string `toml:"s3_bucket_prefix"`
+	S3ObjectMatchRegex string `toml:"s3_object_match_regex"`
+	S3Retries          uint32 `toml:"s3_retries"`
+	S3WorkerCount      uint32 `toml:"s3_worker_count"`
 }
 
 func (input *S3SplitFileInput) ConfigStruct() interface{} {
 	return &S3SplitFileInputConfig{
-		Decoder:        "ProtobufDecoder",
-		Splitter:       "HekaFramingSplitter",
-		AWSKey:         "",
-		AWSSecretKey:   "",
-		AWSRegion:      "us-west-2",
-		S3Bucket:       "",
-		S3BucketPrefix: "",
-		S3Retries:      5,
-		S3WorkerCount:  10,
+		Decoder:            "ProtobufDecoder",
+		Splitter:           "HekaFramingSplitter",
+		AWSKey:             "",
+		AWSSecretKey:       "",
+		AWSRegion:          "us-west-2",
+		S3Bucket:           "",
+		S3BucketPrefix:     "",
+		S3ObjectMatchRegex: "",
+		S3Retries:          5,
+		S3WorkerCount:      10,
 	}
 }
 
@@ -86,6 +91,15 @@ func (input *S3SplitFileInput) Init(config interface{}) (err error) {
 		input.bucket = s.Bucket(conf.S3Bucket)
 	} else {
 		input.bucket = nil
+	}
+
+	if conf.S3ObjectMatchRegex != "" {
+		if input.objectMatch, err = regexp.Compile(conf.S3ObjectMatchRegex); err != nil {
+			err = fmt.Errorf("S3SplitFileInput: %s", err)
+			return
+		}
+	} else {
+		input.objectMatch = nil
 	}
 
 	// Remove any excess path separators from the bucket prefix.
@@ -121,8 +135,13 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 			if r.Err != nil {
 				runner.LogError(fmt.Errorf("Error getting S3 list: %s", r.Err))
 			} else {
-				runner.LogMessage(fmt.Sprintf("Found: %s", r.Key.Key))
-				input.listChan <- r.Key.Key
+				basename := r.Key.Key[strings.LastIndex(r.Key.Key, "/")+1:]
+				if input.objectMatch == nil || input.objectMatch.MatchString(basename) {
+					runner.LogMessage(fmt.Sprintf("Found: %s", r.Key.Key))
+					input.listChan <- r.Key.Key
+				} else {
+					runner.LogMessage(fmt.Sprintf("Skipping: %s", r.Key.Key))
+				}
 			}
 		}
 		// All done listing, close the channel
