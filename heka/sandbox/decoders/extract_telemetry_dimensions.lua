@@ -138,6 +138,10 @@ local function process_json(msg, json, parsed)
         if not cts then return "missing creationDate" end
         update_field(msg.Fields, "creationTimestamp", cts)
 
+        -- latency
+        local latency = msg.Timestamp - msg.Fields.creationTimestamp
+        update_field(msg.Fields, "Latency", latency)
+
         if type(parsed.payload) == "table" and
            type(parsed.payload.info) == "table" then
                update_field(msg.Fields, "reason", parsed.payload.info.reason)
@@ -209,9 +213,12 @@ function process_message()
 
     -- This size check should match the output_limit config param. We want to
     -- check the size early to avoid parsing JSON if we don't have to.
-    if string.len(json) > 2097152 then
-        return send_message(msg, "size", "Uncompressed Payload too large: " .. string.len(json))
+    local size = string.len(json)
+    if size > 2097152 then
+        return send_message(msg, "size", "Uncompressed Payload too large: " .. size)
     end
+    update_field(msg.Fields, "Size", size)
+
     local ok, parsed = pcall(cjson.decode, json)
     if not ok then return send_message(msg, "json", parsed) end
 
