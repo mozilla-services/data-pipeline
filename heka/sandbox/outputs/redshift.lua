@@ -76,15 +76,48 @@ local env = assert (driver.postgres())
 local con, err = env:connect(db_name, db_user, db_password, db_host, db_port)
 assert(con, err)
 assert (con:execute[[
-        CREATE TABLE IF NOT EXISTS logs(
-        timestamp BIGINT,
-        severity INTEGER,
-        pid INTEGER,
-        hostname VARCHAR(126),
-        type VARCHAR(126),
-        logger VARCHAR(126),
-        envversion VARCHAR(126),
-        payload VARCHAR(126)
+        CREATE TABLE IF NOT EXISTS telemetry_sample_42 (
+            "msg_Timestamp"               TIMESTAMP,
+            "sourceName"                  VARCHAR,
+            "sourceVersion"               VARCHAR,
+            "submissionDate"              DATE,
+            "creationTimestamp"           TIMESTAMP,
+            "geoCountry"                  VARCHAR(2),
+            "documentId"                  VARCHAR,
+            "reason"                      VARCHAR,
+            "os"                          VARCHAR,
+            "docType"                     VARCHAR,
+            "appName"                     VARCHAR,
+            "appVersion"                  VARCHAR,
+            "appUpdateChannel"            VARCHAR,
+            "appBuildId"                  VARCHAR,
+            "appVendor"                   VARCHAR,
+            "clientId"                    VARCHAR,
+            "sampleId"                    SMALLINT,
+            "environment_addons"          VARCHAR,
+            "environment_build"           VARCHAR,
+            "environment_partner"         VARCHAR,
+            "environment_profile"         VARCHAR,
+            "environment_settings"        VARCHAR,
+            "environment_system"          VARCHAR,
+            "payload"                     VARCHAR,
+            "payload_addonDetails"        VARCHAR,
+            "payload_addonHistograms"     VARCHAR,
+            "payload_childPayloads"       VARCHAR,
+            "payload_chromeHangs"         VARCHAR,
+            "payload_fileIOReports"       VARCHAR,
+            "payload_histograms"          VARCHAR,
+            "payload_info"                VARCHAR,
+            "payload_keyedHistograms"     VARCHAR,
+            "payload_lateWrites"          VARCHAR,
+            "payload_log"                 VARCHAR,
+            "payload_simpleMeasurements"  VARCHAR,
+            "payload_slowSQL"             VARCHAR,
+            "payload_slowSQLstartup"      VARCHAR,
+            "payload_threadHangStats"     VARCHAR,
+            "payload_UIMeasurements"      VARCHAR,
+            "http_DNT"                    BOOLEAN,
+            "http_Date"                   TIMESTAMP
         )
         ]])
 
@@ -104,7 +137,7 @@ local function open_file_buffer(mode)
     return f, e
 end
 
-local last_flush  = 0
+local last_flush = 0
 local fh, err = open_file_buffer("a+") -- open it for append since we may have data remaining from the last shutdown
 assert(fh, err)
 
@@ -125,20 +158,81 @@ local function bulk_load()
     end
 end
 
+function esc_str(v)
+    if v == nil then
+        return "NULL"
+    end
+    return "'" .. con:escape(v) .. "'"
+end
+
+function esc_num(v)
+    if v == nil then
+        return "NULL"
+    end
+    if type(v) ~= "number" then
+        return esc_str(v)
+    end
+    return tostring(v)
+end
+
+function esc_ts(v)
+    if v == nil then
+        return "NULL"
+    end
+    if type(v) ~= "number" then
+        return esc_str(v)
+    end
+    local seconds = v / 1e9
+    return "(TIMESTAMP 'epoch' + " .. seconds .. " * INTERVAL '1 seconds')"
+end
+
 -- plugin interfaces
 function process_message()
     if sep == " " then
-        fh:write("INSERT INTO logs VALUES")
+        fh:write("INSERT INTO telemetry_sample_42 VALUES")
     end
-    fh:write(string.format("%s(%d,%d,%d,'%s','%s','%s','%s','%s')", sep,
-    read_message("Timestamp"),
-    read_message("Severity") or 7,
-    read_message("Pid") or 0,
-    con:escape(read_message("Hostname")),
-    con:escape(read_message("Type")),
-    con:escape(read_message("Logger")),
-    con:escape(read_message("EnvVersion")),
-    con:escape(read_message("Payload"))))
+    fh:write(string.format("%s(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", sep,
+    esc_ts(read_message("Timestamp")),
+    esc_str(read_message("Fields[sourceName]")),
+    esc_str(read_message("Fields[sourceVersion]")),
+    esc_str(read_message("Fields[submissionDate]")),
+    esc_ts(read_message("Fields[creationTimestamp]")),
+    esc_str(read_message("Fields[geoCountry]")),
+    esc_str(read_message("Fields[documentId]")),
+    esc_str(read_message("Fields[reason]")),
+    esc_str(read_message("Fields[os]")),
+    esc_str(read_message("Fields[docType]")),
+    esc_str(read_message("Fields[appName]")),
+    esc_str(read_message("Fields[appVersion]")),
+    esc_str(read_message("Fields[appUpdateChannel]")),
+    esc_str(read_message("Fields[appBuildId]")),
+    esc_str(read_message("Fields[appVendor]")),
+    esc_str(read_message("Fields[clientId]")),
+    esc_num(read_message("Fields[sampleId]")),
+    esc_str(read_message("Fields[environment.addons]")),
+    esc_str(read_message("Fields[environment.build]")),
+    esc_str(read_message("Fields[environment.partner]")),
+    esc_str(read_message("Fields[environment.profile]")),
+    esc_str(read_message("Fields[environment.settings]")),
+    esc_str(read_message("Fields[environment.system]")),
+    esc_str(read_message("Payload")),
+    esc_str(read_message("Fields[payload.addonDetails]")),
+    esc_str(read_message("Fields[payload.addonHistograms]")),
+    esc_str(read_message("Fields[payload.childPayloads]")),
+    esc_str(read_message("Fields[payload.chromeHangs]")),
+    esc_str(read_message("Fields[payload.fileIOReports]")),
+    esc_str(read_message("Fields[payload.histograms]")),
+    esc_str(read_message("Fields[payload.info]")),
+    esc_str(read_message("Fields[payload.keyedHistograms]")),
+    esc_str(read_message("Fields[payload.lateWrites]")),
+    esc_str(read_message("Fields[payload.log]")),
+    esc_str(read_message("Fields[payload.simpleMeasurements]")),
+    esc_str(read_message("Fields[payload.slowSQL]")),
+    esc_str(read_message("Fields[payload.slowSQLstartup]")),
+    esc_str(read_message("Fields[payload.threadHangStats]")),
+    esc_str(read_message("Fields[payload.UIMeasurements]")),
+    esc_str(read_message("Fields[DNT]")),
+    esc_str(read_message("Fields[Date]"))
     sep = ","
 
     if fh:seek("end") >= buffer_size then
