@@ -35,29 +35,11 @@ See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
 --]]
 
 require "cjson"
-local l = require "lpeg"
+local fx = require "fx"
 require "string"
 
 local SEC_IN_HOUR = 60 * 60
 local SEC_IN_DAY = SEC_IN_HOUR * 24
-
-local normalize_channel =
-l.C"release" * -1 +
-l.C"beta" +
-(l.P("nightly") * -1 + "nightly-cck-") / "nightly" +
-l.C"aurora" * -1 +
-l.Cc"Other"
-
-local function anywhere (p)
-  return lpeg.P{ p + 1 * lpeg.V(1) }
-end
-
-local normalize_os =
-(l.P"Windows" + "WINNT") / "Windows" +
-l.P"Darwin" / "Mac" +
-(anywhere"Linux" + anywhere"BSD" + anywhere"SunOS") / "Linux" +
-l.Cc"Other"
-
 
 local function get_search_counts()
     -- google, bing, yahoo, other
@@ -147,12 +129,12 @@ function process_message()
     if geo == "??" then geo = "Other" end
     msg.Fields[3].value = geo
 
-    local channel = read_message("Fields[appUpdateChannel]") or "Other"
-    channel = normalize_channel:match(channel)
+    local channel = read_message("Fields[appUpdateChannel]")
+    channel = fx.normalize_channel(channel)
     msg.Fields[4].value = channel
 
-    local _os = read_message("Fields[os]") or "Other"
-    _os = normalize_os:match(_os)
+    local _os = read_message("Fields[os]")
+    _os = fx.normalize_os(_os)
     msg.Fields[5].value = _os
 
     msg.Fields[6].value = get_hours()
