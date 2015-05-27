@@ -50,24 +50,24 @@ func main() {
 		maxSize := uint32(*flagMaxMessageSize)
 		message.SetMaxMessageSize(maxSize)
 	} else {
-		fmt.Printf("Message size is too large: %d\n", flagMaxMessageSize)
+		fmt.Fprintf(os.Stderr, "Message size is too large: %d\n", flagMaxMessageSize)
 		os.Exit(8)
 	}
 
 	workers := 1
 	if *flagWorkers == 0 {
-		fmt.Printf("Cannot run with zero workers. Using 1.\n")
+		fmt.Fprintf(os.Stderr, "Cannot run with zero workers. Using 1.\n")
 	} else if *flagWorkers < 2000 {
 		workers = int(*flagWorkers)
 	} else {
-		fmt.Printf("Too many workers: %d. Use a reasonable value (up to a few hundred).\n", flagWorkers)
+		fmt.Fprintf(os.Stderr, "Too many workers: %d. Use a reasonable value (up to a few hundred).\n", flagWorkers)
 		os.Exit(8)
 	}
 
 	var err error
 	var match *message.MatcherSpecification
 	if match, err = message.CreateMatcherSpecification(*flagMatch); err != nil {
-		fmt.Printf("Match specification - %s\n", err)
+		fmt.Fprintf(os.Stderr, "Match specification - %s\n", err)
 		os.Exit(2)
 	}
 
@@ -76,7 +76,7 @@ func main() {
 		out = os.Stdout
 	} else {
 		if out, err = os.OpenFile(*flagOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
-			fmt.Printf("%s\n", err)
+			fmt.Fprintf(os.Stderr, "%s\n", err)
 			os.Exit(3)
 		}
 		defer out.Close()
@@ -84,12 +84,12 @@ func main() {
 
 	auth, err := aws.GetAuth(*flagAWSKey, *flagAWSSecretKey, "", time.Now())
 	if err != nil {
-		fmt.Printf("Authentication error: %s\n", err)
+		fmt.Fprintf(os.Stderr, "Authentication error: %s\n", err)
 		os.Exit(4)
 	}
 	region, ok := aws.Regions[*flagAWSRegion]
 	if !ok {
-		fmt.Printf("Parameter 'aws-region' must be a valid AWS Region\n")
+		fmt.Fprintf(os.Stderr, "Parameter 'aws-region' must be a valid AWS Region\n")
 		os.Exit(5)
 	}
 	s := s3.New(auth, region)
@@ -134,7 +134,7 @@ func main() {
 		close(filenameChannel)
 	}
 
-	fmt.Printf("Waiting for last %d files\n", pendingFiles)
+	fmt.Fprintf(os.Stderr, "Waiting for last %d files\n", pendingFiles)
 	waitFor(doneChannel, pendingFiles)
 	close(recordChannel)
 	bytesRead := <-allDone
@@ -144,7 +144,7 @@ func main() {
 	if duration == 0.0 {
 		duration = 1.0
 	}
-	fmt.Printf("All done processing %d files, %.2fMB in %.2f seconds (%.2fMB/s)\n", totalFiles, mb, duration, (mb / duration))
+	fmt.Fprintf(os.Stderr, "All done processing %d files, %.2fMB in %.2f seconds (%.2fMB/s)\n", totalFiles, mb, duration, (mb / duration))
 }
 
 // Cat all filenames read from filenameChannel
@@ -170,7 +170,7 @@ func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3
 		err := r.Err
 
 		if err != nil && err != io.EOF {
-			fmt.Printf("Error reading %s: %s\n", s3Key, err)
+			fmt.Fprintf(os.Stderr, "Error reading %s: %s\n", s3Key, err)
 		} else {
 			if len(r.Record) > 0 {
 				processed += 1
@@ -179,7 +179,7 @@ func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3
 		}
 	}
 
-	fmt.Printf("%s: Processed: %d messages\n", s3Key, processed)
+	fmt.Fprintf(os.Stderr, "%s: Processed: %d messages\n", s3Key, processed)
 }
 
 // Save matching client records locally to the given output file in the given
@@ -203,7 +203,7 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 		processed += 1
 		headerLen := int(r.Record[1]) + message.HEADER_FRAMING_SIZE
 		if err := proto.Unmarshal(r.Record[headerLen:], msg); err != nil {
-			fmt.Printf("Error unmarshalling message %d, error: %s\n", processed, err)
+			fmt.Fprintf(os.Stderr, "Error unmarshalling message %d, error: %s\n", processed, err)
 			continue
 		}
 
@@ -228,7 +228,7 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 			if ok {
 				fmt.Fprintf(out, "%s\t%s\t%d\t%d\n", r.Key, clientId, (r.Offset + uint64(headerLen)), recordLength)
 			} else {
-				fmt.Printf("Missing client id in %s @ %d+%d\n", r.Key, r.Offset, recordLength)
+				fmt.Fprintf(os.Stderr, "Missing client id in %s @ %d+%d\n", r.Key, r.Offset, recordLength)
 			}
 		default:
 			fmt.Fprintf(out, "Timestamp: %s\n"+
@@ -247,7 +247,7 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 				msg.GetSeverity(), msg.Fields)
 		}
 	}
-	fmt.Printf("Processed: %d, matched: %d messages (%.2f MB)\n", processed, matched, (float64(bytes) / 1024.0 / 1024.0))
+	fmt.Fprintf(os.Stderr, "Processed: %d, matched: %d messages (%.2f MB)\n", processed, matched, (float64(bytes) / 1024.0 / 1024.0))
 }
 
 func waitFor(completedChannel <-chan string, count int) {
@@ -255,6 +255,6 @@ func waitFor(completedChannel <-chan string, count int) {
 	// Now wait for all the clients to complete:
 	for i := 1; i <= count; i++ {
 		completed = <-completedChannel
-		fmt.Printf("Completed: %s\n", completed)
+		fmt.Fprintf(os.Stderr, "Completed: %s\n", completed)
 	}
 }
