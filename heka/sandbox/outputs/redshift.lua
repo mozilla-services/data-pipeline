@@ -74,52 +74,75 @@ flush_interval = flush_interval * 1e9
 
 local env = assert (driver.postgres())
 local con, err = env:connect(db_name, db_user, db_password, db_host, db_port)
-assert(con, err)
-assert (con:execute[[
-        CREATE TABLE IF NOT EXISTS telemetry_sample_42 (
-            "msg_Timestamp"               TIMESTAMP,
-            "sourceName"                  VARCHAR(31),
-            "sourceVersion"               VARCHAR(12),
-            "submissionDate"              DATE,
-            "creationTimestamp"           TIMESTAMP,
-            "geoCountry"                  VARCHAR(2),
-            "documentId"                  VARCHAR(36),
-            "reason"                      VARCHAR(100),
-            "os"                          VARCHAR(100),
-            "docType"                     VARCHAR(50),
-            "appName"                     VARCHAR(100),
-            "appVersion"                  VARCHAR(32),
-            "appUpdateChannel"            VARCHAR(33),
-            "appBuildId"                  VARCHAR(34),
-            "appVendor"                   VARCHAR(35),
-            "clientId"                    VARCHAR(100),
-            "sampleId"                    SMALLINT,
-            "environment_addons"          VARCHAR(65501),
-            "environment_build"           VARCHAR(65502),
-            "environment_partner"         VARCHAR(65503),
-            "environment_profile"         VARCHAR(65504),
-            "environment_settings"        VARCHAR(65505),
-            "environment_system"          VARCHAR(65506),
-            "payload"                     VARCHAR(65507),
-            "payload_addonDetails"        VARCHAR(65508),
-            "payload_addonHistograms"     VARCHAR(65509),
-            "payload_childPayloads"       VARCHAR(65510),
-            "payload_chromeHangs"         VARCHAR(65511),
-            "payload_fileIOReports"       VARCHAR(65512),
-            "payload_histograms"          VARCHAR(65513),
-            "payload_info"                VARCHAR(65514),
-            "payload_keyedHistograms"     VARCHAR(65515),
-            "payload_lateWrites"          VARCHAR(65516),
-            "payload_log"                 VARCHAR(65517),
-            "payload_simpleMeasurements"  VARCHAR(65518),
-            "payload_slowSQL"             VARCHAR(65519),
-            "payload_slowSQLstartup"      VARCHAR(65520),
-            "payload_threadHangStats"     VARCHAR(65521),
-            "payload_UIMeasurements"      VARCHAR(65522),
-            "http_DNT"                    BOOLEAN,
-            "http_Date"                   TIMESTAMP
-        )
-        ]])
+
+local table_name = "telemetry_sample_42"
+MAX_LENGTH = 65535
+local columns = {
+--   column name                   field name                            field type   field length
+    {"msg_Timestamp",              "Timestamp",                          "TIMESTAMP", nil},
+    {"sourceName",                 "Fields[sourceName]",                 "VARCHAR",   30},
+    {"sourceVersion",              "Fields[sourceVersion]",              "VARCHAR",   12},
+    {"submissionDate",             "Fields[submissionDate]",             "DATE",      nil},
+    {"creationTimestamp",          "Fields[creationTimestamp]",          "TIMESTAMP", nil},
+    {"geoCountry",                 "Fields[geoCountry]",                 "VARCHAR",   2},
+    {"documentId",                 "Fields[documentId]",                 "VARCHAR",   36},
+    {"reason",                     "Fields[reason]",                     "VARCHAR",   100},
+    {"os",                         "Fields[os]",                         "VARCHAR",   100},
+    {"docType",                    "Fields[docType]",                    "VARCHAR",   50},
+    {"appName",                    "Fields[appName]",                    "VARCHAR",   100},
+    {"appVersion",                 "Fields[appVersion]",                 "VARCHAR",   30},
+    {"appUpdateChannel",           "Fields[appUpdateChannel]",           "VARCHAR",   30},
+    {"appBuildId",                 "Fields[appBuildId]",                 "VARCHAR",   30},
+    {"appVendor",                  "Fields[appVendor]",                  "VARCHAR",   30},
+    {"clientId",                   "Fields[clientId]",                   "VARCHAR",   100},
+    {"sampleId",                   "Fields[sampleId]",                   "SMALLINT",  nil},
+    {"environment_addons",         "Fields[environment.addons]",         "VARCHAR",   MAX_LENGTH},
+    {"environment_build",          "Fields[environment.build]",          "VARCHAR",   MAX_LENGTH},
+    {"environment_partner",        "Fields[environment.partner]",        "VARCHAR",   MAX_LENGTH},
+    {"environment_profile",        "Fields[environment.profile]",        "VARCHAR",   MAX_LENGTH},
+    {"environment_settings",       "Fields[environment.settings]",       "VARCHAR",   MAX_LENGTH},
+    {"environment_system",         "Fields[environment.system]",         "VARCHAR",   MAX_LENGTH},
+    {"payload",                    "Payload",                            "VARCHAR",   MAX_LENGTH},
+    {"payload_addonDetails",       "Fields[payload.addonDetails]",       "VARCHAR",   MAX_LENGTH},
+    {"payload_addonHistograms",    "Fields[payload.addonHistograms]",    "VARCHAR",   MAX_LENGTH},
+    {"payload_childPayloads",      "Fields[payload.childPayloads]",      "VARCHAR",   MAX_LENGTH},
+    {"payload_chromeHangs",        "Fields[payload.chromeHangs]",        "VARCHAR",   MAX_LENGTH},
+    {"payload_fileIOReports",      "Fields[payload.fileIOReports]",      "VARCHAR",   MAX_LENGTH},
+    {"payload_histograms",         "Fields[payload.histograms]",         "VARCHAR",   MAX_LENGTH},
+    {"payload_info",               "Fields[payload.info]",               "VARCHAR",   MAX_LENGTH},
+    {"payload_keyedHistograms",    "Fields[payload.keyedHistograms]",    "VARCHAR",   MAX_LENGTH},
+    {"payload_lateWrites",         "Fields[payload.lateWrites]",         "VARCHAR",   MAX_LENGTH},
+    {"payload_log",                "Fields[payload.log]",                "VARCHAR",   MAX_LENGTH},
+    {"payload_simpleMeasurements", "Fields[payload.simpleMeasurements]", "VARCHAR",   MAX_LENGTH},
+    {"payload_slowSQL",            "Fields[payload.slowSQL]",            "VARCHAR",   MAX_LENGTH},
+    {"payload_slowSQLstartup",     "Fields[payload.slowSQLstartup]",     "VARCHAR",   MAX_LENGTH},
+    {"payload_threadHangStats",    "Fields[payload.threadHangStats]",    "VARCHAR",   MAX_LENGTH},
+    {"payload_UIMeasurements",     "Fields[payload.UIMeasurements]",     "VARCHAR",   MAX_LENGTH},
+    {"http_DNT",                   "Fields[DNT]",                        "BOOLEAN",   nil},
+    {"http_Date",                  "Fields[Date]",                       "TIMESTAMP", nil}
+}
+
+function make_create_table()
+    local sql = "CREATE TABLE IF NOT EXISTS " .. table_name .. " ("
+    for i, c in ipairs(columns) do
+        local csql = c[1] .. " " .. c[3]
+        if c[4] ~= nil then
+            csql = csql .. "(" .. c[4] .. ")"
+        end
+        if c[4] == MAX_LENGTH then
+            csql = csql .. " ENCODE LZO"
+        end
+        if i > 1 then
+            sql = sql .. ", "
+        end
+        sql = sql .. csql
+    end
+    sql = sql .. ")"
+    return sql
+end
+
+assert (con, err)
+assert (con:execute(make_create_table()))
 
 -- file buffer setup
 local sep = " "
@@ -162,10 +185,19 @@ function esc_str(v)
     if v == nil then
         return "NULL"
     end
-    if string.len(v) > 65000 then
-        v = "TRUNCATED:" .. string.sub(v, 1, 65000)
+    if type(v) ~= "string" then
+        v = tostring(v)
     end
-    return "'" .. con:escape(v) .. "'"
+    if string.len(v) > MAX_LENGTH then
+        v = "TRUNCATED:" .. string.sub(v, 1, MAX_LENGTH - 10)
+    end
+
+    -- Occasionally con:escape(v) returns nil here. Not sure why.
+    local escd = con:escape(v)
+    if escd == nil then
+        return "NULL"
+    end
+    return "'" .. escd .. "'"
 end
 
 function esc_num(v)
@@ -189,54 +221,31 @@ function esc_ts(v)
     return "(TIMESTAMP 'epoch' + " .. seconds .. " * INTERVAL '1 seconds')"
 end
 
+function make_insert()
+    local insert = sep .. "("
+    for i=1,#columns do
+        if i > 1 then
+            insert = insert .. ","
+        end
+        local col = columns[i]
+        if col[3] == "TIMESTAMP" then
+            insert = insert .. esc_ts(read_message(col[2]))
+        elseif col[3] == "SMALLINT" then
+            insert = insert .. esc_num(read_message(col[2]))
+        else
+            insert = insert .. esc_str(read_message(col[2]))
+        end
+    end
+    insert = insert .. ")"
+    return insert
+end
+
 -- plugin interfaces
 function process_message()
     if sep == " " then
-        fh:write("INSERT INTO telemetry_sample_42 VALUES")
+        fh:write("INSERT INTO " .. table_name .. " VALUES")
     end
-    fh:write(string.format("%s(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", sep,
-        esc_ts(read_message("Timestamp")),
-        esc_str(read_message("Fields[sourceName]")),
-        esc_str(read_message("Fields[sourceVersion]")),
-        esc_str(read_message("Fields[submissionDate]")),
-        esc_ts(read_message("Fields[creationTimestamp]")),
-        esc_str(read_message("Fields[geoCountry]")),
-        esc_str(read_message("Fields[documentId]")),
-        esc_str(read_message("Fields[reason]")),
-        esc_str(read_message("Fields[os]")),
-        esc_str(read_message("Fields[docType]")),
-        esc_str(read_message("Fields[appName]")),
-        esc_str(read_message("Fields[appVersion]")),
-        esc_str(read_message("Fields[appUpdateChannel]")),
-        esc_str(read_message("Fields[appBuildId]")),
-        esc_str(read_message("Fields[appVendor]")),
-        esc_str(read_message("Fields[clientId]")),
-        esc_num(read_message("Fields[sampleId]")),
-        esc_str(read_message("Fields[environment.addons]")),
-        esc_str(read_message("Fields[environment.build]")),
-        esc_str(read_message("Fields[environment.partner]")),
-        esc_str(read_message("Fields[environment.profile]")),
-        esc_str(read_message("Fields[environment.settings]")),
-        esc_str(read_message("Fields[environment.system]")),
-        esc_str(read_message("Payload")),
-        esc_str(read_message("Fields[payload.addonDetails]")),
-        esc_str(read_message("Fields[payload.addonHistograms]")),
-        esc_str(read_message("Fields[payload.childPayloads]")),
-        esc_str(read_message("Fields[payload.chromeHangs]")),
-        esc_str(read_message("Fields[payload.fileIOReports]")),
-        esc_str(read_message("Fields[payload.histograms]")),
-        esc_str(read_message("Fields[payload.info]")),
-        esc_str(read_message("Fields[payload.keyedHistograms]")),
-        esc_str(read_message("Fields[payload.lateWrites]")),
-        esc_str(read_message("Fields[payload.log]")),
-        esc_str(read_message("Fields[payload.simpleMeasurements]")),
-        esc_str(read_message("Fields[payload.slowSQL]")),
-        esc_str(read_message("Fields[payload.slowSQLstartup]")),
-        esc_str(read_message("Fields[payload.threadHangStats]")),
-        esc_str(read_message("Fields[payload.UIMeasurements]")),
-        esc_str(read_message("Fields[DNT]")),
-        esc_str(read_message("Fields[Date]"))
-    ))
+    fh:write(make_insert(sep))
     sep = ","
 
     if fh:seek("end") >= buffer_size then
