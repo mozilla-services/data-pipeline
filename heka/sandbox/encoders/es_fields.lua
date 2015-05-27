@@ -64,6 +64,7 @@ Field interpolation:
 
 require "cjson"
 require "string"
+require "os"
 local elasticsearch = require "elasticsearch"
 
 local ts_from_message = read_config("es_index_from_timestamp")
@@ -111,7 +112,7 @@ function process_message()
     local tbl = {}
     for i, field in ipairs(static_fields) do
         if field == "Timestamp" and ts_from_message then
-            tbl[field] = ns / 1e9
+            tbl[field] = os.date("!%Y-%m-%dT%XZ", ns / 1e9)
         else
             tbl[field] = read_message(field)
         end
@@ -132,6 +133,12 @@ function process_message()
             z = z + 1
             v = read_message(field, nil, z)
         end
+    end
+
+    if tbl.creationTimestamp then
+        -- tbl.Latency = (ns - tbl.creationTimestamp) / 1e9
+        -- FIXME probably a good idea to generalize time fields
+        tbl.creationTimestamp = os.date("!%Y-%m-%dT%XZ", tbl.creationTimestamp / 1e9)
     end
 
     add_to_payload(idx_json, "\n", cjson.encode(tbl), "\n")
