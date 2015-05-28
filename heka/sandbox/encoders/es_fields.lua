@@ -89,7 +89,7 @@ local static_fields = {}
 local dynamic_fields = {}
 
 local function key(str)
-    return str:match("Fields%[(.+)%]") or str
+    return str:match("Fields%[(.+)%]") or error("invalid field name: " .. str)
 end
 
 for i, field in ipairs(fields) do
@@ -111,8 +111,8 @@ function process_message()
 
     local tbl = {}
     for i, field in ipairs(static_fields) do
-        if field == "Timestamp" and ts_from_message then
-            tbl[field] = os.date("!%Y-%m-%dT%XZ", ns / 1e9)
+        if field == "Timestamp" then
+            tbl[field] = os.date("!%Y-%m-%dT%XZ", ns and ns / 1e9)
         else
             tbl[field] = read_message(field)
         end
@@ -131,7 +131,7 @@ function process_message()
                 tbl[field][#tbl[field]+1] = v
             end
             z = z + 1
-            v = read_message(field, nil, z)
+            v = read_message(f, nil, z)
         end
     end
 
