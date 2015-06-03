@@ -54,6 +54,7 @@ Config:
 require "io"
 require "os"
 require "string"
+require "table"
 
 local driver = require "luasql.postgres"
 
@@ -123,22 +124,25 @@ local columns = {
 }
 
 function make_create_table()
-    local sql = "CREATE TABLE IF NOT EXISTS " .. table_name .. " ("
+    local pieces = {"CREATE TABLE IF NOT EXISTS ", table_name, " ("}
     for i, c in ipairs(columns) do
-        local csql = c[1] .. " " .. c[3]
+        table.insert(pieces, c[1])
+        table.insert(pieces, " ")
+        table.insert(pieces, c[3])
         if c[4] ~= nil then
-            csql = csql .. "(" .. c[4] .. ")"
+            table.insert(pieces, "(")
+            table.insert(pieces, c[4])
+            table.insert(pieces, ")")
         end
         if c[4] == MAX_LENGTH then
-            csql = csql .. " ENCODE LZO"
+            table.insert(pieces, " ENCODE LZO")
         end
-        if i > 1 then
-            sql = sql .. ", "
+        if i < #columns then
+            table.insert(pieces, ", ")
         end
-        sql = sql .. csql
     end
-    sql = sql .. ")"
-    return sql
+    table.insert(pieces, ")")
+    return table.concat(pieces)
 end
 
 assert (con, err)
@@ -197,7 +201,7 @@ function esc_str(v)
     if escd == nil then
         return "NULL"
     end
-    return "'" .. escd .. "'"
+    return table.concat({"'", escd, "'"})
 end
 
 function esc_num(v)
@@ -218,34 +222,34 @@ function esc_ts(v)
         return esc_str(v)
     end
     local seconds = v / 1e9
-    return "(TIMESTAMP 'epoch' + " .. seconds .. " * INTERVAL '1 seconds')"
+    return table.concat({"(TIMESTAMP 'epoch' + ", seconds, " * INTERVAL '1 seconds')"})
 end
 
 function make_insert()
-    local insert = sep .. "("
+    local pieces = {sep, "("}
     for i=1,#columns do
         if i > 1 then
-            insert = insert .. ","
+            table.insert(pieces, ",")
         end
         local col = columns[i]
         if col[3] == "TIMESTAMP" then
-            insert = insert .. esc_ts(read_message(col[2]))
+            table.insert(pieces, esc_ts(read_message(col[2])))
         elseif col[3] == "SMALLINT" then
-            insert = insert .. esc_num(read_message(col[2]))
+            table.insert(pieces, esc_num(read_message(col[2])))
         else
-            insert = insert .. esc_str(read_message(col[2]))
+            table.insert(pieces, esc_str(read_message(col[2])))
         end
     end
-    insert = insert .. ")"
-    return insert
+    table.insert(pieces, ")")
+    return table.concat(pieces)
 end
 
 -- plugin interfaces
 function process_message()
     if sep == " " then
-        fh:write("INSERT INTO " .. table_name .. " VALUES")
+        fh:write(table.concat({"INSERT INTO ", table_name, " VALUES"}))
     end
-    fh:write(make_insert(sep))
+    fh:write(make_insert())
     sep = ","
 
     if fh:seek("end") >= buffer_size then
