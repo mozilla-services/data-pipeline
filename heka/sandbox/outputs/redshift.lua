@@ -54,6 +54,7 @@ Config:
 require "io"
 require "os"
 require "string"
+require "table"
 
 local driver = require "luasql.postgres"
 
@@ -74,19 +75,78 @@ flush_interval = flush_interval * 1e9
 
 local env = assert (driver.postgres())
 local con, err = env:connect(db_name, db_user, db_password, db_host, db_port)
-assert(con, err)
-assert (con:execute[[
-        CREATE TABLE IF NOT EXISTS logs(
-        timestamp BIGINT,
-        severity INTEGER,
-        pid INTEGER,
-        hostname VARCHAR(126),
-        type VARCHAR(126),
-        logger VARCHAR(126),
-        envversion VARCHAR(126),
-        payload VARCHAR(126)
-        )
-        ]])
+
+local table_name = "telemetry_sample_42"
+MAX_LENGTH = 65535
+local columns = {
+--   column name                   field name                            field type   field length
+    {"msg_Timestamp",              "Timestamp",                          "TIMESTAMP", nil},
+    {"sourceName",                 "Fields[sourceName]",                 "VARCHAR",   30},
+    {"sourceVersion",              "Fields[sourceVersion]",              "VARCHAR",   12},
+    {"submissionDate",             "Fields[submissionDate]",             "DATE",      nil},
+    {"creationTimestamp",          "Fields[creationTimestamp]",          "TIMESTAMP", nil},
+    {"geoCountry",                 "Fields[geoCountry]",                 "VARCHAR",   2},
+    {"documentId",                 "Fields[documentId]",                 "VARCHAR",   36},
+    {"reason",                     "Fields[reason]",                     "VARCHAR",   100},
+    {"os",                         "Fields[os]",                         "VARCHAR",   100},
+    {"docType",                    "Fields[docType]",                    "VARCHAR",   50},
+    {"appName",                    "Fields[appName]",                    "VARCHAR",   100},
+    {"appVersion",                 "Fields[appVersion]",                 "VARCHAR",   30},
+    {"appUpdateChannel",           "Fields[appUpdateChannel]",           "VARCHAR",   30},
+    {"appBuildId",                 "Fields[appBuildId]",                 "VARCHAR",   30},
+    {"appVendor",                  "Fields[appVendor]",                  "VARCHAR",   30},
+    {"clientId",                   "Fields[clientId]",                   "VARCHAR",   100},
+    {"sampleId",                   "Fields[sampleId]",                   "SMALLINT",  nil},
+    {"environment_addons",         "Fields[environment.addons]",         "VARCHAR",   MAX_LENGTH},
+    {"environment_build",          "Fields[environment.build]",          "VARCHAR",   MAX_LENGTH},
+    {"environment_partner",        "Fields[environment.partner]",        "VARCHAR",   MAX_LENGTH},
+    {"environment_profile",        "Fields[environment.profile]",        "VARCHAR",   MAX_LENGTH},
+    {"environment_settings",       "Fields[environment.settings]",       "VARCHAR",   MAX_LENGTH},
+    {"environment_system",         "Fields[environment.system]",         "VARCHAR",   MAX_LENGTH},
+    {"payload",                    "Payload",                            "VARCHAR",   MAX_LENGTH},
+    {"payload_addonDetails",       "Fields[payload.addonDetails]",       "VARCHAR",   MAX_LENGTH},
+    {"payload_addonHistograms",    "Fields[payload.addonHistograms]",    "VARCHAR",   MAX_LENGTH},
+    {"payload_childPayloads",      "Fields[payload.childPayloads]",      "VARCHAR",   MAX_LENGTH},
+    {"payload_chromeHangs",        "Fields[payload.chromeHangs]",        "VARCHAR",   MAX_LENGTH},
+    {"payload_fileIOReports",      "Fields[payload.fileIOReports]",      "VARCHAR",   MAX_LENGTH},
+    {"payload_histograms",         "Fields[payload.histograms]",         "VARCHAR",   MAX_LENGTH},
+    {"payload_info",               "Fields[payload.info]",               "VARCHAR",   MAX_LENGTH},
+    {"payload_keyedHistograms",    "Fields[payload.keyedHistograms]",    "VARCHAR",   MAX_LENGTH},
+    {"payload_lateWrites",         "Fields[payload.lateWrites]",         "VARCHAR",   MAX_LENGTH},
+    {"payload_log",                "Fields[payload.log]",                "VARCHAR",   MAX_LENGTH},
+    {"payload_simpleMeasurements", "Fields[payload.simpleMeasurements]", "VARCHAR",   MAX_LENGTH},
+    {"payload_slowSQL",            "Fields[payload.slowSQL]",            "VARCHAR",   MAX_LENGTH},
+    {"payload_slowSQLstartup",     "Fields[payload.slowSQLstartup]",     "VARCHAR",   MAX_LENGTH},
+    {"payload_threadHangStats",    "Fields[payload.threadHangStats]",    "VARCHAR",   MAX_LENGTH},
+    {"payload_UIMeasurements",     "Fields[payload.UIMeasurements]",     "VARCHAR",   MAX_LENGTH},
+    {"http_DNT",                   "Fields[DNT]",                        "BOOLEAN",   nil},
+    {"http_Date",                  "Fields[Date]",                       "TIMESTAMP", nil}
+}
+
+function make_create_table()
+    local pieces = {"CREATE TABLE IF NOT EXISTS ", table_name, " ("}
+    for i, c in ipairs(columns) do
+        table.insert(pieces, c[1])
+        table.insert(pieces, " ")
+        table.insert(pieces, c[3])
+        if c[4] ~= nil then
+            table.insert(pieces, "(")
+            table.insert(pieces, c[4])
+            table.insert(pieces, ")")
+        end
+        if c[4] == MAX_LENGTH then
+            table.insert(pieces, " ENCODE LZO")
+        end
+        if i < #columns then
+            table.insert(pieces, ", ")
+        end
+    end
+    table.insert(pieces, ")")
+    return table.concat(pieces)
+end
+
+assert (con, err)
+assert (con:execute(make_create_table()))
 
 -- file buffer setup
 local sep = " "
@@ -104,7 +164,7 @@ local function open_file_buffer(mode)
     return f, e
 end
 
-local last_flush  = 0
+local last_flush = 0
 local fh, err = open_file_buffer("a+") -- open it for append since we may have data remaining from the last shutdown
 assert(fh, err)
 
@@ -125,20 +185,71 @@ local function bulk_load()
     end
 end
 
+function esc_str(v)
+    if v == nil then
+        return "NULL"
+    end
+    if type(v) ~= "string" then
+        v = tostring(v)
+    end
+    if string.len(v) > MAX_LENGTH then
+        v = "TRUNCATED:" .. string.sub(v, 1, MAX_LENGTH - 10)
+    end
+
+    -- Occasionally con:escape(v) returns nil here. Not sure why.
+    local escd = con:escape(v)
+    if escd == nil then
+        return "NULL"
+    end
+    return table.concat({"'", escd, "'"})
+end
+
+function esc_num(v)
+    if v == nil then
+        return "NULL"
+    end
+    if type(v) ~= "number" then
+        return esc_str(v)
+    end
+    return tostring(v)
+end
+
+function esc_ts(v)
+    if v == nil then
+        return "NULL"
+    end
+    if type(v) ~= "number" then
+        return esc_str(v)
+    end
+    local seconds = v / 1e9
+    return table.concat({"(TIMESTAMP 'epoch' + ", seconds, " * INTERVAL '1 seconds')"})
+end
+
+function make_insert()
+    local pieces = {sep, "("}
+    for i=1,#columns do
+        if i > 1 then
+            table.insert(pieces, ",")
+        end
+        local col = columns[i]
+        if col[3] == "TIMESTAMP" then
+            table.insert(pieces, esc_ts(read_message(col[2])))
+        elseif col[3] == "SMALLINT" then
+            table.insert(pieces, esc_num(read_message(col[2])))
+        else
+            table.insert(pieces, esc_str(read_message(col[2])))
+        end
+    end
+    table.insert(pieces, ")")
+    return table.concat(pieces)
+end
+
 -- plugin interfaces
 function process_message()
     if sep == " " then
-        fh:write("INSERT INTO logs VALUES")
+        fh:write(table.concat({"INSERT INTO ", table_name, " VALUES"}))
     end
-    fh:write(string.format("%s(%d,%d,%d,'%s','%s','%s','%s','%s')", sep,
-    read_message("Timestamp"),
-    read_message("Severity") or 7,
-    read_message("Pid") or 0,
-    con:escape(read_message("Hostname")),
-    con:escape(read_message("Type")),
-    con:escape(read_message("Logger")),
-    con:escape(read_message("EnvVersion")),
-    con:escape(read_message("Payload"))))
+    fh:write(make_insert())
     sep = ","
 
     if fh:seek("end") >= buffer_size then
