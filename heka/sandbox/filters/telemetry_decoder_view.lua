@@ -4,12 +4,22 @@
 
 --[[
 Creates a summary view of the TelemetryDecoder Statistics.
+
+    [TelemetryStats]
+    type = "SandboxFilter"
+    message_matcher = "Type == 'telemetry' || Type == 'heka.all-report'"
+    filename = "lua_filters/telemetry_decoder_view.lua"
+    memory_limit = 120000000
+    output_limit = 256000
+    ticker_interval = 60
+    preserve_data = true
 --]]
 
 require "bloom_filter"
 require "circular_buffer"
 require "cjson"
 require "string"
+local alert         = require "alert"
 
 local SEC_PER_ROW   = 60
 local ROWS          = 2880
@@ -23,6 +33,9 @@ local FAILURES      = cb:set_header(2, "Failures")
 local DUPLICATES    = cb:set_header(3, "Duplicates")
 id_count            = {} -- array of decoder ids and the last seen count
 id_failures         = {} -- array of decoder ids and the last seen failure count
+
+local alert_throttle    = read_config("alert_throttle") or 3600
+alert.set_throttle(alert_throttle * 1e9)
 
 
 local function update_delta(ts, col, id, parray, cur)
@@ -106,5 +119,13 @@ function timer_event(ns)
         last_cleared = ns
     end
 
+    if not cb:get(ns, 1) then
+        cb:add(ns, 1, 0/0) -- always advance the buffer/graph using a NaN value
+    end
+
+    local sum, samples = cb:compute("sum", 1, cb:current_time() - (SEC_PER_ROW * 1e9))
+    if samples == 0 then
+        alert.send(ns, "no new data")
+    end
     inject_payload("cbuf", "Telemetry Decoder Statistics", cb)
 end
