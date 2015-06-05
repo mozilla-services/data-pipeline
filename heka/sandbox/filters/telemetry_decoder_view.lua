@@ -120,7 +120,7 @@ function timer_event(ns)
     end
 
     if not cb:get(ns, 1) then
-        cb:add(ns, 1, 0/0) -- always advance the buffer/graph
+        cb:add(ns, 1, 0/0) -- always advance the buffer/graph using a NaN value
     end
 
     local sum, samples = cb:compute("sum", 1, cb:current_time() - (SEC_PER_ROW * 1e9))
