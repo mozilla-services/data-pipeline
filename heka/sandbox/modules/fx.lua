@@ -5,9 +5,37 @@
 -- Imports
 local ipairs = ipairs
 local type = type
+local l = require "lpeg"
 
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module
+
+local normalize_channel_grammar =
+l.C"release" * -1 +
+l.C"beta" +
+(l.P("nightly") * -1 + "nightly-cck-") / "nightly" +
+l.C"aurora" * -1 +
+l.Cc"Other"
+
+function normalize_channel(name)
+    if type(name) ~= "string" then name = "" end
+    return normalize_channel_grammar:match(name)
+end
+
+local function anywhere (p)
+  return l.P{ p + 1 * l.V(1) }
+end
+
+local normalize_os_grammar =
+(l.P"Windows" + "WINNT") / "Windows" +
+l.P"Darwin" / "Mac" +
+(anywhere"Linux" + anywhere"BSD" + anywhere"SunOS") / "Linux" +
+l.Cc"Other"
+
+function normalize_os(name)
+    if type(name) ~= "string" then name = "" end
+    return normalize_os_grammar:match(name)
+end
 
 -- https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
 local country_names = {
@@ -45,6 +73,11 @@ for i, v in ipairs(os_names) do
     os_ids[v] = i - 1
 end
 
+
+function get_country_count()
+    return #country_names
+end
+
 function get_country_name(id)
     if id then
         id = id + 1
@@ -58,6 +91,10 @@ function get_country_name(id)
     return country_names[1]
 end
 
+function get_channel_count()
+    return #channel_names
+end
+
 function get_channel_name(id)
     if id then
         id = id + 1
@@ -69,6 +106,10 @@ function get_channel_name(id)
     if name then return name end
 
     return channel_names[1]
+end
+
+function get_os_count()
+    return #os_names
 end
 
 function get_os_name(id)
@@ -119,5 +160,6 @@ function get_boolean_value(v)
     end
     return false
 end
+
 
 return M
