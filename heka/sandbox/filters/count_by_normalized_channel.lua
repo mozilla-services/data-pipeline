@@ -32,12 +32,13 @@ end
 
 function process_message()
     local ts = read_message("Timestamp")
-    if not all:add(ts, REQUESTS, 1) then return 0 end -- outside the buffer
 
     local channel = read_message("Fields[appUpdateChannel]") or "Other"
     local normalized = fx.normalize_channel(channel)
-    local channel_id = fx.get_channel_id(normalized)
-    c:add(ts, channel_id, 1)
+
+    -- Need to add one to account for "Other" (which comes back as zero)
+    local channel_id = fx.get_channel_id(normalized) + 1
+    channel_counter:add(ts, channel_id, 1)
     return 0
 end
 
