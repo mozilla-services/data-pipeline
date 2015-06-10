@@ -24,10 +24,11 @@ fx = require "fx"
 local rows = read_config("rows") or 1440
 local sec_per_row = read_config("sec_per_row") or 60
 
-local num_channels = fx.get_channel_count()
-local channel_counter = circular_buffer.new(rows, num_channels, sec_per_row, true)
-for i=1,num_channels do
-    channel_counter:set_header(i, fx.get_channel_name(i))
+local nchannels = fx.get_channel_count()
+local channel_counter = circular_buffer.new(rows, nchannels, sec_per_row, true)
+for i=1,nchannels do
+    -- Circular buffer columns are one-based, channel ids are zero-based.
+    channel_counter:set_header(i, fx.get_channel_name(i - 1))
 end
 
 function process_message()
@@ -37,8 +38,8 @@ function process_message()
     local normalized = fx.normalize_channel(channel)
 
     -- Need to add one to account for "Other" (which comes back as zero)
-    local channel_id = fx.get_channel_id(normalized) + 1
-    channel_counter:add(ts, channel_id, 1)
+    local column_id = fx.get_channel_id(normalized) + 1
+    channel_counter:add(ts, column_id, 1)
     return 0
 end
 
