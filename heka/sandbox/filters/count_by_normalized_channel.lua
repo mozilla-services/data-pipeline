@@ -12,7 +12,7 @@ Request Counts by Normalized Channel
     [CountByNormalizedChannel]
     type = "SandboxFilter"
     filename = "lua_filters/count_by_normalized_channel.lua"
-    message_matcher = "Type == 'telemetry'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main'"
     ticker_interval = 30
     preserve_data = true
 
@@ -33,9 +33,7 @@ end
 
 function process_message()
     local ts = read_message("Timestamp")
-
-    local channel = read_message("Fields[appUpdateChannel]") or "Other"
-    local normalized = fx.normalize_channel(channel)
+    local normalized = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
 
     -- Need to add one to account for "Other" (which comes back as zero)
     local column_id = fx.get_channel_id(normalized) + 1
