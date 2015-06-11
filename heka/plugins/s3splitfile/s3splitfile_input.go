@@ -233,9 +233,9 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 			runner.LogMessage(fmt.Sprintf("Successfully fetched %s in %.2fs ", s3Key, duration))
 		case <-input.stop:
 			for _ = range input.listChan {
-				// drain the channel without processing the files
-				// technically the S3Iterator can still add one back on to the
-				// channel but this ensures there is room so it won't block
+				// Drain the channel without processing the files.
+				// Technically the S3Iterator can still add one back on to the
+				// channel but this ensures there is room so it won't block.
 			}
 			ok = false
 		}
