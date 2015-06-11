@@ -131,7 +131,14 @@ func (input *S3SplitFileInput) Run(runner pipeline.InputRunner, helper pipeline.
 	wg.Add(1)
 	go func() {
 		runner.LogMessage("Starting S3 list")
+	iteratorLoop:
 		for r := range S3Iterator(input.bucket, input.S3BucketPrefix, input.schema) {
+			select {
+			case <-input.stop:
+				runner.LogMessage("Stopping S3 list")
+				break iteratorLoop
+			default:
+			}
 			if r.Err != nil {
 				runner.LogError(fmt.Errorf("Error getting S3 list: %s", r.Err))
 			} else {
@@ -224,6 +231,13 @@ func (input *S3SplitFileInput) fetcher(runner pipeline.InputRunner, wg *sync.Wai
 			}
 			duration = time.Now().UTC().Sub(startTime).Seconds()
 			runner.LogMessage(fmt.Sprintf("Successfully fetched %s in %.2fs ", s3Key, duration))
+		case <-input.stop:
+			for _ = range input.listChan {
+				// drain the channel without processing the files
+				// technically the S3Iterator can still add one back on to the
+				// channel but this ensures there is room so it won't block
+			}
+			ok = false
 		}
 	}
 
