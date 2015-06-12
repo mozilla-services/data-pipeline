@@ -202,6 +202,7 @@ RetryS3:
 				(*sr).DeliverRecord(record, *d)
 			}
 		}
+		break
 	}
 
 	return
