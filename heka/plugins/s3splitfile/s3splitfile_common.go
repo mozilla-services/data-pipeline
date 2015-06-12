@@ -423,7 +423,9 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, s3Offset uint64, recordChan cha
 	}
 
 	reader, err := getS3Reader(bucket, s3Key, s3Offset)
-	defer reader.Close()
+	if reader != nil {
+		defer reader.Close()
+	}
 	if err != nil {
 		recordChan <- S3Record{s3Key, 0, 0, []byte{}, err}
 		return
