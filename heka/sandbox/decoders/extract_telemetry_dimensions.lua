@@ -7,7 +7,6 @@ require "cjson"
 require "hash"
 require "os"
 require "table"
-require "math"
 local gzip = require "gzip"
 local dt = require("date_time")
 
@@ -138,10 +137,6 @@ local function process_json(msg, json, parsed)
         local cts = parse_creation_date(parsed.creationDate)
         if not cts then return "missing creationDate" end
         update_field(msg.Fields, "creationTimestamp", cts)
-
-        -- latency
-        local latency = math.floor((msg.Timestamp - cts) / 1e9)
-        update_field(msg.Fields, "Latency", latency)
 
         if type(parsed.payload) == "table" and
            type(parsed.payload.info) == "table" then

@@ -65,6 +65,7 @@ Field interpolation:
 require "cjson"
 require "string"
 require "os"
+require "math"
 local elasticsearch = require "elasticsearch"
 
 local ts_from_message = read_config("es_index_from_timestamp")
@@ -136,8 +137,7 @@ function process_message()
     end
 
     if tbl.creationTimestamp then
-        -- tbl.Latency = (ns - tbl.creationTimestamp) / 1e9
-        -- FIXME probably a good idea to generalize time fields
+        if ns then tbl.Latency = math.floor((ns - tbl.creationTimestamp) / 1e9) end
         tbl.creationTimestamp = os.date("!%Y-%m-%dT%XZ", tbl.creationTimestamp / 1e9)
     end
 
