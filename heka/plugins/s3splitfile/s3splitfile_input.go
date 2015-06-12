@@ -180,19 +180,27 @@ func (input *S3SplitFileInput) readS3File(runner pipeline.InputRunner, d *pipeli
 		runner.LogMessage(fmt.Sprintf("Dude, where's my bucket: %s", s3Key))
 		return
 	}
-	for r := range S3FileIterator(input.bucket, s3Key) {
-		record := r.Record
-		err := r.Err
 
-		if err != nil && err != io.EOF {
-			runner.LogError(fmt.Errorf("Error reading %s: %s", s3Key, err))
-			atomic.AddInt64(&input.processMessageFailures, 1)
-			return err
-		}
-		if len(record) > 0 {
-			atomic.AddInt64(&input.processMessageCount, 1)
-			atomic.AddInt64(&input.processMessageBytes, int64(len(record)))
-			(*sr).DeliverRecord(record, *d)
+	var lastGoodOffset uint64
+	var attempt uint32
+
+RetryS3:
+	for attempt = 1; attempt <= input.S3Retries; attempt++ {
+		for r := range S3FileIterator(input.bucket, s3Key, lastGoodOffset) {
+			record := r.Record
+			err := r.Err
+
+			if err != nil && err != io.EOF {
+				runner.LogError(fmt.Errorf("Error in attempt %d reading %s at offset %d: %s", attempt, s3Key, lastGoodOffset, err))
+				atomic.AddInt64(&input.processMessageFailures, 1)
+				continue RetryS3
+			}
+			if len(record) > 0 {
+				lastGoodOffset += uint64(r.BytesRead)
+				atomic.AddInt64(&input.processMessageCount, 1)
+				atomic.AddInt64(&input.processMessageBytes, int64(len(record)))
+				(*sr).DeliverRecord(record, *d)
+			}
 		}
 	}
 

@@ -166,7 +166,8 @@ func cat(bucket *s3.Bucket, filenameChannel <-chan string, recordChannel chan<- 
 func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3Record) {
 	var processed int64
 
-	for r := range s3splitfile.S3FileIterator(bucket, s3Key) {
+	// TODO: retry like S3SplitFileInput
+	for r := range s3splitfile.S3FileIterator(bucket, s3Key, uint64(0)) {
 		err := r.Err
 
 		if err != nil && err != io.EOF {
@@ -203,7 +204,7 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 		processed += 1
 		headerLen := int(r.Record[1]) + message.HEADER_FRAMING_SIZE
 		if err := proto.Unmarshal(r.Record[headerLen:], msg); err != nil {
-			fmt.Fprintf(os.Stderr, "Error unmarshalling message %d, error: %s\n", processed, err)
+			fmt.Fprintf(os.Stderr, "Error unmarshalling message %d in %s, error: %s\n", processed, r.Key, err)
 			continue
 		}
 
