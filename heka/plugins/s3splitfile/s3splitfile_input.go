@@ -50,6 +50,8 @@ type S3SplitFileInputConfig struct {
 	S3BucketPrefix     string `toml:"s3_bucket_prefix"`
 	S3ObjectMatchRegex string `toml:"s3_object_match_regex"`
 	S3Retries          uint32 `toml:"s3_retries"`
+	S3ConnectTimeout   uint32 `toml:"s3_connect_timeout"`
+	S3ReadTimeout      uint32 `toml:"s3_read_timeout"`
 	S3WorkerCount      uint32 `toml:"s3_worker_count"`
 }
 
@@ -64,6 +66,8 @@ func (input *S3SplitFileInput) ConfigStruct() interface{} {
 		S3BucketPrefix:     "",
 		S3ObjectMatchRegex: "",
 		S3Retries:          5,
+		S3ConnectTimeout:   60,
+		S3ReadTimeout:      60,
 		S3WorkerCount:      10,
 	}
 }
@@ -87,6 +91,8 @@ func (input *S3SplitFileInput) Init(config interface{}) (err error) {
 			return fmt.Errorf("Parameter 'aws_region' must be a valid AWS Region")
 		}
 		s := s3.New(auth, region)
+		s.ConnectTimeout = time.Duration(conf.S3ConnectTimeout) * time.Second
+		s.ReadTimeout = time.Duration(conf.S3ReadTimeout) * time.Second
 		// TODO: ensure we can read from the bucket.
 		input.bucket = s.Bucket(conf.S3Bucket)
 	} else {
