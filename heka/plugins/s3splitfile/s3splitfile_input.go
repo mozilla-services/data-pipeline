@@ -66,8 +66,8 @@ func (input *S3SplitFileInput) ConfigStruct() interface{} {
 		S3BucketPrefix:     "",
 		S3ObjectMatchRegex: "",
 		S3Retries:          5,
-		S3ConnectTimeout:   120,
-		S3ReadTimeout:      120,
+		S3ConnectTimeout:   60,
+		S3ReadTimeout:      60,
 		S3WorkerCount:      10,
 	}
 }

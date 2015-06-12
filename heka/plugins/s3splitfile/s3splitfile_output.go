@@ -128,8 +128,8 @@ func (o *S3SplitFileOutput) ConfigStruct() interface{} {
 		S3Bucket:         "",
 		S3BucketPrefix:   "",
 		S3Retries:        5,
-		S3ConnectTimeout: 300,
-		S3ReadTimeout:    300,
+		S3ConnectTimeout: 60,
+		S3ReadTimeout:    60,
 		S3WorkerCount:    10,
 	}
 }
