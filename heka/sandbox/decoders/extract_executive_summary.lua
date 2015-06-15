@@ -4,7 +4,8 @@
 
 --[[
 Convert the massive unified telemetry submission into the small sub-set of data
-required to power the executive dashboard.
+required to power the executive dashboard. This decoder MUST NOT return failure
+due to the way the Heka MultiDecoder is implemented.
 
 See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
 
@@ -27,6 +28,11 @@ See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
     filename = "lua_decoders/extract_telemetry_dimensions.lua"
     memory_limit = 100000000
     output_limit = 1000000
+    [TelemetryDecoder.config]
+    duplicate_original = false # This MUST be true when processing live data
+    # since we need to duplicate the original telemetry message AND output the
+    # new summary message.  When processing landfill or telemetry data from S3
+    # it should be set to false.
 
     [ExecutiveSummary]
     type = "SandboxDecoder"
@@ -38,6 +44,7 @@ require "cjson"
 local fx = require "fx"
 require "string"
 
+local duplicate_original = read_config("duplicate_original")
 local SEC_IN_HOUR = 60 * 60
 local SEC_IN_DAY = SEC_IN_HOUR * 24
 
@@ -98,23 +105,33 @@ local msg = {
     Logger      = "fx",
     Type        = "executive_summary",
     Fields      = {
-        {name = "clientId"  , value = ""},
-        {name = "documentId", value = ""},
-        {name = "geo"       , value = ""},
-        {name = "channel"   , value = ""},
-        {name = "os"        , value = ""},
-        {name = "hours"     , value = 0},
-        {name = "crashes"   , value = 0, value_type = 2},
-        {name = "default"   , value = false},
-        {name = "google"    , value = 0, value_type = 2},
-        {name = "bing"      , value = 0, value_type = 2},
-        {name = "yahoo"     , value = 0, value_type = 2},
-        {name = "other"     , value = 0, value_type = 2},
+        {name = "clientId"          , value = ""},
+        {name = "documentId"        , value = ""},
+        {name = "geo"               , value = ""},
+        {name = "channel"           , value = ""},
+        {name = "os"                , value = ""},
+        {name = "hours"             , value = 0},
+        {name = "crashes"           , value = 0, value_type = 2},
+        {name = "default"           , value = false},
+        {name = "google"            , value = 0, value_type = 2},
+        {name = "bing"              , value = 0, value_type = 2},
+        {name = "yahoo"             , value = 0, value_type = 2},
+        {name = "other"             , value = 0, value_type = 2},
+        {name = "reason"            , value = ""},
+        {name = "sessionId"         , value = ""},
+        {name = "subsessionCounter" , value = 0, value_type = 2},
+        {name = "buildId"           , value = ""},
+        {name = "pluginHangs"       , value = 0, value_type = 2},
     }
 }
 
 
 function process_message()
+    if read_message("Type") ~= "telemetry" then return 0 end
+    if duplicate_original then
+        inject_message(read_message("raw"))
+    end
+
     msg.Timestamp = read_message("Timestamp")
 
     local cid = read_message("Fields[clientId]")
@@ -150,6 +167,50 @@ function process_message()
     msg.Fields[10].value    = cnts[2] -- bing
     msg.Fields[11].value    = cnts[3] -- yahoo
     msg.Fields[12].value    = cnts[4] -- other
+
+    msg.Fields[13].value = ""
+    msg.Fields[14].value = ""
+    msg.Fields[15].value = 0
+    msg.Fields[16].value = ""
+    msg.Fields[17].value = 0
+
+    -- add session information for broken session monitoring
+    local reason = read_message("Fields[reason]")
+    if type(reason) == "string" then
+        msg.Fields[13].value = reason
+    end
+
+    local json = read_message("Fields[payload.info]")
+    local ok, json = pcall(cjson.decode, json)
+    if ok then
+        if type(json.sessionId) == "string" then
+            msg.Fields[14].value = json.sessionId
+        end
+        if type(json.subsessionCounter) == "number" then
+            msg.Fields[15].value = json.subsessionCounter
+        end
+    end
+
+    -- add plugin hang information
+    local bid = read_message("Fields[appBuildId]")
+    if type(bid) == "string" then
+        msg.Fields[16].value = bid
+    end
+
+    json = read_message("Fields[payload.keyedHistograms]")
+    ok, json = pcall(cjson.decode, json)
+    if ok then
+        local t = json.SUBPROCESS_ABNORMAL_ABORT
+        if type(t) == "table" then
+            t = t.plugin
+            if type(t) == "table" then
+                local sum = t.sum
+                if type(sum) == "number" and sum > 0 then
+                    msg.Fields[17].value = sum
+                end
+            end
+        end
+    end
 
     pcall(inject_message, msg)
     return 0
