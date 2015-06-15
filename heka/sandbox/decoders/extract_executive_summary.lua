@@ -4,8 +4,8 @@
 
 --[[
 Convert the massive unified telemetry submission into the small sub-set of data
-required to power the executive dashboard. This decoder MUST not return failure
-do to the way the Heka MultiDecoder is implemented.
+required to power the executive dashboard. This decoder MUST NOT return failure
+due to the way the Heka MultiDecoder is implemented.
 
 See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
 
@@ -29,7 +29,10 @@ See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
     memory_limit = 100000000
     output_limit = 1000000
     [TelemetryDecoder.config]
-    duplicate_original = false # false for S3 telemetry data
+    duplicate_original = false # This MUST be true when processing live data
+    # since we need to duplicate the original telemetry message AND output the
+    # new summary message.  When processing landfill or telemetry data from S3
+    # it should be set to false.
 
     [ExecutiveSummary]
     type = "SandboxDecoder"
@@ -118,7 +121,7 @@ local msg = {
         {name = "sessionId"         , value = ""},
         {name = "subsessionCounter" , value = 0, value_type = 2},
         {name = "buildId"           , value = ""},
-        {name = "hangs"             , value = 0, value_type = 2},
+        {name = "pluginHangs"       , value = 0, value_type = 2},
     }
 }
 

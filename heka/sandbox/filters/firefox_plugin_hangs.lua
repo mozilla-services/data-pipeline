@@ -24,7 +24,7 @@ local fx = require "fx"
 
 channels = {}
 
-local BUILD_IDS  = 6
+local BUILD_IDS  = 6 -- number of builds to display on the graph (newer builds replace the older ones)
 local DAYS       = 180
 local SEC_IN_DAY = 60 * 60 * 24
 
@@ -107,8 +107,8 @@ function process_message ()
     local channel = channels[fx.normalize_channel(read_message("Fields[channel]"))]
     local col = get_build_id_col(channel, bid)
     if col then
-        local hangs = read_message("Fields[hangs]")
-        if type(hangs) ~= "number" then return -1, "invalid hangs" end
+        local hangs = read_message("Fields[pluginHangs]")
+        if type(hangs) ~= "number" then return -1, "invalid pluginHangs" end
         if hangs < 1 then return 0 end
 
         local ts = read_message("Timestamp")
