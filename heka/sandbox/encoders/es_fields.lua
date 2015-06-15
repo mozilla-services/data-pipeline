@@ -86,6 +86,18 @@ local interp_fields = {
     Logger = "Logger"
 }
 
+local info_fields = {
+    "sessionId"
+  , "subsessionId"
+  , "previousSessionId"
+  , "previousSubsessionId"
+  , "subsessionCounter"
+  , "profileSubsessionCounter"
+  , "sessionStartDate"
+  , "subsessionStartDate"
+  , "subsessionLength"
+}
+
 local static_fields = {}
 local dynamic_fields = {}
 
@@ -133,6 +145,14 @@ function process_message()
             end
             z = z + 1
             v = read_message(f, nil, z)
+        end
+    end
+    local ok, info = pcall(cjson.decode, read_message("Fields[payload.info]"))
+    if ok then
+        for i, k in ipairs(info_fields) do
+            if info[k] then
+                tbl[k] = info[k]
+            end
         end
     end
 
