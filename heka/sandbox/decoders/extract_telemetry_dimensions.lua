@@ -138,10 +138,6 @@ local function process_json(msg, json, parsed)
         if not cts then return "missing creationDate" end
         update_field(msg.Fields, "creationTimestamp", cts)
 
-        -- latency
-        local latency = msg.Timestamp - msg.Fields.creationTimestamp
-        update_field(msg.Fields, "Latency", latency)
-
         if type(parsed.payload) == "table" and
            type(parsed.payload.info) == "table" then
                update_field(msg.Fields, "reason", parsed.payload.info.reason)
