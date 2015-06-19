@@ -105,29 +105,32 @@ local msg = {
     Logger      = "fx",
     Type        = "executive_summary",
     Fields      = {
-        {name = "clientId"          , value = ""},
-        {name = "documentId"        , value = ""},
-        {name = "geo"               , value = ""},
-        {name = "channel"           , value = ""},
-        {name = "os"                , value = ""},
-        {name = "hours"             , value = 0},
-        {name = "crashes"           , value = 0, value_type = 2},
-        {name = "default"           , value = false},
-        {name = "google"            , value = 0, value_type = 2},
-        {name = "bing"              , value = 0, value_type = 2},
-        {name = "yahoo"             , value = 0, value_type = 2},
-        {name = "other"             , value = 0, value_type = 2},
-        {name = "reason"            , value = ""},
-        {name = "sessionId"         , value = ""},
-        {name = "subsessionCounter" , value = 0, value_type = 2},
-        {name = "buildId"           , value = ""},
-        {name = "pluginHangs"       , value = 0, value_type = 2},
+        clientId            = {value = ""},
+        documentId          = {value = ""},
+        geo                 = {value = ""},
+        channel             = {value = ""},
+        os                  = {value = ""},
+        hours               = {value = 0},
+        default             = {value = false},
+        google              = {value = 0, value_type = 2},
+        bing                = {value = 0, value_type = 2},
+        yahoo               = {value = 0, value_type = 2},
+        other               = {value = 0, value_type = 2},
+        reason              = {value = ""},
+        sessionId           = {value = ""},
+        subsessionCounter   = {value = 0, value_type = 2},
+        buildId             = {value = ""},
+        pluginHangs         = {value = 0, value_type = 2},
     }
 }
 
 
 function process_message()
-    if read_message("Type") ~= "telemetry" then return 0 end
+    if read_message("Type") ~= "telemetry"
+    or read_message("Fields[docType]") ~= "main" then
+        return 0
+    end
+
     if duplicate_original then
         inject_message(read_message("raw"))
     end
@@ -136,65 +139,57 @@ function process_message()
 
     local cid = read_message("Fields[clientId]")
     if type(cid) ~= "string" then return 0 end
-    msg.Fields[1].value = cid
+    msg.Fields.clientId.value = cid
 
     local did = read_message("Fields[documentId]")
     if type(did) ~= "string" then return 0 end
-    msg.Fields[2].value = did
+    msg.Fields.documentId.value = did
 
     local geo = read_message("Fields[geoCountry]") or "Other"
     if geo == "??" then geo = "Other" end
-    msg.Fields[3].value = geo
+    msg.Fields.geo.value = geo
 
-    local channel = read_message("Fields[appUpdateChannel]")
-    channel = fx.normalize_channel(channel)
-    msg.Fields[4].value = channel
+    msg.Fields.channel.value = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
 
-    local _os = read_message("Fields[os]")
-    _os = fx.normalize_os(_os)
-    msg.Fields[5].value = _os
+    msg.Fields.os.value = fx.normalize_os(read_message("Fields[os]"))
 
-    msg.Fields[6].value = get_hours()
+    msg.Fields.hours.value = get_hours()
 
-    -- msg.Fields[7].value = get_crashes()
-    -- todo need the crash data
-    -- https://bugzilla.mozilla.org/show_bug.cgi?id=1121013
-
-    msg.Fields[8].value = is_default_browser()
+    msg.Fields.default.value = is_default_browser()
 
     local cnts = get_search_counts()
-    msg.Fields[9].value     = cnts[1] -- google
-    msg.Fields[10].value    = cnts[2] -- bing
-    msg.Fields[11].value    = cnts[3] -- yahoo
-    msg.Fields[12].value    = cnts[4] -- other
+    msg.Fields.google.value = cnts[1]
+    msg.Fields.bing.value   = cnts[2]
+    msg.Fields.yahoo.value  = cnts[3]
+    msg.Fields.other.value  = cnts[4]
 
-    msg.Fields[13].value = ""
-    msg.Fields[14].value = ""
-    msg.Fields[15].value = 0
-    msg.Fields[16].value = ""
-    msg.Fields[17].value = 0
+    msg.Fields.reason.value             = ""
+    msg.Fields.sessionId.value          = ""
+    msg.Fields.subsessionCounter.value  = 0
+    msg.Fields.buildId.value            = ""
+    msg.Fields.pluginHangs.value        = 0
 
     -- add session information for broken session monitoring
     local reason = read_message("Fields[reason]")
     if type(reason) == "string" then
-        msg.Fields[13].value = reason
+        msg.Fields.reason.value = reason
     end
 
     local json = read_message("Fields[payload.info]")
     local ok, json = pcall(cjson.decode, json)
     if ok then
         if type(json.sessionId) == "string" then
-            msg.Fields[14].value = json.sessionId
+            msg.Fields.sessionId.value = json.sessionId
         end
         if type(json.subsessionCounter) == "number" then
-            msg.Fields[15].value = json.subsessionCounter
+            msg.Fields.subsessionCounter.value = json.subsessionCounter
         end
     end
 
     -- add plugin hang information
     local bid = read_message("Fields[appBuildId]")
     if type(bid) == "string" then
-        msg.Fields[16].value = bid
+        msg.Fields.buildId.value = bid
     end
 
     json = read_message("Fields[payload.keyedHistograms]")
@@ -206,7 +201,7 @@ function process_message()
             if type(t) == "table" then
                 local sum = t.sum
                 if type(sum) == "number" and sum > 0 then
-                    msg.Fields[17].value = sum
+                    msg.Fields.pluginHangs.value = sum
                 end
             end
         end

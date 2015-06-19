@@ -12,7 +12,7 @@ Firefox Monthly Dashboard
     [FirefoxMonthlyDashboard]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_monthly_dashboard.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    message_matcher = "(Logger == 'fx' && Type == 'executive_summary') || (Type == 'telemetry' && Fields[docType] == 'crash')"
     output_limit = 8000000
     memory_limit = 2000000000
     ticker_interval = 0
@@ -94,16 +94,20 @@ local function update_month(ts, cid, day_changed)
     local country = fx.get_country_id(read_message("Fields[geo]"))
     local channel = fx.get_channel_id(read_message("Fields[channel]"))
     local _os     = fx.get_os_id(read_message("Fields[os]"))
-    local dflt    = fx.get_boolean_value(read_message("Fields[default]"))
 
-    fx_cids:add(cid, country, channel, _os, 0, dflt)
     local r = get_row(ts, month, country, channel, _os)
     if r then
-        r[3]  = r[3]  + (tonumber(read_message("Fields[hours]")) or 0)
-        r[10] = r[10] + (tonumber(read_message("Fields[google]")) or 0)
-        r[11] = r[11] + (tonumber(read_message("Fields[bing]")) or 0)
-        r[12] = r[12] + (tonumber(read_message("Fields[yahoo]")) or 0)
-        r[13] = r[13] + (tonumber(read_message("Fields[other]")) or 0)
+        if read_message("Type") == "executive_summary" then
+            local dflt = fx.get_boolean_value(read_message("Fields[default]"))
+            fx_cids:add(cid, country, channel, _os, 0, dflt)
+            r[3]  = r[3]  + (tonumber(read_message("Fields[hours]")) or 0)
+            r[10] = r[10] + (tonumber(read_message("Fields[google]")) or 0)
+            r[11] = r[11] + (tonumber(read_message("Fields[bing]")) or 0)
+            r[12] = r[12] + (tonumber(read_message("Fields[yahoo]")) or 0)
+            r[13] = r[13] + (tonumber(read_message("Fields[other]")) or 0)
+        else -- crash report
+            r[8] = r[8] + 1
+        end
     end
 end
 
