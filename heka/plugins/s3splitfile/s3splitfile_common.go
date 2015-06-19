@@ -364,9 +364,9 @@ type S3Record struct {
 
 // List the contents of the given bucket, sending matching filenames to a
 // channel which can be read by the caller.
-func S3FileIterator(bucket *s3.Bucket, s3Key string) <-chan S3Record {
+func S3FileIterator(bucket *s3.Bucket, s3Key string, offset uint64) <-chan S3Record {
 	recordChannel := make(chan S3Record, fileBatchSize)
-	go ReadS3File(bucket, s3Key, recordChannel)
+	go ReadS3File(bucket, s3Key, offset, recordChannel)
 	return recordChannel
 }
 
@@ -394,21 +394,45 @@ func makeSplitterRunner() (SplitterRunner, error) {
 	return sRunner, nil
 }
 
-func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
+// Callers must call Close() on rc.
+func getS3Reader(bucket *s3.Bucket, s3Key string, offset uint64) (rc io.ReadCloser, err error) {
+	if offset == 0 {
+		rc, err = bucket.GetReader(s3Key)
+		return
+	}
+
+	headers := map[string][]string{
+		"Range": []string{fmt.Sprintf("bytes=%d-", offset)},
+	}
+
+	resp, err := bucket.GetResponseWithHeaders(s3Key, headers)
+
+	if resp != nil {
+		rc = resp.Body
+	}
+	return
+}
+
+func ReadS3File(bucket *s3.Bucket, s3Key string, s3Offset uint64, recordChan chan S3Record) {
 	defer close(recordChan)
+
 	sRunner, err := makeSplitterRunner()
 	if err != nil {
 		recordChan <- S3Record{s3Key, 0, 0, []byte{}, err}
 		return
 	}
-	reader, err := bucket.GetReader(s3Key)
+
+	reader, err := getS3Reader(bucket, s3Key, s3Offset)
+	if reader != nil {
+		defer reader.Close()
+	}
 	if err != nil {
 		recordChan <- S3Record{s3Key, 0, 0, []byte{}, err}
 		return
 	}
-	defer reader.Close()
 
-	var size, offset uint64
+	size := s3Offset
+	offset := s3Offset
 
 	done := false
 	for !done {
@@ -431,7 +455,8 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, recordChan chan S3Record) {
 				continue
 			} else {
 				// Some other kind of error occurred.
-				// TODO: retry? Keep a key->offset counter and start over?
+				// Retry behaviour should be handled externally, we can restart
+				// from the last-good location using the s3Offset parameter.
 				recordChan <- makeS3Record(s3Key, offset, n, record, err)
 				done = true
 				continue

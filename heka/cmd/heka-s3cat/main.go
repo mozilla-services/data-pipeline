@@ -93,6 +93,8 @@ func main() {
 		os.Exit(5)
 	}
 	s := s3.New(auth, region)
+	s.ConnectTimeout = 60 * time.Second
+	s.ReadTimeout = 60 * time.Second
 	bucket := s.Bucket(*flagBucket)
 
 	filenameChannel := make(chan string, 1000)
@@ -165,18 +167,25 @@ func cat(bucket *s3.Bucket, filenameChannel <-chan string, recordChannel chan<- 
 // Cat the records from a single S3 key
 func catOne(bucket *s3.Bucket, s3Key string, recordChannel chan<- s3splitfile.S3Record) {
 	var processed int64
+	var lastGoodOffset uint64
 
-	for r := range s3splitfile.S3FileIterator(bucket, s3Key) {
-		err := r.Err
+RetryS3:
+	for attempt := 1; attempt <= 5; attempt++ {
+		for r := range s3splitfile.S3FileIterator(bucket, s3Key, lastGoodOffset) {
+			err := r.Err
 
-		if err != nil && err != io.EOF {
-			fmt.Fprintf(os.Stderr, "Error reading %s: %s\n", s3Key, err)
-		} else {
-			if len(r.Record) > 0 {
-				processed += 1
-				recordChannel <- r
+			if err != nil && err != io.EOF {
+				fmt.Fprintf(os.Stderr, "Error in attempt %d reading %s at offset %d: %s\n", attempt, s3Key, lastGoodOffset, err)
+				continue RetryS3
+			} else {
+				lastGoodOffset += uint64(r.BytesRead)
+				if len(r.Record) > 0 {
+					processed += 1
+					recordChannel <- r
+				}
 			}
 		}
+		break
 	}
 
 	fmt.Fprintf(os.Stderr, "%s: Processed: %d messages\n", s3Key, processed)
@@ -203,7 +212,7 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 		processed += 1
 		headerLen := int(r.Record[1]) + message.HEADER_FRAMING_SIZE
 		if err := proto.Unmarshal(r.Record[headerLen:], msg); err != nil {
-			fmt.Fprintf(os.Stderr, "Error unmarshalling message %d, error: %s\n", processed, err)
+			fmt.Fprintf(os.Stderr, "Error unmarshalling message %d in %s, error: %s\n", processed, r.Key, err)
 			continue
 		}
 
