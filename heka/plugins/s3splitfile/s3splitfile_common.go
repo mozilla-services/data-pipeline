@@ -431,8 +431,8 @@ func ReadS3File(bucket *s3.Bucket, s3Key string, s3Offset uint64, recordChan cha
 		return
 	}
 
-	var size, offset uint64
-	offset = s3Offset
+	size := s3Offset
+	offset := s3Offset
 
 	done := false
 	for !done {
