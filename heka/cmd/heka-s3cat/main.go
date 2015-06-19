@@ -93,6 +93,8 @@ func main() {
 		os.Exit(5)
 	}
 	s := s3.New(auth, region)
+	s.ConnectTimeout = 60 * time.Second
+	s.ReadTimeout = 60 * time.Second
 	bucket := s.Bucket(*flagBucket)
 
 	filenameChannel := make(chan string, 1000)
