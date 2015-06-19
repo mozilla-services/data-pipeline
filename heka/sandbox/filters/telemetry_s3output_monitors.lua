@@ -3,7 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Monitors the ProcessFileFailures in the S3 outputs
+Monitors ProcessFileFailures and ProcessMessageCount in the S3 outputs
 
 Config:
 
@@ -28,7 +28,7 @@ local plugins        = {}
 local function find_plugin(name)
     local p = plugins[name]
     if not p then
-        p = {last_alert = 0, last_value = 0}
+        p = {last_alert = 0, last_pff = 0, last_pmc = 0}
         plugins[name] = p
     end
     return p
@@ -41,13 +41,24 @@ function process_message ()
 
     for i,v in ipairs(json.outputs) do
         if type(v) ~= "table" then return -1, "invalid output object" end
-        if type(v.ProcessFileFailures) == "table" then -- confirm this plugin has instrumentation
+        if type(v.ProcessFileFailures) == "table" then -- confirm this plugin has the S3 instrumentation
             if not v.Name then return -1, "missing plugin Name" end
+
             local p = find_plugin(v.Name)
             local n = v.ProcessFileFailures.value
-            if type(n) == "number" and n > p.last_value then
+            if type(n) == "number" and n > p.last_pff then
                 p.msg = string.format("%s ProcessFileFailures has increased to %d", v.Name, n)
-                p.last_value = n
+                p.last_pff = n
+            end
+
+            if v.Name ~= "TelemetryErrorsOutput" then
+                n = v.ProcessMessageCount.value
+                if type(n) == "number" then
+                    if n == p.last_pmc then -- no message in the Dashboard ticker_interval
+                        p.msg = string.format("%s ProcessMessageCount has stalled at %d", v.Name, n)
+                    end
+                    p.last_pmc = n
+                end
             end
         end
     end
