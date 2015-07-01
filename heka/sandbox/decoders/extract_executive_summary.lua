@@ -42,6 +42,7 @@ See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
 
 require "cjson"
 local fx = require "fx"
+require "os"
 require "string"
 
 local duplicate_original = read_config("duplicate_original")
@@ -121,6 +122,7 @@ local msg = {
         subsessionCounter   = {value = 0, value_type = 2},
         buildId             = {value = ""},
         pluginHangs         = {value = 0, value_type = 2},
+        submissionDate      = {value = ""},
     }
 }
 
@@ -136,6 +138,7 @@ function process_message()
     end
 
     msg.Timestamp = read_message("Timestamp")
+    msg.Fields.submissionDate = os.date("%Y%m%d", msg.Timestamp / 1e9)
 
     local cid = read_message("Fields[clientId]")
     if type(cid) ~= "string" then return 0 end
