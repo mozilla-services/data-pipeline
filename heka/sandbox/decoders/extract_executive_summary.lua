@@ -108,7 +108,7 @@ local msg = {
     Fields      = {
         clientId            = {value = ""},
         documentId          = {value = ""},
-        geo                 = {value = ""},
+        country             = {value = ""},
         channel             = {value = ""},
         os                  = {value = ""},
         hours               = {value = 0},
@@ -148,9 +148,9 @@ function process_message()
     if type(did) ~= "string" then return 0 end
     msg.Fields.documentId.value = did
 
-    local geo = read_message("Fields[geoCountry]") or "Other"
-    if geo == "??" then geo = "Other" end
-    msg.Fields.geo.value = geo
+    local country = read_message("Fields[geoCountry]") or "Other"
+    if country == "??" then country = "Other" end
+    msg.Fields.country.value = country
 
     msg.Fields.channel.value = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
 
