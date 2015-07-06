@@ -60,8 +60,6 @@ local function update_field(fields, name, value)
 end
 
 local function split_objects(fields, root, section, objects)
-    if type(root) ~= "table" then return end
-
     for i, name in ipairs(objects) do
         if type(root[name]) == "table" then
             local ok, json = pcall(cjson.encode, root[name])
@@ -163,10 +161,20 @@ local function process_json(msg, json, parsed)
         clientId = parsed.clientId
         update_field(msg.Fields, "clientId"  , clientId)
 
-        -- restructure the main ping message
-        if parsed.type == "main" then
+        -- restructure the ping json into smaller objects
+        local restructured = false
+
+        if type(parsed.environment) == "table" then
             split_objects(msg.Fields, parsed.environment, "environment", environment_objects)
+            restructured = true
+        end
+
+        if parsed.type == "main" and type(parsed.payload) == "table" then
             split_objects(msg.Fields, parsed.payload, "payload", main_ping_objects)
+            restructured = true
+        end
+
+        if restructured then
             local ok, json = pcall(cjson.encode, parsed) -- re-encode the remaining data
             if not ok then return json end
             msg.Payload = json
