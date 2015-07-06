@@ -81,7 +81,7 @@ local function update_week(ts, cid, day)
         error("data is in the past, this report doesn't back fill")
     end
 
-    local country = fx.get_country_id(read_message("Fields[geo]"))
+    local country = fx.get_country_id(read_message("Fields[country]"))
     local channel = fx.get_channel_id(read_message("Fields[channel]"))
     local _os     = fx.get_os_id(read_message("Fields[os]"))
 
