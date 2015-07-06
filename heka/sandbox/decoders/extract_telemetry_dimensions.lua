@@ -169,7 +169,8 @@ local function process_json(msg, json, parsed)
             restructured = true
         end
 
-        if parsed.type == "main" and type(parsed.payload) == "table" then
+        if (parsed.type == "main" or parsed.type == "saved-session")
+        and type(parsed.payload) == "table" then
             split_objects(msg.Fields, parsed.payload, "payload", main_ping_objects)
             restructured = true
         end
