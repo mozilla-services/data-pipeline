@@ -22,6 +22,7 @@ Firefox Weekly Dashboard
         [FirefoxWeeklyDashboard.config]
         items = 100000000
 --]]
+_PRESERVATION_VERSION = 1
 
 fx = require "fx" -- this must be global when we are pulling in other fx submodules
 require "fx.executive_report"
@@ -31,6 +32,7 @@ require "string"
 require "table"
 
 local WEEKS = 52
+local DAY_OFFSET = 4 -- start the week on Sunday and correct for the Unix epoch landing on a Thursday
 local SEC_IN_DAY = 60 * 60 * 24
 local SEC_IN_WEEK = SEC_IN_DAY * 7
 local floor = math.floor
@@ -51,7 +53,7 @@ local function get_row(week, geo, channel, _os)
     local key = format("%d,%d,%d", geo, channel, _os)
     local r = w[key]
     if not r then
-        local ds = date("%Y-%m-%d", week * SEC_IN_WEEK - (3 * SEC_IN_DAY))
+        local ds = date("%Y-%m-%d", week * SEC_IN_WEEK - (DAY_OFFSET * SEC_IN_DAY))
         -- date, actives, hours, inactives, new_records, five_of_seven, total_records, crashes, default, google, bing, yahoo, other
         r = {ds, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
         w[key] = r
@@ -67,7 +69,7 @@ local function clear_weeks(s, e)
 end
 
 local function update_week(ts, cid, day)
-    local week = floor((day + 3) / 7) -- align the week on Monday
+    local week = floor((day + DAY_OFFSET) / 7)
     if current_week == -1 then current_week = week end
 
     local delta = week - current_week
@@ -89,7 +91,7 @@ local function update_week(ts, cid, day)
     if r then
         if read_message("Type") == "executive_summary" then
             local dflt = fx.get_boolean_value(read_message("Fields[default]"))
-            fx_cids:add(cid, country, channel, _os, (day + 3) % 7, dflt)
+            fx_cids:add(cid, country, channel, _os, (day + DAY_OFFSET) % 7, dflt)
             r[3]  = r[3]  + (tonumber(read_message("Fields[hours]")) or 0)
             r[10] = r[10] + (tonumber(read_message("Fields[google]")) or 0)
             r[11] = r[11] + (tonumber(read_message("Fields[bing]")) or 0)
