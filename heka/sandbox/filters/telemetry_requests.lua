@@ -9,7 +9,7 @@ local title             = "Telemetry Requests"
 local rows              = read_config("rows") or 14400
 local sec_per_row       = read_config("sec_per_row") or 60
 
-cbuf = circular_buffer.new(rows, 1, sec_per_row)
+cbuf = circular_buffer.new(rows, 1, sec_per_row, true)
 cbuf:set_header(1, "Requests")
 
 function process_message ()
@@ -18,5 +18,6 @@ function process_message ()
 end
 
 function timer_event(ns)
-    inject_payload("cbuf", title, cbuf)
+    inject_payload("cbuf", title, cbuf:format("cbuf"))
+    inject_payload("cbufd", title, cbuf:format("cbufd"))
 end

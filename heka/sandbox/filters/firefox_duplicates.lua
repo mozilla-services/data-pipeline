@@ -33,7 +33,7 @@ local probability = read_config("probability") or 0.01
 bf = bloom_filter.new(items, probability)
 
 local cols = fx.get_channel_count()
-cb  = circular_buffer.new(180, cols, 60*60*24)
+cb  = circular_buffer.new(180, cols, 60*60*24, true)
 for i=1, cols do
     cb:set_header(i, fx.get_channel_name(i-1))
 end
@@ -57,9 +57,10 @@ function process_message()
     return 0
 end
 
-
+local title = "graph"
 function timer_event(ns)
-    inject_payload("cbuf", "graph", cb)
+    inject_payload("cbuf", title, cb:format("cbuf"))
+    inject_payload("cbufd", title, cb:format("cbufd"))
 
     local found = false
     for k,_ in pairs(cids) do

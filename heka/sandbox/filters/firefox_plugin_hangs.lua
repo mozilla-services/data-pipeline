@@ -35,8 +35,8 @@ end
 
 local channel_cnt = fx.get_channel_count()
 for i=1, channel_cnt do
-    local hph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY)   -- hangs per hour
-    local cph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY)   -- crashes per hour
+    local hph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY, true)   -- hangs per hour
+    local cph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY, true)   -- crashes per hour
     local hours = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- total hours of use
     local hangs = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- total number of hangs
     local crashes = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- total number of crashes
@@ -147,7 +147,11 @@ end
 
 function timer_event(ns)
     for k,v in pairs(channels) do
-        inject_payload("cbuf", k, v.hph)
-        inject_payload("cbuf", k .. "-crashes", v.cph)
+        inject_payload("cbuf", k, v.hph:format("cbuf"))
+        inject_payload("cbufd", k, v.hph:format("cbufd"))
+
+        local title = k .. "-crashes"
+        inject_payload("cbuf", title, v.cph:format("cbuf"))
+        inject_payload("cbufd", title, v.cph:format("cbufd"))
     end
 end

@@ -9,15 +9,15 @@
 2) What's the distribution of the latency between the subsession ping creation time
    and the server reception time in the past 7 days?
 
-3) What’s the delay in hours for active profiles between the date a ping was created 
+3) What’s the delay in hours for active profiles between the date a ping was created
    and the time it was received on our servers? When a new submission for an
-   active profile is received, the latency between the ping creation date and the 
+   active profile is received, the latency between the ping creation date and the
    reception time is computed. Periodically, a histogram of the latencies is plot.
 
-4) How many days do we need to look back to see at least one submission for k% of 
-   active profiles? Each active profile is associated to the date for which a submission 
-   was last received on our servers. Periodically, we compute for all profiles the 
-   difference between the current date and the date of reception and finally plot 
+4) How many days do we need to look back to see at least one submission for k% of
+   active profiles? Each active profile is associated to the date for which a submission
+   was last received on our servers. Periodically, we compute for all profiles the
+   difference between the current date and the date of reception and finally plot
    a histogram of the differences expressed in number of days.
 
 Note that:
@@ -88,7 +88,7 @@ end
 local function get_history(unit, metric_history_by_channel, channel)
    local history = metric_history_by_channel[channel]
    if not history then
-      history = circular_buffer.new(rows, 3, sec_per_row)
+      history = circular_buffer.new(rows, 3, sec_per_row, true)
       history:set_header(MEDIAN, "Median", unit, "none")
       history:set_header(PERCENTILE_75, "75th percentile", unit, "none")
       history:set_header(PERCENTILE_99, "99th percentile", unit, "none")
@@ -145,7 +145,9 @@ local function update_plot(descr, unit, channel, history, metric, ns, calc)
    if perc75 then history:set(ns, PERCENTILE_75, perc75) end
    if perc99 then history:set(ns, PERCENTILE_99, perc99) end
 
-   inject_payload("cbuf", channel .. " " .. descr, history)
+   local title = string.format("%s %s", channel, descr)
+   inject_payload("cbuf", title, history:format("cbuf"))
+   inject_payload("cbufd", title, history:format("cbufd"))
 end
 
 local function timer_event_client_metric(descr, unit, metric_by_channel,
