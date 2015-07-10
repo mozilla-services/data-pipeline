@@ -25,10 +25,10 @@ local alert = require "alert"
 
 local plugins        = {}
 
-local function find_plugin(name)
+local function find_plugin(name, ts)
     local p = plugins[name]
     if not p then
-        p = {last_alert = 0, last_pff = 0, last_pmc = 0}
+        p = {last_alert = 0, last_pff = 0, last_pmc = 0, last_update = ts}
         plugins[name] = p
     end
     return p
@@ -39,12 +39,14 @@ function process_message ()
     if not ok then return -1, json end
     if type(json.outputs) ~= "table" then return -1, "missing outputs array" end
 
+    local ts = read_message("Timestamp")
+
     for i,v in ipairs(json.outputs) do
         if type(v) ~= "table" then return -1, "invalid output object" end
         if type(v.ProcessFileFailures) == "table" then -- confirm this plugin has the S3 instrumentation
             if not v.Name then return -1, "missing plugin Name" end
 
-            local p = find_plugin(v.Name)
+            local p = find_plugin(v.Name, ts)
             local n = v.ProcessFileFailures.value
             if type(n) == "number" and n > p.last_pff then
                 p.msg = string.format("%s ProcessFileFailures has increased to %d", v.Name, n)
@@ -54,10 +56,16 @@ function process_message ()
             if v.Name ~= "TelemetryErrorsOutput" then
                 n = v.ProcessMessageCount.value
                 if type(n) == "number" then
-                    if n == p.last_pmc then -- no message in the Dashboard ticker_interval
-                        p.msg = string.format("%s ProcessMessageCount has stalled at %d", v.Name, n)
+                    if n == p.last_pmc then
+                        if p.last_update + 60 * 1e9 < ts then
+                            p.msg = string.format("%s ProcessMessageCount has stalled at %d", v.Name, n)
+                        end
+                    else
+                        if ts >= p.last_update then
+                            p.last_update = ts
+                            p.last_pmc = n
+                        end
                     end
-                    p.last_pmc = n
                 end
             end
         end
