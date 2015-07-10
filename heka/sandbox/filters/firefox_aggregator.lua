@@ -53,10 +53,7 @@ local MAX_TTL = 24*60*60*1e9
 cbufs = {}
 hosts = {}
 
-local function init_cbuf(payload_name, data)
-    local ok, h = pcall(cjson.decode, data.header)
-    if not ok then return end
-
+local function init_cbuf(payload_name, h)
     local cb = circular_buffer.new(h.rows, h.columns, h.seconds_per_row, enable_delta)
     for i,v in ipairs(h.column_info) do
         cb:set_header(i, v.name, v.unit, v.aggregation)
@@ -65,6 +62,21 @@ local function init_cbuf(payload_name, data)
 
     cbufs[payload_name] = {cb = cb, last_update = 0}
     return cbufs[payload_name]
+end
+
+local function update_cbuf(cb, data)
+    for i,v in ipairs(data) do
+        for col, value in ipairs(v) do
+            if value == value then -- NaN test, only aggregrate numbers
+                local n, u, agg = cb:get_header(col)
+                if  agg == "sum" then
+                    cb:add(v.time, col, value)
+                elseif agg == "min" or agg == "max" then
+                    cb:set(v.time, col, value)
+                end
+            end
+        end
+    end
 end
 
 ----
@@ -81,26 +93,20 @@ function process_message ()
         local data = cbufd.grammar:match(payload)
         if not data then return -1, "cbufd parse failed" end
 
-        local cb = cbufs[payload_name]
-        if not cb then
-            cb = init_cbuf(payload_name, data)
-            if not cb then return -1, "invalid cbufd header" end
+        local ok, header = pcall(cjson.decode, data.header)
+        if not ok then return -1, "malformed cbufd header" end
+
+        local cbt = cbufs[payload_name]
+        if not cbt then
+            ok, cbt = pcall(init_cbuf, payload_name, header)
+            if not ok then return -1, "invalid cbufd header" end
         end
 
-        cb.last_update = last_update
-
-        for i,v in ipairs(data) do
-            for col, value in ipairs(v) do
-                if value == value then -- NaN test, only aggregrate numbers
-                    local n, u, agg = cb.cb:get_header(col)
-                    if  agg == "sum" then
-                        cb.cb:add(v.time, col, value)
-                    elseif agg == "min" or agg == "max" then
-                        cb.cb:set(v.time, col, value)
-                    end
-                end
-            end
+        if not pcall(update_cbuf, cbt.cb, data) then
+            return -1, "invalid cbufd data"
         end
+
+        cbt.last_update = last_update
     elseif payload_type == "txt" or payload_type == "json" then
         local hostname = read_message("Hostname") or "unknown"
 
