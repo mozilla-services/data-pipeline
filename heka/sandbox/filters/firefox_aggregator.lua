@@ -81,7 +81,7 @@ end
 
 ----
 
-function process_message ()
+function process_message()
     local ts = read_message("Timestamp")
     if last_update < ts then last_update = ts end
 
@@ -89,7 +89,7 @@ function process_message ()
     local payload_name = read_message("Fields[payload_name]") or ""
     local payload_type = read_message("Fields[payload_type]")
 
-    if payload_type == "cbufd"  then
+    if payload_type == "cbufd" then
         local data = cbufd.grammar:match(payload)
         if not data then return -1, "cbufd parse failed" end
 
