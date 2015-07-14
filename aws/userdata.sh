@@ -19,3 +19,6 @@ tar -C /usr/local -xzf go1.4.2.linux-amd64.tar.gz
 
 wget http://people.mozilla.org/~mreid/heka-data-pipeline-linux-amd64.tar.gz
 tar xzvf heka-data-pipeline-linux-amd64.tar.gz
+
+echo "ubuntu hard nofile 200000" >> /etc/security/limits.conf
+echo "ubuntu soft nofile 50000" >> /etc/security/limits.conf
