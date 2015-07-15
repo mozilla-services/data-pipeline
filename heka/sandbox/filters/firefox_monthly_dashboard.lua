@@ -91,13 +91,20 @@ local function update_month(ts, cid, day_changed)
         current_month = month
     end
 
-    local country = fx.get_country_id(read_message("Fields[country]"))
-    local channel = fx.get_channel_id(read_message("Fields[channel]"))
-    local _os     = fx.get_os_id(read_message("Fields[os]"))
+    local msgType = read_message("Type")
+    local _os = fx.get_os_id(read_message("Fields[os]"))
+    local country, channel
+    if msgType == "executive_summary" then
+        country = fx.get_country_id(read_message("Fields[country]"))
+        channel = fx.get_channel_id(read_message("Fields[channel]"))
+    else
+        country = fx.get_country_id(read_message("Fields[geoCountry]"))
+        channel = fx.get_channel_id(read_message("Fields[appUpdateChannel]"))
+    end
 
     local r = get_row(ts, month, country, channel, _os)
     if r then
-        if read_message("Type") == "executive_summary" then
+        if msgType == "executive_summary" then
             local dflt = fx.get_boolean_value(read_message("Fields[default]"))
             fx_cids:add(cid, country, channel, _os, 0, dflt)
             r[3]  = r[3]  + (tonumber(read_message("Fields[hours]")) or 0)
