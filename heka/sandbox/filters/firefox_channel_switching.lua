@@ -12,15 +12,17 @@ Firefox Channel Switching
     [FirefoxChannelSwitching]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_channel_switching.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox'" # don't restrict by vendor
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
     memory_limit = 1000000000
     ticker_interval = 60
     preserve_data = true
+
         [FirefoxChannelSwitching.config]
         anomaly_config = 'mww_nonparametric("nightly", 3, 3, 4, 0.6) mww_nonparametric("beta", 3, 3, 4, 0.6)'
 --]]
 _PRESERVATION_VERSION = 1
 
+local fx = require "fx"
 require "circular_buffer"
 require "cuckoo_filter"
 local l = require "lpeg"
@@ -38,7 +40,7 @@ local COL_IN      = 2
 local COL_OUT     = 3
 
 local function create_cbuf()
-    local cb = circular_buffer.new(rows, COL_OUT, sec_per_row)
+    local cb = circular_buffer.new(rows, COL_OUT, sec_per_row, true)
     cb:set_header(COL_NEW   , "new")
     cb:set_header(COL_IN    , "switched in")
     cb:set_header(COL_OUT   , "switched out")
@@ -49,29 +51,11 @@ channels = {
     {name = "release"        , cb = create_cbuf(), cf = cuckoo_filter.new(100e6)},
     {name = "beta"           , cb = create_cbuf(), cf = cuckoo_filter.new(10e6)},
     {name = "nightly"        , cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
-
     -- aurora uses a different profile so we do not expect to see any switches
     {name = "aurora", cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
-
-    -- ignoring until we have a use case
-    -- {name = "release-partner", cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
-    -- {name = "esr"            , cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
-    -- {name = "esr-partner"    , cb = create_cbuf(), cf = cuckoo_filter.new(1e6)},
-
-    {name = "other"          , cb = create_cbuf(), cf = cuckoo_filter.new(100e6)},
+    {name = "Other"          , cb = create_cbuf(), cf = cuckoo_filter.new(100e6)},
 }
 local CHANNELS_SIZE = #channels
-
-local normalize_channel =
-l.C"release" * -1 +
-l.C"beta" +
-(l.P("nightly") * -1 + "nightly-cck-") / "nightly" +
--- ignore until we have a use case
--- l.P"release-cck-" / "release-partner" +
--- l.C"esr" * -1 +
--- l.P"esr-cck-" / "esr-partner" +
-l.C"aurora" * -1 +
-l.Cc"other"
 
 function process_message()
     local cid = read_message("Fields[clientId]")
@@ -80,7 +64,7 @@ function process_message()
     local chan = read_message("Fields[appUpdateChannel]")
     if not chan then return -1, "missing appUpdateChannel" end
 
-    chan = normalize_channel:match(chan)
+    chan = fx.normalize_channel(chan)
 
     local ts = read_message("Timestamp")
     local matched, added, deleted = nil, false, false
@@ -121,13 +105,14 @@ function timer_event(ns)
             end
             local a = annotation.prune(v.name, ns)
             if a then
-                inject_payload("cbuf", v.name, a, v.cb)
+                inject_payload("cbuf", v.name, a, v.cb:format("cbuf"))
             else
-                inject_payload("cbuf", v.name, v.cb)
+                inject_payload("cbuf", v.name, v.cb:format("cbuf"))
             end
         else
-            inject_payload("cbuf", v.name, v.cb)
+            inject_payload("cbuf", v.name, v.cb:format("cbuf"))
         end
+        inject_payload("cbufd", v.name, v.cb:format("cbufd"))
     end
     alert.send_queue(ns)
 end

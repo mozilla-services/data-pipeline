@@ -14,11 +14,12 @@ Config:
     [FirefoxSearches]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_searches.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main'"
+    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox' && Fields[appVendor] == 'Mozilla'"
     ticker_interval = 60
     output_limit = 512000
     preserve_data = true
 --]]
+_PRESERVATION_VERSION = 1
 
 require "cjson"
 require "circular_buffer"
@@ -36,7 +37,7 @@ local countries      = {"US", "CN", "RU", "Total"}
 local COUNTRIES_SIZE = #countries
 
 local function make_cbuf()
-    local cb = circular_buffer.new(ROWS, ORIGINS_SIZE, SEC_PER_ROW)
+    local cb = circular_buffer.new(ROWS, ORIGINS_SIZE, SEC_PER_ROW, true)
     for i, v in ipairs(origins) do
         cb:set_header(i, v)
     end
@@ -44,14 +45,13 @@ local function make_cbuf()
 end
 
 engines = {
-    {name = "Amazon", cbuf = make_cbuf(), match = "[Aa]mazon"},
     {name = "Bing"  , cbuf = make_cbuf(), match = "[Bb]ing"},
     {name = "Google", cbuf = make_cbuf(), match = "[Gg]oogle"},
     {name = "Yahoo" , cbuf = make_cbuf(), match = "[Yy]ahoo"},
     {name = "Other" , cbuf = make_cbuf(), match = "."}
 }
 
-totals = circular_buffer.new(ROWS, #engines * COUNTRIES_SIZE, SEC_PER_ROW)
+totals = circular_buffer.new(ROWS, #engines * COUNTRIES_SIZE, SEC_PER_ROW, true)
 for i, v in ipairs(engines) do
     for j, c in ipairs(countries) do
         totals:set_header((i-1) * COUNTRIES_SIZE + j, string.format("%s_%s", v.name, c))
@@ -110,11 +110,14 @@ for i=1, ROWS do
     end
 end
 
+local title = "Totals"
 function timer_event(ns)
     for i, v in ipairs(engines) do
-        inject_payload("cbuf", v.name, v.cbuf)
+        inject_payload("cbuf", v.name, v.cbuf:format("cbuf"))
+        inject_payload("cbufd", v.name, v.cbuf:format("cbufd"))
     end
-    inject_payload("cbuf", "Totals", totals)
+    inject_payload("cbuf", title, totals:format("cbuf"))
+    inject_payload("cbufd", title, totals:format("cbufd"))
 
     local ts = totals:current_time() - (ROWS - 1) * SEC_PER_ROW * 1e9
     for i, v in ipairs(json) do

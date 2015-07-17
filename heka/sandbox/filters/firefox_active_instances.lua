@@ -12,11 +12,10 @@ Firefox Active Instances
     [FirefoxActiveInstances]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_active_instances.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox' && Fields[appVendor] == 'Mozilla'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
     ticker_interval = 60
     preserve_data = true
 --]]
-
 require "circular_buffer"
 require "cjson"
 require "math"
@@ -28,7 +27,7 @@ local SEC_IN_DAY = 60 * 60 * 24
 local floor = math.floor
 local date = os.date
 
-day_cb  = circular_buffer.new(DAYS, 1, SEC_IN_DAY)
+day_cb  = circular_buffer.new(DAYS, 1, SEC_IN_DAY, true)
 day_cb:set_header(1, "Active Instances")
 day_hll = {}
 for i=1,DAYS do
@@ -117,8 +116,10 @@ function process_message()
     return 0
 end
 
+local title = "Firefox Active Daily Instances"
 function timer_event(ns)
-    inject_payload("cbuf", "Firefox Active Daily Instances", day_cb)
+    inject_payload("cbuf", title, day_cb:format("cbuf"))
+    inject_payload("cbufd", title, day_cb:format("cbufd"))
 
     local json = {}
     local idx = current_month

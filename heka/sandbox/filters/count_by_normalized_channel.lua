@@ -12,8 +12,8 @@ Request Counts by Normalized Channel
     [CountByNormalizedChannel]
     type = "SandboxFilter"
     filename = "lua_filters/count_by_normalized_channel.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main'"
-    ticker_interval = 30
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    ticker_interval = 60
     preserve_data = true
 
 --]]
@@ -33,7 +33,7 @@ end
 
 function process_message()
     local ts = read_message("Timestamp")
-    local normalized = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
+    local normalized = fx.normalize_channel(read_message("Fields[channel]"))
 
     -- Need to add one to account for "Other" (which comes back as zero)
     local column_id = fx.get_channel_id(normalized) + 1
@@ -41,6 +41,8 @@ function process_message()
     return 0
 end
 
+local title = "Counts by Normalized Channel"
 function timer_event(ns)
-    inject_payload("cbuf", "Counts by Normalized Channel", channel_counter)
+    inject_payload("cbuf", title, channel_counter:format("cbuf"))
+    inject_payload("cbufd", title, channel_counter:format("cbufd"))
 end

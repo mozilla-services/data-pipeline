@@ -16,7 +16,7 @@ Firefox Plugin Hangs
     ticker_interval = 60
     preserve_data = true
 --]]
-
+_PRESERVATION_VERSION = 1
 
 require "circular_buffer"
 require "string"
@@ -28,22 +28,26 @@ local BUILD_IDS  = 6 -- number of builds to display on the graph (newer builds r
 local DAYS       = 180
 local SEC_IN_DAY = 60 * 60 * 24
 
-local function set_header(hph, cph, col, id)
-    hph:set_header(col, id, "hangs/hour", "none")
-    cph:set_header(col, id, "crash/hour", "none")
+local function set_headers(channel, col, id)
+    channel.hph:set_header(col, id, "hangs/hour", "none")
+    channel.cph:set_header(col, id, "crash/hour", "none")
+    channel.hours:set_header(col, id)
+    channel.hangs:set_header(col, id)
+    channel.crashes:set_header(col, id)
 end
 
 local channel_cnt = fx.get_channel_count()
 for i=1, channel_cnt do
-    local hph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY)   -- hangs per hour
-    local cph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY)   -- crashes per hour
-    local hours = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- total hours of use
-    local hangs = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- total number of hangs
-    local crashes = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- total number of crashes
-    channels[fx.get_channel_name(i-1)] = {hph = hph, cph = cph, hours = hours, hangs = hangs, crashes = crashes, ids = {}}
+    local hph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- hangs per hour
+    local cph = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY) -- crashes per hour
+    local hours = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY, true) -- total hours of use
+    local hangs = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY, true) -- total number of hangs
+    local crashes = circular_buffer.new(DAYS, BUILD_IDS, SEC_IN_DAY, true) -- total number of crashes
+    local channel = {hph = hph, cph = cph, hours = hours, hangs = hangs, crashes = crashes, ids = {}}
     for j=1, BUILD_IDS do
-        set_header(hph, cph, j, "unknown")
+        set_headers(channel, j, "unknown")
     end
+    channels[fx.get_channel_name(i-1)] = channel
 end
 
 local function find_build_id(channel, id)
@@ -54,7 +58,7 @@ local function find_build_id(channel, id)
         if not channel.ids[i] then
             channel.ids[i] = id
             col = i
-            set_header(channel.hph, channel.cph, col, id)
+            set_headers(channel, col, id)
             break
         end
 
@@ -82,7 +86,7 @@ local function find_build_id(channel, id)
             t = t - SEC_IN_DAY * 1e9
         end
         channel.ids[col] = id
-        set_header(channel.hph, channel.cph, col, id)
+        set_headers(channel, col, id)
     end
 
     return col
@@ -147,7 +151,11 @@ end
 
 function timer_event(ns)
     for k,v in pairs(channels) do
-        inject_payload("cbuf", k, v.hph)
-        inject_payload("cbuf", k .. "-crashes", v.cph)
+        inject_payload("cbuf", k .. "_hph", v.hph:format("cbuf"))
+        inject_payload("cbuf", k .. "_cph", v.cph:format("cbuf"))
+
+        inject_payload("cbufd",  k .. "_hours", v.hours:format("cbufd"))
+        inject_payload("cbufd",  k .. "_hangs", v.hangs:format("cbufd"))
+        inject_payload("cbufd",  k .. "_crashes", v.crashes:format("cbufd"))
     end
 end

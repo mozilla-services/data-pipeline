@@ -12,7 +12,7 @@ Firefox Usage Hours
     [FirefoxUsage]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_usage.lua"
-    message_matcher = "Type == 'telemetry' && Fields[docType] == 'main' && Fields[appName] == 'Firefox' && Fields[appVendor] == 'Mozilla'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
     ticker_interval = 60
     preserve_data = true
 --]]
@@ -28,7 +28,7 @@ local SEC_IN_DAY = 60 * 60 * 24
 local floor = math.floor
 local date = os.date
 
-day_cb  = circular_buffer.new(DAYS, 1, SEC_IN_DAY)
+day_cb  = circular_buffer.new(DAYS, 1, SEC_IN_DAY, true)
 day_cb:set_header(1, "Active Hours")
 current_day = -1
 
@@ -73,19 +73,11 @@ end
 ----
 
 function process_message()
-    local json = read_message("Fields[payload.info]")
-    local ok, json = pcall(cjson.decode, json)
-    if not ok then
-        return -1, json
+    local hours = read_message("Fields[hours]")
+    if type(hours) ~= "number" then
+        return -1, "missing/invalid hours"
     end
-
-    local uptime = json.subsessionLength
-    if type(uptime) ~= "number" or uptime < 0 or uptime >= 180 * SEC_IN_DAY then
-        return -1, "missing/invalid subsessionLength"
-    end
-    if uptime == 0 then return 0 end
-
-    uptime = uptime / 3600 -- convert to hours
+    if hours == 0 then return 0 end
 
     local ts  = read_message("Timestamp")
     local day = floor(ts / (SEC_IN_DAY * 1e9))
@@ -98,14 +90,16 @@ function process_message()
         return -1, "data is too old"
     end
 
-    day_cb:add(ts, 1, uptime)
-    update_month(ts, uptime, day_changed, day_advanced)
+    day_cb:add(ts, 1, hours)
+    update_month(ts, hours, day_changed, day_advanced)
 
     return 0
 end
 
+local title = "Firefox Daily Active Hours"
 function timer_event(ns)
-    inject_payload("cbuf", "Firefox Daily Active Hours", day_cb)
+    inject_payload("cbuf", title, day_cb:format("cbuf"))
+    inject_payload("cbufd", title, day_cb:format("cbufd"))
 
     local json = {}
     local idx = current_month

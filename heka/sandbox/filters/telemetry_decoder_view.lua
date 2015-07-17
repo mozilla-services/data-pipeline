@@ -27,7 +27,7 @@ local ROWS          = 2880
 local items         = read_config("bloom_items") or 3*1e6
 local probability   = read_config("bloom_probability") or 0.01
 bf                  = bloom_filter.new(items, probability)
-cb                  = circular_buffer.new(ROWS, 3, SEC_PER_ROW)
+cb                  = circular_buffer.new(ROWS, 3, SEC_PER_ROW, true)
 local TOTAL         = cb:set_header(1, "Total")
 local FAILURES      = cb:set_header(2, "Failures")
 local DUPLICATES    = cb:set_header(3, "Duplicates")
@@ -111,6 +111,7 @@ end
 
 last_cleared = nil
 
+local title = "Telemetry Decoder Statistics"
 function timer_event(ns)
     if last_cleared and ns - last_cleared >= 1e9 * ROWS * SEC_PER_ROW then
         bf:clear()
@@ -127,5 +128,6 @@ function timer_event(ns)
     if samples == 0 then
         alert.send(ns, "no new data")
     end
-    inject_payload("cbuf", "Telemetry Decoder Statistics", cb)
+    inject_payload("cbuf", title, cb:format("cbuf"))
+    inject_payload("cbufd", title, cb:format("cbufd"))
 end
