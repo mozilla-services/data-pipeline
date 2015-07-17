@@ -92,7 +92,6 @@ local function update_month(ts, cid, day_changed)
     end
 
     local msgType = read_message("Type")
-    local _os = fx.get_os_id(read_message("Fields[os]"))
     local country, channel, _os
     if msgType == "executive_summary" then
         country = fx.get_country_id(read_message("Fields[country]"))
