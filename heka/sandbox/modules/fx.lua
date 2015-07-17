@@ -27,7 +27,7 @@ local function anywhere (p)
 end
 
 local normalize_os_grammar =
-(l.P"Windows" + "WINNT" + "Windows_NT") / "Windows" +
+(l.P"Windows" + "WINNT") / "Windows" +
 l.P"Darwin" / "Mac" +
 (anywhere"Linux" + anywhere"BSD" + anywhere"SunOS") / "Linux" +
 l.Cc"Other"
