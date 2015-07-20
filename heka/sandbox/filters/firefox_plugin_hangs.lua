@@ -117,13 +117,8 @@ function process_message ()
 
     if col then
         local ts = read_message("Timestamp")
-        if read_message("Fields[reason]") == "es.crash" then
-            local hours = channel.hours:get(ts, col)
-            local total = channel.crashes:add(ts, col, 1)
-            if total and hours then
-                channel.cph:set(ts, col, total/hours)
-            end
-        else
+        local doc_type = read_message("Fields[docType]")
+        if  doc_type == "main" then
             local hours = channel.hours:add(ts, col, get_hours())
             local hangs = read_message("Fields[pluginHangs]")
             if type(hangs) ~= "number" then return -1, "invalid pluginHangs" end
@@ -132,6 +127,12 @@ function process_message ()
             local total = channel.hangs:add(ts, col, hangs)
             if total and hours then
                 channel.hph:set(ts, col, total/hours)
+            end
+        elseif doc_type == "crash" then
+            local hours = channel.hours:get(ts, col)
+            local total = channel.crashes:add(ts, col, 1)
+            if total and hours then
+                channel.cph:set(ts, col, total/hours)
             end
         end
     end

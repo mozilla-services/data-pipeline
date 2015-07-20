@@ -96,6 +96,7 @@ end
 
 ----
 local crash_fields = {
+    docType             = {value = ""},
     submissionDate      = {value = ""},
     clientId            = {value = ""},
     documentId          = {value = ""},
@@ -103,11 +104,11 @@ local crash_fields = {
     channel             = {value = ""},
     os                  = {value = ""},
     default             = {value = false},
-    reason              = {value = ""},
     buildId             = {value = ""},
 }
 
 local main_fields = {
+    docType             = crash_fields.docType,
     submissionDate      = crash_fields.submissionDate,
     clientId            = crash_fields.clientId,
     documentId          = crash_fields.documentId,
@@ -115,8 +116,8 @@ local main_fields = {
     channel             = crash_fields.channel,
     os                  = crash_fields.os,
     default             = crash_fields.default,
-    reason              = crash_fields.reason,
     buildId             = crash_fields.buildId,
+    reason              = {value = ""},
     hours               = {value = 0},
     google              = {value = 0, value_type = 2},
     bing                = {value = 0, value_type = 2},
@@ -146,6 +147,7 @@ function process_message()
     else
         return 0
     end
+    msg.Fields.docType.value = doc_type
 
     if duplicate_original then
         inject_message(read_message("raw"))
@@ -167,14 +169,6 @@ function process_message()
     msg.Fields.os.value      = fx.normalize_os(read_message("Fields[os]"))
     msg.Fields.default.value = is_default_browser()
 
-    msg.Fields.reason.value = ""
-    local reason = read_message("Fields[reason]")
-    if type(reason) == "string" then
-        msg.Fields.reason.value = reason
-    elseif doc_type == "crash" then
-        msg.Fields.reason.value = "es.crash"
-    end
-
     msg.Fields.buildId.value = ""
     local bid = read_message("Fields[appBuildId]")
     if type(bid) == "string" then
@@ -182,6 +176,9 @@ function process_message()
     end
 
     if doc_type == "main" then
+        msg.Fields.reason.value = ""
+        local reason = read_message("Fields[reason]")
+        if type(reason) == "string" then msg.Fields.reason.value = reason end
         msg.Fields.hours.value              = 0
         msg.Fields.google.value             = 0
         msg.Fields.bing.value               = 0
