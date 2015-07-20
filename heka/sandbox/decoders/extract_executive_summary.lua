@@ -147,7 +147,7 @@ function process_message()
     else
         return 0
     end
-    msg.Fields.docType = doc_type
+    msg.Fields.docType.value = doc_type
 
     if duplicate_original then
         inject_message(read_message("raw"))
