@@ -12,7 +12,7 @@ Firefox Usage Hours
     [FirefoxUsage]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_usage.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[docType] == 'main'"
     ticker_interval = 60
     preserve_data = true
 --]]

@@ -99,14 +99,15 @@ local function update_month(ts, cid, day_changed)
     if r then
         local dflt = fx.get_boolean_value(read_message("Fields[default]"))
         fx_cids:add(cid, country, channel, _os, 0, dflt)
-        if read_message("Fields[reason]") == "es.crash" then
-            r[8] = r[8] + 1
-        else
+        local doc_type = read_message("Fields[docType]")
+        if doc_type == "main" then
             r[3]  = r[3]  + (tonumber(read_message("Fields[hours]")) or 0)
             r[10] = r[10] + (tonumber(read_message("Fields[google]")) or 0)
             r[11] = r[11] + (tonumber(read_message("Fields[bing]")) or 0)
             r[12] = r[12] + (tonumber(read_message("Fields[yahoo]")) or 0)
             r[13] = r[13] + (tonumber(read_message("Fields[other]")) or 0)
+        elseif doc_type == "crash" then
+            r[8] = r[8] + 1
         end
     end
 end
