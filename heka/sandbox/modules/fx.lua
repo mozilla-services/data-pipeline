@@ -6,6 +6,8 @@
 local ipairs = ipairs
 local type = type
 local l = require "lpeg"
+require "string"
+local upper = string.upper
 
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module
@@ -59,6 +61,19 @@ local country_names = {
 local country_ids = {}
 for i, v in ipairs(country_names) do
     country_ids[v] = i - 1
+end
+
+function normalize_country(name)
+    if type(name) == "string" then
+        name = upper(name)
+    else
+        name = ""
+    end
+
+    if not country_ids[name] then
+        return country_names[1]
+    end
+    return name
 end
 
 local channel_names = {"Other", "release", "beta", "nightly", "aurora"}

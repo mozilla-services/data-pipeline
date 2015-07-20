@@ -12,9 +12,9 @@ Firefox Telemetry Broken Session Analysis
     [FirefoxBrokenSessions]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_broken_sessions.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
-    output_limit = 8000000
-    memory_limit = 2000000000
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[reason] != 'es.crash'"
+    output_limit = 0
+    memory_limit = 0
     ticker_interval = 0
     preserve_data = false
     timer_event_on_shutdown = true

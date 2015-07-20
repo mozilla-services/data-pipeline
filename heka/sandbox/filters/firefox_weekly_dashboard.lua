@@ -12,9 +12,9 @@ Firefox Weekly Dashboard
     [FirefoxWeeklyDashboard]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_weekly_dashboard.lua"
-    message_matcher = "(Logger == 'fx' && Type == 'executive_summary') || (Type == 'telemetry' && Fields[docType] == 'crash')"
-    output_limit = 8000000
-    memory_limit = 2000000000
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    output_limit = 0
+    memory_limit = 0
     ticker_interval = 0
     preserve_data = false
     timer_event_on_shutdown = true
@@ -82,30 +82,23 @@ local function update_week(ts, cid, day)
     elseif delta < 0 then
         error("data is in the past, this report doesn't back fill")
     end
-    local msgType = read_message("Type")
-    local country, channel, _os
-    if msgType == "executive_summary" then
-        country = fx.get_country_id(read_message("Fields[country]"))
-        channel = fx.get_channel_id(read_message("Fields[channel]"))
-        _os     = fx.get_os_id(read_message("Fields[os]"))
-    else
-        country = fx.get_country_id(read_message("Fields[geoCountry]"))
-        channel = fx.get_channel_id(fx.normalize_channel(read_message("Fields[appUpdateChannel]")))
-        _os     = fx.get_os_id(fx.normalize_os(read_message("Fields[os]")))
-    end
+
+    local country = fx.get_country_id(read_message("Fields[country]"))
+    local channel = fx.get_channel_id(read_message("Fields[channel]"))
+    local _os     = fx.get_os_id(read_message("Fields[os]"))
 
     local r = get_row(week, country, channel, _os)
     if r then
-        if msgType == "executive_summary" then
-            local dflt = fx.get_boolean_value(read_message("Fields[default]"))
-            fx_cids:add(cid, country, channel, _os, (day + DAY_OFFSET) % 7, dflt)
+        local dflt = fx.get_boolean_value(read_message("Fields[default]"))
+        fx_cids:add(cid, country, channel, _os, (day + DAY_OFFSET) % 7, dflt)
+        if read_message("Fields[reason]") == "es.crash" then
+            r[8] = r[8] + 1
+        else
             r[3]  = r[3]  + (tonumber(read_message("Fields[hours]")) or 0)
             r[10] = r[10] + (tonumber(read_message("Fields[google]")) or 0)
             r[11] = r[11] + (tonumber(read_message("Fields[bing]")) or 0)
             r[12] = r[12] + (tonumber(read_message("Fields[yahoo]")) or 0)
             r[13] = r[13] + (tonumber(read_message("Fields[other]")) or 0)
-        else -- crash report
-            r[8] = r[8] + 1
         end
     end
 end
