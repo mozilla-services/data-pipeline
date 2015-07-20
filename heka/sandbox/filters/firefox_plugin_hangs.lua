@@ -12,7 +12,7 @@ Firefox Plugin Hangs
     [FirefoxPluginHangs]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_plugin_hangs.lua"
-    message_matcher = "(Logger == 'fx' && Type == 'executive_summary') || (Type == 'telemetry' && Fields[docType] == 'crash')"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
     ticker_interval = 60
     preserve_data = true
 --]]
@@ -110,17 +110,21 @@ end
 ----
 
 function process_message ()
-    local ts = read_message("Timestamp")
+    local bid = read_message("Fields[buildId]")
+    if type(bid) ~= "string" then return -1, "invalid buildId" end
+    local channel = channels[fx.normalize_channel(read_message("Fields[channel]"))]
+    local col = get_build_id_col(channel, bid)
 
-    if read_message("Type") == "executive_summary" then
-        local bid = read_message("Fields[buildId]")
-        if type(bid) ~= "string" then return -1, "invalid buildId" end
-
-        local channel = channels[fx.normalize_channel(read_message("Fields[channel]"))]
-        local col = get_build_id_col(channel, bid)
-        if col then
+    if col then
+        local ts = read_message("Timestamp")
+        if read_message("Fields[reason]") == "es.crash" then
+            local hours = channel.hours:get(ts, col)
+            local total = channel.crashes:add(ts, col, 1)
+            if total and hours then
+                channel.cph:set(ts, col, total/hours)
+            end
+        else
             local hours = channel.hours:add(ts, col, get_hours())
-
             local hangs = read_message("Fields[pluginHangs]")
             if type(hangs) ~= "number" then return -1, "invalid pluginHangs" end
             if hangs < 1 then return 0 end
@@ -128,19 +132,6 @@ function process_message ()
             local total = channel.hangs:add(ts, col, hangs)
             if total and hours then
                 channel.hph:set(ts, col, total/hours)
-            end
-        end
-    else -- crash ping
-        local bid = read_message("Fields[appBuildId]")
-        if type(bid) ~= "string" then return -1, "invalid buildId" end
-
-        local channel = channels[fx.normalize_channel(read_message("Fields[appUpdateChannel]"))]
-        local col = get_build_id_col(channel, bid)
-        if col then
-            local hours = channel.hours:get(ts, col)
-            local total = channel.crashes:add(ts, col, 1)
-            if total and hours then
-                channel.cph:set(ts, col, total/hours)
             end
         end
     end

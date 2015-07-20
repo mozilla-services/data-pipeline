@@ -49,49 +49,44 @@ local duplicate_original = read_config("duplicate_original")
 local SEC_IN_HOUR = 60 * 60
 local SEC_IN_DAY = SEC_IN_HOUR * 24
 
-local function get_search_counts()
-    -- google, bing, yahoo, other
+local function get_search_counts(khist, fields)
+    if type(khist.SEARCH_COUNTS) ~= "table" then return end
+
     local cnts = {0, 0, 0, 0}
-    local json = read_message("Fields[payload.keyedHistograms]")
-    if not json then return cnts end
-
-    local ok, khist = pcall(cjson.decode, json)
-    if not ok then return cnts end
-    if type(khist.SEARCH_COUNTS) ~= "table" then return cnts end
-
     for k, v in pairs(khist.SEARCH_COUNTS) do
         for i, e in ipairs({"[Gg]oogle", "[Bb]ing", "[Yy]ahoo", "."}) do
             if string.match(k, e) then
-                if type(v.sum) ~= "number" then return cnts end
-                cnts[i] = cnts[i] + v.sum
+                if type(v.sum) == "number" then
+                    cnts[i] = cnts[i] + v.sum
+                end
                 break
             end
         end
     end
-    return cnts;
+
+    fields.google.value = cnts[1]
+    fields.bing.value   = cnts[2]
+    fields.yahoo.value  = cnts[3]
+    fields.other.value  = cnts[4]
 end
 
 
-local function get_hours()
-    local json = read_message("Fields[payload.info]")
-    local ok, json = pcall(cjson.decode, json)
-    if not ok then return 0 end
-    local uptime = json.subsessionLength
+local function get_hours(info)
+    local uptime = info.subsessionLength
 
     if type(uptime) ~= "number" or uptime < 0 or uptime >= 180 * SEC_IN_DAY then
         return 0
     end
-    uptime = uptime / SEC_IN_HOUR -- convert to hours
-    return uptime
+    return uptime / SEC_IN_HOUR -- convert to hours
 end
 
 
 local function is_default_browser()
     local json = read_message("Fields[environment.settings]")
-    local ok, json = pcall(cjson.decode, json)
+    local ok, settings = pcall(cjson.decode, json)
     if not ok then return false end
 
-    local default = json.isDefaultBrowser
+    local default = settings.isDefaultBrowser
     if type(default) == "boolean" then
         return default
     end
@@ -100,36 +95,55 @@ end
 
 
 ----
+local crash_fields = {
+    submissionDate      = {value = ""},
+    clientId            = {value = ""},
+    documentId          = {value = ""},
+    country             = {value = ""},
+    channel             = {value = ""},
+    os                  = {value = ""},
+    default             = {value = false},
+    reason              = {value = ""},
+    buildId             = {value = ""},
+}
+
+local main_fields = {
+    submissionDate      = crash_fields.submissionDate,
+    clientId            = crash_fields.clientId,
+    documentId          = crash_fields.documentId,
+    country             = crash_fields.country,
+    channel             = crash_fields.channel,
+    os                  = crash_fields.os,
+    default             = crash_fields.default,
+    reason              = crash_fields.reason,
+    buildId             = crash_fields.buildId,
+    hours               = {value = 0},
+    google              = {value = 0, value_type = 2},
+    bing                = {value = 0, value_type = 2},
+    yahoo               = {value = 0, value_type = 2},
+    other               = {value = 0, value_type = 2},
+    sessionId           = {value = ""},
+    subsessionCounter   = {value = 0, value_type = 2},
+    pluginHangs         = {value = 0, value_type = 2},
+}
 
 local msg = {
     Timestamp   = nil,
     Logger      = "fx",
     Type        = "executive_summary",
-    Fields      = {
-        clientId            = {value = ""},
-        documentId          = {value = ""},
-        country             = {value = ""},
-        channel             = {value = ""},
-        os                  = {value = ""},
-        hours               = {value = 0},
-        default             = {value = false},
-        google              = {value = 0, value_type = 2},
-        bing                = {value = 0, value_type = 2},
-        yahoo               = {value = 0, value_type = 2},
-        other               = {value = 0, value_type = 2},
-        reason              = {value = ""},
-        sessionId           = {value = ""},
-        subsessionCounter   = {value = 0, value_type = 2},
-        buildId             = {value = ""},
-        pluginHangs         = {value = 0, value_type = 2},
-        submissionDate      = {value = ""},
-    }
+    Fields      = main_fields,
 }
 
 
 function process_message()
-    if read_message("Type") ~= "telemetry"
-    or read_message("Fields[docType]") ~= "main" then
+    if read_message("Type") ~= "telemetry" then return 0 end
+
+    local doc_type = read_message("Fields[docType]")
+    if doc_type == "main" then
+        msg.Fields = main_fields
+    elseif doc_type == "crash" then
+        msg.Fields = crash_fields
+    else
         return 0
     end
 
@@ -148,63 +162,63 @@ function process_message()
     if type(did) ~= "string" then return 0 end
     msg.Fields.documentId.value = did
 
-    local country = read_message("Fields[geoCountry]") or "Other"
-    if country == "??" then country = "Other" end
-    msg.Fields.country.value = country
-
+    msg.Fields.country.value = fx.normalize_country(read_message("Fields[geoCountry]"))
     msg.Fields.channel.value = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
-
-    msg.Fields.os.value = fx.normalize_os(read_message("Fields[os]"))
-
-    msg.Fields.hours.value = get_hours()
-
+    msg.Fields.os.value      = fx.normalize_os(read_message("Fields[os]"))
     msg.Fields.default.value = is_default_browser()
 
-    local cnts = get_search_counts()
-    msg.Fields.google.value = cnts[1]
-    msg.Fields.bing.value   = cnts[2]
-    msg.Fields.yahoo.value  = cnts[3]
-    msg.Fields.other.value  = cnts[4]
-
-    msg.Fields.reason.value             = ""
-    msg.Fields.sessionId.value          = ""
-    msg.Fields.subsessionCounter.value  = 0
-    msg.Fields.buildId.value            = ""
-    msg.Fields.pluginHangs.value        = 0
-
-    -- add session information for broken session monitoring
+    msg.Fields.reason.value = ""
     local reason = read_message("Fields[reason]")
     if type(reason) == "string" then
         msg.Fields.reason.value = reason
+    elseif doc_type == "crash" then
+        msg.Fields.reason.value = "es.crash"
     end
 
-    local json = read_message("Fields[payload.info]")
-    local ok, json = pcall(cjson.decode, json)
-    if ok then
-        if type(json.sessionId) == "string" then
-            msg.Fields.sessionId.value = json.sessionId
-        end
-        if type(json.subsessionCounter) == "number" then
-            msg.Fields.subsessionCounter.value = json.subsessionCounter
-        end
-    end
-
-    -- add plugin hang information
+    msg.Fields.buildId.value = ""
     local bid = read_message("Fields[appBuildId]")
     if type(bid) == "string" then
         msg.Fields.buildId.value = bid
     end
 
-    json = read_message("Fields[payload.keyedHistograms]")
-    ok, json = pcall(cjson.decode, json)
-    if ok then
-        local t = json.SUBPROCESS_ABNORMAL_ABORT
-        if type(t) == "table" then
-            t = t.plugin
+    if doc_type == "main" then
+        msg.Fields.hours.value              = 0
+        msg.Fields.google.value             = 0
+        msg.Fields.bing.value               = 0
+        msg.Fields.yahoo.value              = 0
+        msg.Fields.other.value              = 0
+        msg.Fields.sessionId.value          = ""
+        msg.Fields.subsessionCounter.value  = 0
+        msg.Fields.pluginHangs.value        = 0
+
+        local json = read_message("Fields[payload.info]")
+        local ok, info = pcall(cjson.decode, json)
+        if ok then
+            msg.Fields.hours.value = get_hours(info)
+
+            if type(info.sessionId) == "string" then
+                msg.Fields.sessionId.value = info.sessionId
+            end
+
+            if type(info.subsessionCounter) == "number" then
+                msg.Fields.subsessionCounter.value = info.subsessionCounter
+            end
+        end
+
+        json = read_message("Fields[payload.keyedHistograms]")
+        local ok, khist = pcall(cjson.decode, json)
+        if ok then
+            get_search_counts(khist, msg.Fields)
+
+            -- add plugin hang information
+            local t = khist.SUBPROCESS_ABNORMAL_ABORT
             if type(t) == "table" then
-                local sum = t.sum
-                if type(sum) == "number" and sum > 0 then
-                    msg.Fields.pluginHangs.value = sum
+                t = t.plugin
+                if type(t) == "table" then
+                    local sum = t.sum
+                    if type(sum) == "number" and sum > 0 then
+                        msg.Fields.pluginHangs.value = sum
+                    end
                 end
             end
         end
