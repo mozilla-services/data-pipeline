@@ -40,6 +40,8 @@ local main_ping_objects = {
     "UIMeasurements"
     }
 
+local duplicate_original = read_config("duplicate_original")
+
 -- telemetry messages should not contain duplicate keys so this function
 -- replaces/removes the first key that exists or adds a new key to the end
 local function update_field(fields, name, value)
@@ -202,6 +204,10 @@ end
 
 function process_message()
     local raw = read_message("raw")
+    if duplicate_original then
+        inject_message(raw)
+    end
+
     local ok, msg = pcall(decode_message, raw)
     if not ok then return -1, msg end
 
