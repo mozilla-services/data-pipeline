@@ -98,6 +98,10 @@ local info_fields = {
   , "subsessionLength"
 }
 
+local environment_fields = {
+    "telemetryEnabled"
+}
+
 local static_fields = {}
 local dynamic_fields = {}
 
@@ -150,6 +154,15 @@ function process_message()
     local ok, info = pcall(cjson.decode, read_message("Fields[payload.info]"))
     if ok then
         for i, k in ipairs(info_fields) do
+            if info[k] then
+                tbl[k] = info[k]
+            end
+        end
+    end
+
+    local ok, info = pcall(cjson.decode, read_message("Fields[environment.settings]"))
+    if ok then
+        for i, k in ipairs(environment_fields) do
             if info[k] then
                 tbl[k] = info[k]
             end
