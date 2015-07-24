@@ -7,7 +7,7 @@
 package snap
 
 import (
-	"code.google.com/p/snappy-go/snappy"
+	"github.com/golang/snappy"
 	. "github.com/mozilla-services/heka/pipeline"
 )
 
@@ -21,8 +21,8 @@ func (re *SnappyEncoder) Init(config interface{}) (err error) {
 }
 
 func (re *SnappyEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
-	output, err = snappy.Encode(nil, pack.MsgBytes)
-	return
+	output = snappy.Encode(nil, pack.MsgBytes)
+	return output, nil
 }
 
 func init() {

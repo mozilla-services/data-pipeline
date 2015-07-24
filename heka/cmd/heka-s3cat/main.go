@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/AdRoll/goamz/aws"
 	"github.com/AdRoll/goamz/s3"
+	"github.com/golang/snappy"
 	"github.com/mozilla-services/data-pipeline/s3splitfile"
 	"github.com/mozilla-services/heka/message"
 	"io"
@@ -211,7 +212,12 @@ func save(recordChannel <-chan s3splitfile.S3Record, match *message.MatcherSpeci
 
 		processed += 1
 		headerLen := int(r.Record[1]) + message.HEADER_FRAMING_SIZE
-		if err := proto.Unmarshal(r.Record[headerLen:], msg); err != nil {
+		messageBytes := r.Record[headerLen:]
+		unsnappy, decodeErr := snappy.Decode(nil, messageBytes)
+		if decodeErr == nil {
+			messageBytes = unsnappy
+		}
+		if err := proto.Unmarshal(messageBytes, msg); err != nil {
 			fmt.Fprintf(os.Stderr, "Error unmarshalling message %d in %s, error: %s\n", processed, r.Key, err)
 			continue
 		}
