@@ -105,6 +105,9 @@ local crash_fields = {
     os                  = {value = ""},
     default             = {value = false},
     buildId             = {value = ""},
+    app                 = {value = ""},
+    version             = {value = ""},
+    vendor              = {value = ""},
 }
 
 local main_fields = {
@@ -117,6 +120,9 @@ local main_fields = {
     os                  = crash_fields.os,
     default             = crash_fields.default,
     buildId             = crash_fields.buildId,
+    app                 = crash_fields.app,
+    version             = crash_fields.version,
+    vendor              = crash_fields.vendor,
     reason              = {value = ""},
     hours               = {value = 0},
     google              = {value = 0, value_type = 2},
@@ -173,6 +179,24 @@ function process_message()
     local bid = read_message("Fields[appBuildId]")
     if type(bid) == "string" then
         msg.Fields.buildId.value = bid
+    end
+
+    msg.Fields.app.value = ""
+    local app = read_message("Fields[appName]")
+    if type(app) == "string" then
+        msg.Fields.app.value = app
+    end
+
+    msg.Fields.version.value = ""
+    local version = read_message("Fields[appVersion]")
+    if type(version) == "string" then
+        msg.Fields.version.value = version
+    end
+
+    msg.Fields.vendor.value = ""
+    local vendor = read_message("Fields[appVendor]")
+    if type(vendor) == "string" then
+        msg.Fields.vendor.value = vendor
     end
 
     if doc_type == "main" then
