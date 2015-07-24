@@ -12,7 +12,7 @@ Firefox Plugin Hangs
     [FirefoxPluginHangs]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_plugin_hangs.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
     ticker_interval = 60
     preserve_data = true
 --]]

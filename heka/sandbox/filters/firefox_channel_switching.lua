@@ -12,7 +12,7 @@ Firefox Channel Switching
     [FirefoxChannelSwitching]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_channel_switching.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
     memory_limit = 1000000000
     ticker_interval = 60
     preserve_data = true

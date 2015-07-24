@@ -94,6 +94,15 @@ local function is_default_browser()
 end
 
 
+local function set_string_field(field, key)
+    field.value = ""
+    local s = read_message(key)
+    if type(s) == "string" then
+        field.value = s
+    end
+end
+
+
 ----
 local crash_fields = {
     docType             = {value = ""},
@@ -105,6 +114,9 @@ local crash_fields = {
     os                  = {value = ""},
     default             = {value = false},
     buildId             = {value = ""},
+    app                 = {value = ""},
+    version             = {value = ""},
+    vendor              = {value = ""},
 }
 
 local main_fields = {
@@ -117,6 +129,9 @@ local main_fields = {
     os                  = crash_fields.os,
     default             = crash_fields.default,
     buildId             = crash_fields.buildId,
+    app                 = crash_fields.app,
+    version             = crash_fields.version,
+    vendor              = crash_fields.vendor,
     reason              = {value = ""},
     hours               = {value = 0},
     google              = {value = 0, value_type = 2},
@@ -134,7 +149,6 @@ local msg = {
     Type        = "executive_summary",
     Fields      = main_fields,
 }
-
 
 function process_message()
     if read_message("Type") ~= "telemetry" then return 0 end
@@ -168,17 +182,13 @@ function process_message()
     msg.Fields.channel.value = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
     msg.Fields.os.value      = fx.normalize_os(read_message("Fields[os]"))
     msg.Fields.default.value = is_default_browser()
-
-    msg.Fields.buildId.value = ""
-    local bid = read_message("Fields[appBuildId]")
-    if type(bid) == "string" then
-        msg.Fields.buildId.value = bid
-    end
+    set_string_field(msg.Fields.buildId, "Fields[appBuildId]")
+    set_string_field(msg.Fields.app, "Fields[appName]")
+    set_string_field(msg.Fields.version, "Fields[appVersion]")
+    set_string_field(msg.Fields.vendor, "Fields[appVendor]")
 
     if doc_type == "main" then
-        msg.Fields.reason.value = ""
-        local reason = read_message("Fields[reason]")
-        if type(reason) == "string" then msg.Fields.reason.value = reason end
+        set_string_field(msg.Fields.reason, "Fields[reason]")
         msg.Fields.hours.value              = 0
         msg.Fields.google.value             = 0
         msg.Fields.bing.value               = 0
