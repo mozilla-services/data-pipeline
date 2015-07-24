@@ -12,7 +12,7 @@ Firefox Monthly Dashboard
     [FirefoxMonthlyDashboard]
     type = "SandboxFilter"
     filename = "lua_filters/firefox_monthly_dashboard.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
     output_limit = 0
     memory_limit = 0
     ticker_interval = 0

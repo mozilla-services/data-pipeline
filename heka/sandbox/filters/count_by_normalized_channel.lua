@@ -12,7 +12,7 @@ Request Counts by Normalized Channel
     [CountByNormalizedChannel]
     type = "SandboxFilter"
     filename = "lua_filters/count_by_normalized_channel.lua"
-    message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+    message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
     ticker_interval = 60
     preserve_data = true
 
