@@ -61,8 +61,8 @@ function process_message()
     local cid = read_message("Fields[clientId]")
     if not cid then return -1, "missing clientId" end
 
-    local chan = read_message("Fields[appUpdateChannel]")
-    if not chan then return -1, "missing appUpdateChannel" end
+    local chan = read_message("Fields[channel]")
+    if not chan then return -1, "missing channel" end
 
     chan = fx.normalize_channel(chan)
 
