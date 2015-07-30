@@ -133,7 +133,6 @@ end
 function timer_event(ns)
     if current_month == -1 then return end
 
-    fx_cids:report(months[current_month])
     add_to_payload("geo,channel,os,date,actives,hours,inactives,new_records,five_of_seven,total_records,crashes,default,google,bing,yahoo,other\n")
     local country, channel, _os
     for i,t in ipairs(months) do
