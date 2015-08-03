@@ -195,13 +195,13 @@ end
 function get_os_win_id(version)
     local ver = tonumber(version) or 0
 
-    local id = 0
+    local id = os_win_ids["Other"]
     if ver >= 10 and ver < 11 then
-        id = 1
+        id = os_win_ids["Windows 10"]
     elseif ver == 6.2 or ver == 6.3 then
-        id = 2
+        id = os_win_ids["Windows 8"]
     elseif ver == 6.1 then
-        id = 3
+        id = os_win_ids["Windows 7"]
     end
 
     return id
