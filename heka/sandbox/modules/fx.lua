@@ -8,6 +8,7 @@ local type = type
 local l = require "lpeg"
 require "string"
 local upper = string.upper
+local tonumber = tonumber
 
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module
@@ -88,6 +89,12 @@ for i, v in ipairs(os_names) do
     os_ids[v] = i - 1
 end
 
+local os_win_names = {"Other", "Windows 10", "Windows 8", "Windows 7"}
+local os_win_ids = {}
+for i, v in ipairs(os_win_names) do
+    os_win_ids[v] = i - 1
+end
+
 
 function get_country_count()
     return #country_names
@@ -140,6 +147,23 @@ function get_os_name(id)
     return os_names[1]
 end
 
+function get_os_win_count()
+    return #os_win_names
+end
+
+function get_os_win_name(id)
+    if id then
+        id = id + 1
+    else
+        id = 1
+    end
+
+    local name = os_win_names[id]
+    if name then return name end
+
+    return os_win_names[1]
+end
+
 
 function get_country_id(name)
     if not name then return 0 end
@@ -166,6 +190,21 @@ function get_os_id(name)
     if id then return id end
 
     return 0
+end
+
+function get_os_win_id(version)
+    local ver = tonumber(version) or 0
+
+    local id = os_win_ids["Other"]
+    if ver >= 10 and ver < 11 then
+        id = os_win_ids["Windows 10"]
+    elseif ver == 6.2 or ver == 6.3 then
+        id = os_win_ids["Windows 8"]
+    elseif ver == 6.1 then
+        id = os_win_ids["Windows 7"]
+    end
+
+    return id
 end
 
 
