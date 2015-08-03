@@ -40,6 +40,8 @@ func main() {
 	flagAWSRegion := flag.String("aws-region", "us-west-2", "AWS Region")
 	flagMaxMessageSize := flag.Uint64("max-message-size", 4*1024*1024, "maximum message size in bytes")
 	flagWorkers := flag.Uint64("workers", 16, "number of parallel workers")
+	flagConnectTimeout := flag.Uint64("connect_timeout", 60, "Max seconds to wait for an S3 connection")
+	flagReadTimeout := flag.Uint64("read_timeout", 300, "Max seconds to wait for an S3 file read to complete")
 	flag.Parse()
 
 	if !*flagStdin && flag.NArg() < 1 {
@@ -62,6 +64,22 @@ func main() {
 		workers = int(*flagWorkers)
 	} else {
 		fmt.Fprintf(os.Stderr, "Too many workers: %d. Use a reasonable value (up to a few hundred).\n", flagWorkers)
+		os.Exit(8)
+	}
+
+	var connectTimeout uint32
+	if *flagConnectTimeout < math.MaxUint32 {
+		connectTimeout = uint32(*flagConnectTimeout)
+	} else {
+		fmt.Fprintf(os.Stderr, "Connection Timeout is too large:%d.\n", flagConnectTimeout)
+		os.Exit(8)
+	}
+
+	var readTimeout uint32
+	if *flagReadTimeout < math.MaxUint32 {
+		readTimeout = uint32(*flagReadTimeout)
+	} else {
+		fmt.Fprintf(os.Stderr, "Read Timeout is too large:%d.\n", flagReadTimeout)
 		os.Exit(8)
 	}
 
@@ -94,8 +112,12 @@ func main() {
 		os.Exit(5)
 	}
 	s := s3.New(auth, region)
-	s.ConnectTimeout = 60 * time.Second
-	s.ReadTimeout = 60 * time.Second
+	if connectTimeout > 0 {
+		s.ConnectTimeout = time.Duration(connectTimeout) * time.Second
+	}
+	if readTimeout > 0 {
+		s.ReadTimeout = time.Duration(readTimeout) * time.Second
+	}
 	bucket := s.Bucket(*flagBucket)
 
 	filenameChannel := make(chan string, 1000)
