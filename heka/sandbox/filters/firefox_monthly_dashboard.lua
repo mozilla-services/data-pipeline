@@ -21,6 +21,7 @@ Firefox Monthly Dashboard
 
         [FirefoxMonthlyDashboard.config]
         items = 100000000
+        # os_rollup = "Windows" # this will rollup the Windows OS versions (set the message_matcher accordingly)
 --]]
 
 
@@ -36,6 +37,17 @@ local floor = math.floor
 local date = os.date
 local format = string.format
 local items = read_config("items") or 1000
+local os_rollup = read_config("os_rollup")
+local get_os_id
+local get_os_name
+
+if os_rollup == "Windows" then
+    get_os_id = function() return fx.get_os_win_id(read_message("Fields[osVersion]")) end
+    get_os_name = fx.get_os_win_name
+else
+    get_os_id = function() return fx.get_os_id(read_message("Fields[os]")) end
+    get_os_name = fx.get_os_name
+end
 
 local month_names = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
     "Sep", "Oct", "Nov", "Dec"}
@@ -93,7 +105,7 @@ local function update_month(ts, cid, day_changed)
 
     local country = fx.get_country_id(read_message("Fields[country]"))
     local channel = fx.get_channel_id(read_message("Fields[channel]"))
-    local _os     = fx.get_os_id(read_message("Fields[os]"))
+    local _os     = get_os_id()
 
     local r = get_row(ts, month, country, channel, _os)
     if r then
@@ -140,7 +152,7 @@ function timer_event(ns)
             country, channel, _os = k:match("(%d+),(%d+),(%d+)")
             add_to_payload(fx.get_country_name(tonumber(country)), ",",
                            fx.get_channel_name(tonumber(channel)), ",",
-                           fx.get_os_name(tonumber(_os)), ",",
+                           get_os_name(tonumber(_os)), ",",
                            table.concat(v, ","), "\n")
         end
     end

@@ -94,6 +94,19 @@ local function is_default_browser()
 end
 
 
+local function get_os_version()
+    local default = ""
+
+    local json = read_message("Fields[environment.system]")
+    local ok, system = pcall(cjson.decode, json)
+    if not ok then return default end
+    if type(system.os) ~= "table" then return default end
+    if type(system.os.version) ~= "string" then return default end
+
+    return system.os.version
+end
+
+
 local function set_string_field(field, key)
     field.value = ""
     local s = read_message(key)
@@ -112,6 +125,7 @@ local crash_fields = {
     country             = {value = ""},
     channel             = {value = ""},
     os                  = {value = ""},
+    osVersion           = {value = ""},
     default             = {value = false},
     buildId             = {value = ""},
     app                 = {value = ""},
@@ -127,6 +141,7 @@ local main_fields = {
     country             = crash_fields.country,
     channel             = crash_fields.channel,
     os                  = crash_fields.os,
+    osVersion           = crash_fields.osVersion,
     default             = crash_fields.default,
     buildId             = crash_fields.buildId,
     app                 = crash_fields.app,
@@ -178,10 +193,11 @@ function process_message()
     if type(did) ~= "string" then return 0 end
     msg.Fields.documentId.value = did
 
-    msg.Fields.country.value = fx.normalize_country(read_message("Fields[geoCountry]"))
-    msg.Fields.channel.value = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
-    msg.Fields.os.value      = fx.normalize_os(read_message("Fields[os]"))
-    msg.Fields.default.value = is_default_browser()
+    msg.Fields.country.value    = fx.normalize_country(read_message("Fields[geoCountry]"))
+    msg.Fields.channel.value    = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
+    msg.Fields.os.value         = fx.normalize_os(read_message("Fields[os]"))
+    msg.Fields.osVersion.value  = get_os_version()
+    msg.Fields.default.value    = is_default_browser()
     set_string_field(msg.Fields.buildId, "Fields[appBuildId]")
     set_string_field(msg.Fields.app, "Fields[appName]")
     set_string_field(msg.Fields.version, "Fields[appVersion]")
