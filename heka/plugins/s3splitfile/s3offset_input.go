@@ -13,6 +13,7 @@ import (
 	"github.com/AdRoll/goamz/s3"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -36,11 +37,12 @@ type S3OffsetInput struct {
 	processMessageBytes    int64
 
 	*S3OffsetInputConfig
-	clientids  map[string]struct{}
-	bucket     *s3.Bucket
-	metaBucket *s3.Bucket
-	stop       chan bool
-	offsetChan chan MessageLocation
+	clientids    map[string]struct{}
+	metaFileName string
+	bucket       *s3.Bucket
+	metaBucket   *s3.Bucket
+	stop         chan bool
+	offsetChan   chan MessageLocation
 }
 
 type S3OffsetInputConfig struct {
@@ -48,6 +50,7 @@ type S3OffsetInputConfig struct {
 	Decoder            string
 	Splitter           string
 	ClientIdListFile   string `toml:"client_id_list"`
+	MetaFile           string `toml:"metadata_file"`
 	StartDate          string `toml:"start_date"`
 	EndDate            string `toml:"end_date"`
 	AWSKey             string `toml:"aws_key"`
@@ -57,6 +60,8 @@ type S3OffsetInputConfig struct {
 	S3MetaBucketPrefix string `toml:"s3_meta_bucket_prefix"`
 	S3Bucket           string `toml:"s3_bucket"`
 	S3Retries          uint32 `toml:"s3_retries"`
+	S3ConnectTimeout   uint32 `toml:"s3_connect_timeout"`
+	S3ReadTimeout      uint32 `toml:"s3_read_timeout"`
 	S3WorkerCount      uint32 `toml:"s3_worker_count"`
 }
 
@@ -73,6 +78,8 @@ func (input *S3OffsetInput) ConfigStruct() interface{} {
 		S3MetaBucketPrefix: "",
 		S3Bucket:           "",
 		S3Retries:          5,
+		S3ConnectTimeout:   60,
+		S3ReadTimeout:      60,
 		S3WorkerCount:      16,
 	}
 }
@@ -81,10 +88,17 @@ func (input *S3OffsetInput) Init(config interface{}) (err error) {
 	conf := config.(*S3OffsetInputConfig)
 	input.S3OffsetInputConfig = conf
 
-	// Load clientids from file.
-	input.clientids, err = readLines(conf.ClientIdListFile)
-	if err != nil {
-		return fmt.Errorf("Error reading file %s for 'client_id_list': %s", conf.ClientIdListFile, err)
+	if conf.MetaFile != "" {
+		// We already have the required metadata. Don't need to fetch it.
+		input.metaFileName = conf.MetaFile
+	} else if conf.ClientIdListFile != "" {
+		// Load clientids from file.
+		input.clientids, err = readLines(conf.ClientIdListFile)
+		if err != nil {
+			return fmt.Errorf("Error reading file %s for 'client_id_list': %s", conf.ClientIdListFile, err)
+		}
+	} else {
+		return fmt.Errorf("Missing parameter: You must specify either 'client_id_list' or 'metadata_file'")
 	}
 
 	auth, err := aws.GetAuth(conf.AWSKey, conf.AWSSecretKey, "", time.Now())
@@ -96,9 +110,17 @@ func (input *S3OffsetInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("Parameter 'aws_region' must be a valid AWS Region")
 	}
 	s := s3.New(auth, region)
+	s.ConnectTimeout = time.Duration(conf.S3ConnectTimeout) * time.Second
+	s.ReadTimeout = time.Duration(conf.S3ReadTimeout) * time.Second
+
 	// TODO: ensure we can read from (and list, for meta) the buckets.
 	input.bucket = s.Bucket(conf.S3Bucket)
-	input.metaBucket = s.Bucket(conf.S3MetaBucket)
+
+	if conf.S3MetaBucket != "" {
+		input.metaBucket = s.Bucket(conf.S3MetaBucket)
+	} else if conf.MetaFile == "" {
+		return fmt.Errorf("Parameter 's3_meta_bucket' is required unless using 'metadata_file'")
+	}
 
 	// Remove any excess path separators from the bucket prefix.
 	conf.S3MetaBucketPrefix = CleanBucketPrefix(conf.S3MetaBucketPrefix)
@@ -127,28 +149,58 @@ func (input *S3OffsetInput) Run(runner pipeline.InputRunner, helper pipeline.Plu
 		emptySchema Schema
 	)
 
-	wg.Add(1)
-	go func() {
-		runner.LogMessage("Starting S3 list")
-		for r := range S3Iterator(input.metaBucket, input.S3MetaBucketPrefix, emptySchema) {
-			if r.Err != nil {
-				runner.LogError(fmt.Errorf("Error getting S3 list: %s", r.Err))
-			} else {
-				base := path.Base(r.Key.Key)[0:8]
-				// Check if r is in the desired date range.
-				if base >= input.StartDate && base <= input.EndDate {
-					err := input.grep(r)
-					if err != nil {
-						runner.LogMessage(fmt.Sprintf("Error reading index: %s", err))
+	if input.metaFileName != "" {
+		wg.Add(1)
+		go func() {
+			reader, err := os.Open(input.metaFileName)
+			if err != nil {
+				runner.LogMessage(fmt.Sprintf("Error opening metadata file '%s': %s", input.metaFileName, err))
+			}
+			defer reader.Close()
+			err = input.parseMessageLocations(reader, input.metaFileName)
+			if err != nil {
+				runner.LogMessage(fmt.Sprintf("Error reading metadata: %s", err))
+			}
+			// All done with metadata, close the channel
+			runner.LogMessage("All done with metadata. Closing channel")
+			close(input.offsetChan)
+			wg.Done()
+		}()
+	} else if input.metaBucket != nil {
+		wg.Add(1)
+		go func() {
+			runner.LogMessage("Starting S3 list")
+		iteratorLoop:
+			for r := range S3Iterator(input.metaBucket, input.S3MetaBucketPrefix, emptySchema) {
+				select {
+				case <-input.stop:
+					runner.LogMessage("Stopping S3 list")
+					break iteratorLoop
+				default:
+				}
+				if r.Err != nil {
+					runner.LogError(fmt.Errorf("Error getting S3 list: %s", r.Err))
+				} else {
+					base := path.Base(r.Key.Key)[0:8]
+					// Check if r is in the desired date range.
+					if base >= input.StartDate && base <= input.EndDate {
+						err := input.grep(r)
+						if err != nil {
+							runner.LogMessage(fmt.Sprintf("Error reading index: %s", err))
+						}
 					}
 				}
 			}
-		}
-		// All done listing, close the channel
-		runner.LogMessage("All done listing. Closing channel")
+			// All done listing, close the channel
+			runner.LogMessage("All done listing. Closing channel")
+			close(input.offsetChan)
+			wg.Done()
+		}()
+	} else {
+		runner.LogMessage("Nothing to do, no metadata available. Closing channel")
 		close(input.offsetChan)
 		wg.Done()
-	}()
+	}
 
 	// Run a pool of concurrent readers.
 	for i = 0; i < input.S3WorkerCount; i++ {
@@ -169,20 +221,49 @@ func (input *S3OffsetInput) grep(result S3ListResult) (err error) {
 		return err
 	}
 	defer reader.Close()
+	return input.parseMessageLocations(reader, result.Key.Key)
+}
 
+// Not spec-compliant, but should work well enough for our purposes.
+func (input *S3OffsetInput) detectFieldSeparator(line string, expectedCount int) (sep string) {
+	possible := [...]string{"\t", ",", "|", " "}
+	for _, s := range possible {
+		pieces := strings.Split(line, s)
+		if len(pieces) == expectedCount {
+			return s
+		}
+	}
+	// Don't know... default to tab.
+	return possible[0]
+}
+
+func (input *S3OffsetInput) parseMessageLocations(reader io.Reader, name string) (err error) {
 	lineNum := 0
+	// TODO: use "encoding/csv" and set .Comma to the detected separator.
 	scanner := bufio.NewScanner(reader)
+	delim := ""
+	expectedTokens := 4
 	for scanner.Scan() {
-		pieces := strings.Split(scanner.Text(), "\t")
+		if lineNum == 0 {
+			delim = input.detectFieldSeparator(scanner.Text(), expectedTokens)
+		}
+		pieces := strings.Split(scanner.Text(), delim)
+		if len(pieces) != expectedTokens {
+			return fmt.Errorf("Error on %s line %d: invalid line. Expected %d values, found %d.", name, lineNum, expectedTokens, len(pieces))
+		}
 		lineNum++
-		if len(pieces) != 4 {
-			return fmt.Errorf("Error on %s line %d: invalid line. Expected 4 values, found %d.", result.Key.Key, lineNum, len(pieces))
+
+		// Skip optional header.
+		if pieces[0] == "file_name" {
+			continue
 		}
 
-		// Check if this client is in our list.
-		_, ok := input.clientids[pieces[1]]
-		if !ok {
-			continue
+		if input.metaFileName == "" {
+			// Check if this client is in our list.
+			_, ok := input.clientids[pieces[1]]
+			if !ok {
+				continue
+			}
 		}
 		o, err := makeInt(pieces[2])
 		if err != nil {
@@ -246,6 +327,13 @@ func (input *S3OffsetInput) fetcher(runner pipeline.InputRunner, wg *sync.WaitGr
 			splitterRunner.DeliverRecord(record, deliverer)
 			duration = time.Now().UTC().Sub(startTime).Seconds()
 			runner.LogMessage(fmt.Sprintf("Successfully fetched %s in %.2fs ", loc.Key, duration))
+
+		case <-input.stop:
+			runner.LogMessage("Stopping fetcher...")
+			for _ = range input.offsetChan {
+				// Drain the channel without processing anything.
+			}
+			ok = false
 		}
 	}
 
