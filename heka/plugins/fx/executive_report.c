@@ -101,6 +101,7 @@ static bool bucket_insert_lookup(er_bucket* b, unsigned fp, const er_data* data)
         b->data[i].country = data->country;
         b->data[i].channel = data->channel;
         b->data[i].os = data->os;
+        b->data[i].dflt = data->dflt;
         b->data[i].dow |= data->dow;
       }
       return true;
