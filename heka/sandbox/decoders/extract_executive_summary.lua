@@ -120,6 +120,7 @@ end
 local crash_fields = {
     docType             = {value = ""},
     submissionDate      = {value = ""},
+    creationTimestamp   = {value = 0},
     clientId            = {value = ""},
     documentId          = {value = ""},
     country             = {value = ""},
@@ -136,6 +137,7 @@ local crash_fields = {
 local main_fields = {
     docType             = crash_fields.docType,
     submissionDate      = crash_fields.submissionDate,
+    creationTimestamp   = crash_fields.creationTimestamp,
     clientId            = crash_fields.clientId,
     documentId          = crash_fields.documentId,
     country             = crash_fields.country,
@@ -183,7 +185,11 @@ function process_message()
     end
 
     msg.Timestamp = read_message("Timestamp")
-    msg.Fields.submissionDate = os.date("%Y%m%d", msg.Timestamp / 1e9)
+    msg.Fields.submissionDate.value = os.date("%Y%m%d", msg.Timestamp / 1e9)
+
+    local cts = read_message("Fields[creationTimestamp]")
+    if type(cts) ~= "number" then cts = 0 end
+    msg.Fields.creationTimestamp.value = cts
 
     local cid = read_message("Fields[clientId]")
     if type(cid) ~= "string" then return 0 end
