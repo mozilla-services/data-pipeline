@@ -171,8 +171,8 @@ function process_message()
     end
 
     local ok, payload = pcall(cjson.decode, read_message("Payload"))
-    if ok and payload.application.architecture then
-      tbl.architecture = payload.application.architecture
+    if ok and type(payload.application) == "table" and payload.application.architecture then
+        tbl.architecture = payload.application.architecture
     end
 
     if tbl.creationTimestamp then
