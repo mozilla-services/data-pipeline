@@ -96,6 +96,7 @@ local info_fields = {
   , "sessionStartDate"
   , "subsessionStartDate"
   , "subsessionLength"
+  , "sessionLength"
 }
 
 local environment_fields = {
@@ -167,6 +168,11 @@ function process_message()
                 tbl[k] = info[k]
             end
         end
+    end
+
+    local ok, payload = pcall(cjson.decode, read_message("Payload"))
+    if ok and payload.application.architecture then
+      tbl.architecture = payload.application.architecture
     end
 
     if tbl.creationTimestamp then
