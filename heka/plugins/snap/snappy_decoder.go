@@ -7,7 +7,7 @@
 package snap
 
 import (
-	"github.com/golang/snappy"
+	"github.com/golang/snappy/snappy"
 	. "github.com/mozilla-services/heka/pipeline"
 )
 
