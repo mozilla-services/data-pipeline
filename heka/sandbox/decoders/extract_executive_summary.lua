@@ -257,9 +257,9 @@ function process_message()
     elseif doc_type == "crash" then
         local json = read_message("Payload")
         local ok, p = pcall(cjson.decode, json)
-        if ok then
-            if type(p.crashDate) == "string" then
-                local t = crash_date:match(p.crashDate)
+        if ok and type(p.payload) == "table" then
+            if type(p.payload.crashDate) == "string" then
+                local t = crash_date:match(p.payload.crashDate)
                 if t then
                     msg.Fields.activityTimestamp.value = dt.time_to_ns(t)
                 end
