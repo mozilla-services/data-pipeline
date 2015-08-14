@@ -41,13 +41,16 @@ See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
 --]]
 
 require "cjson"
+require "lpeg"
 local fx = require "fx"
+local dt = require "date_time"
 require "os"
 require "string"
 
 local duplicate_original = read_config("duplicate_original")
 local SEC_IN_HOUR = 60 * 60
 local SEC_IN_DAY = SEC_IN_HOUR * 24
+local broken_date = lpeg.Ct(dt.rfc3339_full_date)
 
 local function get_search_counts(khist, fields)
     if type(khist.SEARCH_COUNTS) ~= "table" then return end
@@ -158,6 +161,7 @@ local main_fields = {
     sessionId           = {value = ""},
     subsessionCounter   = {value = 0, value_type = 2},
     pluginHangs         = {value = 0, value_type = 2},
+    subsessionTimestamp = {value = 0},
 }
 
 local msg = {
@@ -211,14 +215,15 @@ function process_message()
 
     if doc_type == "main" then
         set_string_field(msg.Fields.reason, "Fields[reason]")
-        msg.Fields.hours.value              = 0
-        msg.Fields.google.value             = 0
-        msg.Fields.bing.value               = 0
-        msg.Fields.yahoo.value              = 0
-        msg.Fields.other.value              = 0
-        msg.Fields.sessionId.value          = ""
-        msg.Fields.subsessionCounter.value  = 0
-        msg.Fields.pluginHangs.value        = 0
+        msg.Fields.hours.value               = 0
+        msg.Fields.google.value              = 0
+        msg.Fields.bing.value                = 0
+        msg.Fields.yahoo.value               = 0
+        msg.Fields.other.value               = 0
+        msg.Fields.sessionId.value           = ""
+        msg.Fields.subsessionCounter.value   = 0
+        msg.Fields.pluginHangs.value         = 0
+        msg.Fields.subsessionTimestamp.value = 0
 
         local json = read_message("Fields[payload.info]")
         local ok, info = pcall(cjson.decode, json)
@@ -231,6 +236,20 @@ function process_message()
 
             if type(info.subsessionCounter) == "number" then
                 msg.Fields.subsessionCounter.value = info.subsessionCounter
+            end
+
+            if type(info.subsessionStartDate) == "string" then
+                local t = dt.rfc3339:match(info.subsessionStartDate)
+                if t then
+                    msg.Fields.subsessionTimestamp.value = dt.time_to_ns(t)
+                else -- some dates are not RFC compliant
+                    t = broken_date:match(info.subsessionStartDate)
+                    if t then
+                        msg.Fields.subsessionTimestamp.value = dt.time_to_ns(t)
+                    else
+                        msg.Fields.subsessionTimestamp.value = cts
+                    end
+                end
             end
         end
 
