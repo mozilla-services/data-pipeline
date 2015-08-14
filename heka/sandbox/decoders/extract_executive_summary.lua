@@ -212,12 +212,12 @@ function process_message()
 
     if doc_type == "main" then
         set_string_field(msg.Fields.reason, "Fields[reason]")
-        msg.Fields.hours.value               = 0
-        msg.Fields.google.value              = 0
-        msg.Fields.bing.value                = 0
-        msg.Fields.yahoo.value               = 0
-        msg.Fields.other.value               = 0
-        msg.Fields.pluginHangs.value         = 0
+        msg.Fields.hours.value          = 0
+        msg.Fields.google.value         = 0
+        msg.Fields.bing.value           = 0
+        msg.Fields.yahoo.value          = 0
+        msg.Fields.other.value          = 0
+        msg.Fields.pluginHangs.value    = 0
 
         local json = read_message("Fields[payload.info]")
         local ok, info = pcall(cjson.decode, json)
