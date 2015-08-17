@@ -41,13 +41,16 @@ See: https://bugzilla.mozilla.org/show_bug.cgi?id=1155871
 --]]
 
 require "cjson"
+require "lpeg"
 local fx = require "fx"
+local dt = require "date_time"
 require "os"
 require "string"
 
 local duplicate_original = read_config("duplicate_original")
 local SEC_IN_HOUR = 60 * 60
 local SEC_IN_DAY = SEC_IN_HOUR * 24
+local crash_date = dt.build_strftime_grammar("%Y-%m-%d")
 
 local function get_search_counts(khist, fields)
     if type(khist.SEARCH_COUNTS) ~= "table" then return end
@@ -120,7 +123,7 @@ end
 local crash_fields = {
     docType             = {value = ""},
     submissionDate      = {value = ""},
-    creationTimestamp   = {value = 0},
+    activityTimestamp   = {value = 0},
     clientId            = {value = ""},
     documentId          = {value = ""},
     country             = {value = ""},
@@ -137,7 +140,7 @@ local crash_fields = {
 local main_fields = {
     docType             = crash_fields.docType,
     submissionDate      = crash_fields.submissionDate,
-    creationTimestamp   = crash_fields.creationTimestamp,
+    activityTimestamp   = crash_fields.activityTimestamp,
     clientId            = crash_fields.clientId,
     documentId          = crash_fields.documentId,
     country             = crash_fields.country,
@@ -155,8 +158,6 @@ local main_fields = {
     bing                = {value = 0, value_type = 2},
     yahoo               = {value = 0, value_type = 2},
     other               = {value = 0, value_type = 2},
-    sessionId           = {value = ""},
-    subsessionCounter   = {value = 0, value_type = 2},
     pluginHangs         = {value = 0, value_type = 2},
 }
 
@@ -189,7 +190,7 @@ function process_message()
 
     local cts = read_message("Fields[creationTimestamp]")
     if type(cts) ~= "number" then cts = 0 end
-    msg.Fields.creationTimestamp.value = cts
+    msg.Fields.activityTimestamp.value = cts
 
     local cid = read_message("Fields[clientId]")
     if type(cid) ~= "string" then return 0 end
@@ -211,26 +212,28 @@ function process_message()
 
     if doc_type == "main" then
         set_string_field(msg.Fields.reason, "Fields[reason]")
-        msg.Fields.hours.value              = 0
-        msg.Fields.google.value             = 0
-        msg.Fields.bing.value               = 0
-        msg.Fields.yahoo.value              = 0
-        msg.Fields.other.value              = 0
-        msg.Fields.sessionId.value          = ""
-        msg.Fields.subsessionCounter.value  = 0
-        msg.Fields.pluginHangs.value        = 0
+        msg.Fields.hours.value          = 0
+        msg.Fields.google.value         = 0
+        msg.Fields.bing.value           = 0
+        msg.Fields.yahoo.value          = 0
+        msg.Fields.other.value          = 0
+        msg.Fields.pluginHangs.value    = 0
 
         local json = read_message("Fields[payload.info]")
         local ok, info = pcall(cjson.decode, json)
         if ok then
             msg.Fields.hours.value = get_hours(info)
 
-            if type(info.sessionId) == "string" then
-                msg.Fields.sessionId.value = info.sessionId
-            end
-
-            if type(info.subsessionCounter) == "number" then
-                msg.Fields.subsessionCounter.value = info.subsessionCounter
+            if type(info.subsessionStartDate) == "string" then
+                local t = dt.rfc3339:match(info.subsessionStartDate)
+                if t then
+                    msg.Fields.activityTimestamp.value = dt.time_to_ns(t)
+                else -- some dates are not RFC compliant
+                    t = crash_date:match(info.subsessionStartDate)
+                    if t then
+                        msg.Fields.activityTimestamp.value = dt.time_to_ns(t)
+                    end
+                end
             end
         end
 
@@ -248,6 +251,17 @@ function process_message()
                     if type(sum) == "number" and sum > 0 then
                         msg.Fields.pluginHangs.value = sum
                     end
+                end
+            end
+        end
+    elseif doc_type == "crash" then
+        local json = read_message("Payload")
+        local ok, p = pcall(cjson.decode, json)
+        if ok and type(p.payload) == "table" then
+            if type(p.payload.crashDate) == "string" then
+                local t = crash_date:match(p.payload.crashDate)
+                if t then
+                    msg.Fields.activityTimestamp.value = dt.time_to_ns(t)
                 end
             end
         end

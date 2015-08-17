@@ -122,7 +122,6 @@ echo 'Installing fx libs'
 mkdir -p $HEKA_MODS/fx
 cd $BASE
 gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/executive_report.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/executive_report.so
-gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/broken_sessions.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/broken_sessions.so
 
 cd $BASE/build/heka/build
 
