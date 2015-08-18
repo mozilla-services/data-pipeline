@@ -14,12 +14,12 @@ package main
 
 import (
 	"bufio"
-	"code.google.com/p/gogoprotobuf/proto"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/AdRoll/goamz/aws"
 	"github.com/AdRoll/goamz/s3"
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/mozilla-services/data-pipeline/s3splitfile"
 	"github.com/mozilla-services/heka/message"
