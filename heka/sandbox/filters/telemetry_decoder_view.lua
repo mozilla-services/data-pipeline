@@ -26,6 +26,7 @@ local ROWS          = 2880
 
 local items         = read_config("bloom_items") or 3*1e6
 local probability   = read_config("bloom_probability") or 0.01
+local decoder_match = read_config("decoder_match") or "^TelemetryKafkaInput(%d+)"
 bf                  = bloom_filter.new(items, probability)
 cb                  = circular_buffer.new(ROWS, 3, SEC_PER_ROW, true)
 local TOTAL         = cb:set_header(1, "Total")
@@ -79,7 +80,7 @@ function process_message ()
                 return -1, "Decoder is missing its name"
             end
 
-            local id = string.match(v.Name, "^TelemetryKafkaInput(%d+)")
+            local id = string.match(v.Name, decoder_match)
             if not id then
                 return -1, "Telemetry decoder is missing its identifier"
             else
