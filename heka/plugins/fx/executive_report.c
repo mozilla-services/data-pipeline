@@ -19,6 +19,10 @@
 #include "lua.h"
 #include "xxhash.h"
 
+#define MAX_COUNTRY 256
+#define MAX_CHANNEL 8
+#define MAX_OS 4
+
 static const char* mozsvc_fxer = "mozsvc.fx.executive_report";
 static const char* mozsvc_fxer_table = "fx.executive_report";
 
@@ -30,6 +34,14 @@ typedef struct er_data {
   unsigned char reserved :2;
   unsigned char dow; // day of the week the 8th bit is the new flag
 } er_data;
+
+typedef struct er_report {
+  double actives;
+  double inactives;
+  double created;
+  double fos;
+  double defaults;
+} er_report;
 
 typedef struct er_bucket
 {
@@ -188,7 +200,7 @@ static int fxer_add(lua_State* lua)
   const char* key = lua_tolstring(lua, 2, &len);
   if (lua_type(lua, 3) == LUA_TNUMBER) {
     country = (unsigned)lua_tointeger(lua, 3);
-    if (country > 255) {
+    if (country >= MAX_COUNTRY) {
       return luaL_argerror(lua, 3, "must a number 0-255");
     }
   } else {
@@ -196,7 +208,7 @@ static int fxer_add(lua_State* lua)
   }
   if (lua_type(lua, 4) == LUA_TNUMBER) {
     channel = (unsigned)lua_tointeger(lua, 4);
-    if (channel > 7) {
+    if (channel >= MAX_CHANNEL) {
       return luaL_argerror(lua, 4, "must a number 0-7");
     }
   } else {
@@ -204,7 +216,7 @@ static int fxer_add(lua_State* lua)
   }
   if (lua_type(lua, 5) == LUA_TNUMBER) {
     os = (unsigned)lua_tointeger(lua, 5);
-    if (os > 3) {
+    if (os >= MAX_OS) {
       return luaL_argerror(lua, 5, "must a number 0-3");
     }
   } else {
@@ -322,14 +334,9 @@ static int fxer_fromstring(lua_State* lua)
 }
 
 
-static void increment_column(lua_State* lua, int col)
+static void set_column(lua_State* lua, int col, double d)
 {
-  double val;
-  lua_rawgeti(lua, -1, col);
-  val = lua_tonumber(lua, -1);
-  lua_pop(lua, 1);
-  ++val;
-  lua_pushnumber(lua, val);
+  lua_pushnumber(lua, d);
   lua_rawseti(lua, -2, col);
 }
 
@@ -342,19 +349,18 @@ static int fxer_report(lua_State* lua)
   }
 
 //  clock_t t = clock();
+  er_report reports[MAX_COUNTRY][MAX_CHANNEL][MAX_OS];
+  memset(reports, 0, sizeof reports);
+
   int fos; // five of seven
   er_data* data;
+  er_report* report;
   for (int i = 0; i < cf->num_buckets; ++i) {
     for (int j = 0; j < BUCKET_SIZE; ++j) {
       if (cf->buckets[i].entries[j] != 0) {
         fos = 0;
         data = &cf->buckets[i].data[j];
-
-        // lookup entry in lua table based on country, channel, os
-        lua_pushfstring(lua, "%d,%d,%d", data->country, data->channel,
-                        data->os);
-        lua_gettable(lua, 2);
-        if (lua_type(lua, -1) != LUA_TTABLE) continue;
+        report = &reports[data->country][data->channel][data->os];
 
         fos += data->dow & 1;
         fos += (data->dow & 2) >> 1;
@@ -364,24 +370,46 @@ static int fxer_report(lua_State* lua)
         fos += (data->dow & 32) >> 5;
         fos += (data->dow & 64) >> 6;
         if (fos) {
-          increment_column(lua, 2); // actives
+          ++report->actives;
           if (fos >= 5) {
-            increment_column(lua, 6); // five of seven
+            ++report->fos;
           }
         } else {
-          increment_column(lua, 4); // inactives
+          ++report->inactives;
         }
 
         if (data->dow & 128) {
-          increment_column(lua, 5); // increment new
+          ++report->created;
         }
-        increment_column(lua, 7); // increment total
-        if (data->dflt) increment_column(lua, 9);
-        lua_pop(lua, 1); // remove table
+
+        if (data->dflt) {
+          ++report->defaults;
+        }
 
         // reset the bit flags for the next report
         data->dow = 0;
         data->dflt = 0;
+      }
+    }
+  }
+
+  for (int country = 0; country < MAX_COUNTRY; ++country) {
+    for (int channel = 0; channel < MAX_CHANNEL; ++channel) {
+      for (int os = 0; os < MAX_OS; ++os) {
+        report = &reports[country][channel][os];
+        if (report->actives || report->inactives) {
+          lua_pushfstring(lua, "%d,%d,%d", country, channel, os);
+          lua_gettable(lua, 2);
+          if (lua_type(lua, -1) == LUA_TTABLE) {
+            set_column(lua, 2, report->actives);
+            set_column(lua, 4, report->inactives);
+            set_column(lua, 5, report->created);
+            set_column(lua, 6, report->fos);
+            set_column(lua, 7, report->actives + report->inactives); // totals
+            set_column(lua, 9, report->defaults);
+          }
+          lua_pop(lua, 1);
+        }
       }
     }
   }
