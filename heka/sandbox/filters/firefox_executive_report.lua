@@ -128,7 +128,7 @@ local function update_day(ts, cid, day)
 end
 
 
-local function update_week(ts, cid, day)
+local function update_week(_, cid, day)
     local week = floor((day + DAY_OFFSET) / 7)
     if current_interval == -1 then current_interval = week end
 
@@ -145,13 +145,15 @@ local function update_week(ts, cid, day)
     if r then
         -- The use of submission date changes the meaning of the day of the week
         -- calculation, it now represents the days the user interacted with the
-        -- telemetry system.
+        -- telemetry system. The V2 analysis reported on the user provided date
+        -- which is activityTimestamp in the executive summary.
+        -- See: https://docs.google.com/document/d/1mLP4DY-FIQHof6Nxh2ioVQ-ZvvlnIZ_6yLqYp8idXG4
         update_row(r, cid, country, channel, _os, (day + DAY_OFFSET) % 7)
     end
 end
 
 
-local function update_month(ts, cid, day, day_changed)
+local function update_month(ts, cid, _, day_changed)
     local month = current_interval
     if current_interval == -1 or day_changed then
         local t = date("*t", ts / 1e9)
@@ -200,7 +202,7 @@ end
 
 
 function process_message()
-    local ts  = read_message("Timestamp") -- use the submission date https://docs.google.com/document/d/1mLP4DY-FIQHof6Nxh2ioVQ-ZvvlnIZ_6yLqYp8idXG4/edit
+    local ts  = read_message("Timestamp") -- use the submission date https://docs.google.com/document/d/1mLP4DY-FIQHof6Nxh2ioVQ-ZvvlnIZ_6yLqYp8idXG4
     local cid = read_message("Fields[clientId]")
     if type(cid) == "string" then
         local day = floor(ts / (SEC_IN_DAY * 1e9))
