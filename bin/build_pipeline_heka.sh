@@ -72,12 +72,12 @@ echo 'Installing lua-geoip libs'
 cd $BASE/build
 if [ ! -d lua-geoip ]; then
     # Fetch the lua geoip lib
-    git clone https://github.com/agladysh/lua-geoip.git
+    git clone https://github.com/trink/lua-geoip.git
 fi
 cd lua-geoip
 
-# Use a known revision (current "master" as of 2015-02-12)
-git checkout d9b36d7c70b7250a5c4e589d13c8b911df3c64fb
+# Use a known revision (current "master" with stderr fix Sept 3)
+git checkout b773a3a65c7b8db8fce638ec08795605cd0791f3
 
 # from 'make.sh'
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
@@ -97,9 +97,9 @@ esac
 
 HEKA_MODS=$BASE/build/heka/build/heka/lib/luasandbox/modules
 mkdir -p $HEKA_MODS/geoip
-gcc $SO_FLAGS database.o city.o -o $HEKA_MODS/geoip/city.so
-gcc $SO_FLAGS database.o country.o -o $HEKA_MODS/geoip/country.so
-gcc $SO_FLAGS database.o lua-geoip.o -o $HEKA_MODS/geoip.so
+gcc $SO_FLAGS database.o city.o -l GeoIP -o $HEKA_MODS/geoip/city.so
+gcc $SO_FLAGS database.o country.o -l GeoIP -o $HEKA_MODS/geoip/country.so
+gcc $SO_FLAGS database.o lua-geoip.o -l GeoIP -o $HEKA_MODS/geoip.so
 
 echo 'Installing lua-gzip lib'
 cd $BASE/build
