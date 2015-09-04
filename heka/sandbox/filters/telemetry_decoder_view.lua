@@ -81,18 +81,16 @@ function process_message ()
             end
 
             local id = string.match(v.Name, decoder_match)
-            if not id then
-                return -1, "Telemetry decoder is missing its identifier"
-            else
+            if id then
                 id = tonumber(id)
-            end
 
-            if type(v["ProcessMessageCount-TelemetryDecoder"]) == "table" then
-                update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value)
-            end
+                if type(v["ProcessMessageCount-TelemetryDecoder"]) == "table" then
+                    update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value)
+                end
 
-            if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
-                update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
+                if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
+                    update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
+                end
             end
         end
     elseif typ == "telemetry" then
