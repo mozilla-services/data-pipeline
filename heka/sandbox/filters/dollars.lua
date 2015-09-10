@@ -115,10 +115,11 @@ local function record_size(sizes, counter, channel, date, docType, size, count)
         sc[date] = scd
     end
 
-    if not scd[docType] then
-        scd[docType] = {count = 0, size = 0}
-    end
     local scdt = scd[docType]
+    if not scdt then
+        scdt = {count = 0, size = 0}
+        scd[docType] = scdt
+    end
 
     scdt.count = scdt.count + count
     scdt.size  = scdt.size + size
