@@ -249,12 +249,10 @@ local function test()
 
     for channel, days in pairs(s) do
         for day, types in pairs(days) do
-            -- if day ~= "counter" then
-                for type, v in pairs(types) do
-                    assert(v.count > 0)
-                    assert(v.size > 0)
-                end
-            -- end
+            for type, v in pairs(types) do
+                assert(v.count > 0)
+                assert(v.size > 0)
+            end
         end
     end
     assert(c.nightly == max_per_channel)
