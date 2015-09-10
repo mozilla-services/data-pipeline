@@ -23,6 +23,9 @@ factors relevant to budget planning. See Bug 1179751.
 
 require "os"
 require "table"
+
+local bdate_grammar
+
 if not TestMode then
     require "lpeg"
     require "cjson"
@@ -45,9 +48,9 @@ local counters = {
     build = {},
 }
 
-function get_build_date(buildid)
-    if not buildid then
-        return buildid
+local function get_build_date(buildid)
+    if type(buildid) ~= "string" then
+        return nil
     end
 
     if string.len(buildid) < 8 then
@@ -62,12 +65,12 @@ function get_build_date(buildid)
 end
 
 -- If possible, evict a key older than "newdate" to make room for the new key.
-function evict(counter, newdate)
+local function evict(counter, newdate)
     local evictable_keys = {}
     local count = 0
     for k, v in pairs(counter) do
         count = count + 1
-        if v ~= nil and k < newdate then
+        if k < newdate then
             table.insert(evictable_keys, k)
         end
     end
@@ -85,9 +88,9 @@ function evict(counter, newdate)
     return to_delete
 end
 
-function record_size(sizes, counter, channel, date, docType, size, count)
+local function record_size(sizes, counter, channel, date, docType, size, count)
     -- By default, count 1.
-    if not count then
+    if type(count) ~= "number" then
         count = 1
     end
 
@@ -97,7 +100,8 @@ function record_size(sizes, counter, channel, date, docType, size, count)
     end
     local sc = sizes[channel]
 
-    if not sc[date] then
+    local scd = sc[date]
+    if not scd then
         if counter[channel] >= max_per_channel then
             removed = evict(sc, date)
             if removed == 0 then
@@ -107,21 +111,21 @@ function record_size(sizes, counter, channel, date, docType, size, count)
             counter[channel] = counter[channel] - removed
         end
         counter[channel] = counter[channel] + 1
-        sc[date] = {}
+        scd = {}
+        sc[date] = scd
     end
-    local scd = sc[date]
 
     if not scd[docType] then
-        scd[docType] = {}
+        scd[docType] = {count = 0, size = 0}
     end
     local scdt = scd[docType]
 
-    scdt.count = (scdt.count or 0) + count
-    scdt.size  = (scdt.size or 0) + size
+    scdt.count = scdt.count + count
+    scdt.size  = scdt.size + size
     -- TODO: hdrhistogram to get a distribution of sizes
 end
 
-function process_message ()
+function process_message()
     local bdate = get_build_date(read_message("Fields[appBuildId]"))
     if not bdate then
         -- Skip it.
@@ -150,7 +154,7 @@ function timer_event(ns)
 end
 
 ---------------------------------------------------------
-function test()
+local function test()
     max_per_channel = 5
 
     local c = {}
