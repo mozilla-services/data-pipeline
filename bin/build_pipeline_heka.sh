@@ -12,6 +12,30 @@ if [ -z "$BUILD_BRANCH" ]; then
     BUILD_BRANCH=master
 fi
 
+UNAME=$(uname)
+MIN_GEOIP_VER=1.6.3
+case $UNAME in
+Darwin)
+    echo "Ensuring we have the latest geoip for OSX..."
+    MIN_GEOIP_VER=1.6.3
+    if [ ! -z "$(which brew)" ]; then
+        OSX_GEO_VER=$(brew info geoip | grep "geoip:" | sed -r "s/^.* ([0-9]+[.][0-9]+[.][0-9]+) .*$/\1/")
+        if [ ! -z "$OSX_GEO_VER" ]; then
+            X=$(printf '%s\n%s' "$MIN_GEOIP_VER" "$OSX_GEO_VER" | sort -V | head -1)
+            if [ "$X" != "$MIN_GEOIP_VER" ]; then
+                echo "Existing geoip version ($OSX_GEO_VER) is too old (we need at least $MIN_GEOIP_VER). Upgrading..."
+                brew upgrade geoip
+            else
+                echo "Looks like geoip version $OSX_GEO_VER is good (>= $MIN_GEOIP_VER)"
+            fi
+        fi
+    fi
+    ;;
+*)
+    # Don't know how to upgrade libs in general...
+    ;;
+esac
+
 BASE=$(pwd)
 # To override the location of the Lua headers, use something like
 #   export LUA_INCLUDE_PATH=/usr/include/lua5.1
@@ -83,7 +107,6 @@ git checkout b773a3a65c7b8db8fce638ec08795605cd0791f3
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
 
 SO_FLAGS="-shared -fPIC -s -O2"
-UNAME=$(uname)
 case $UNAME in
 Darwin)
     echo "Looks like OSX"
