@@ -26,6 +26,7 @@ local ROWS          = 2880
 
 local items         = read_config("bloom_items") or 3*1e6
 local probability   = read_config("bloom_probability") or 0.01
+local decoder_match = read_config("decoder_match") or "^TelemetryKafkaInput(%d+)"
 bf                  = bloom_filter.new(items, probability)
 cb                  = circular_buffer.new(ROWS, 3, SEC_PER_ROW, true)
 local TOTAL         = cb:set_header(1, "Total")
@@ -79,19 +80,17 @@ function process_message ()
                 return -1, "Decoder is missing its name"
             end
 
-            local id = string.match(v.Name, "^TelemetryKafkaInput(%d+)")
-            if not id then
-                return -1, "Telemetry decoder is missing its identifier"
-            else
+            local id = string.match(v.Name, decoder_match)
+            if id then
                 id = tonumber(id)
-            end
 
-            if type(v["ProcessMessageCount-TelemetryDecoder"]) == "table" then
-                update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value)
-            end
+                if type(v["ProcessMessageCount-TelemetryDecoder"]) == "table" then
+                    update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value)
+                end
 
-            if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
-                update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
+                if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
+                    update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
+                end
             end
         end
     elseif typ == "telemetry" then
