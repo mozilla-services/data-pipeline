@@ -88,12 +88,7 @@ local function evict(counter, newdate)
     return to_delete
 end
 
-local function record_size(sizes, counter, channel, date, docType, size, count)
-    -- By default, count 1.
-    if type(count) ~= "number" then
-        count = 1
-    end
-
+local function record_size(sizes, counter, channel, date, docType, size)
     if not sizes[channel] then
         sizes[channel] = {}
         counter[channel] = 0
@@ -121,7 +116,7 @@ local function record_size(sizes, counter, channel, date, docType, size, count)
         scd[docType] = scdt
     end
 
-    scdt.count = scdt.count + count
+    scdt.count = scdt.count + 1
     scdt.size  = scdt.size + size
     -- TODO: hdrhistogram to get a distribution of sizes
 end
@@ -239,9 +234,10 @@ local function test()
     -- Other channels should track separately.
     record_size(s, c, "aurora", "20150821", "main", 500)
     record_size(s, c, "aurora", "20150821", "main", 500)
-    record_size(s, c, "aurora", "20150809", "main", 2200, 5)
+    record_size(s, c, "aurora", "20150809", "main", 440)
+    record_size(s, c, "aurora", "20150809", "main", 440)
     record_size(s, c, "aurora", "20150809", "main", 450)
-    record_size(s, c, "aurora", "20150809", "main", 451, 1)
+    record_size(s, c, "aurora", "20150809", "main", 451)
     record_size(s, c, "aurora", "20150721", "saved-session", 500)
     record_size(s, c, "aurora", "20150621", "saved-session", 500)
     record_size(s, c, "aurora", "20150621", "saved-session", 505)
@@ -262,8 +258,8 @@ local function test()
     assert(s.nightly["20150821"].main.size == 1500)
 
     assert(s.aurora["20150809"])
-    assert(s.aurora["20150809"].main.count == 7)
-    assert(s.aurora["20150809"].main.size == 3101)
+    assert(s.aurora["20150809"].main.count == 4)
+    assert(s.aurora["20150809"].main.size == 1781)
 end
 
 if TestMode then
