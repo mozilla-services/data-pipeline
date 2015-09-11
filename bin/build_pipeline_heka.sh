@@ -96,12 +96,12 @@ echo 'Installing lua-geoip libs'
 cd $BASE/build
 if [ ! -d lua-geoip ]; then
     # Fetch the lua geoip lib
-    git clone https://github.com/trink/lua-geoip.git
+    git clone https://github.com/agladysh/lua-geoip.git
 fi
 cd lua-geoip
 
-# Use a known revision (current "master" with stderr fix Sept 3)
-git checkout b773a3a65c7b8db8fce638ec08795605cd0791f3
+# Use a known revision (current "master" with stderr fix Sept 11)
+git checkout a07d261d8a2c7ff854fe6cd72cb8c2e16ec638ff
 
 # from 'make.sh'
 gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror --std=c99 -fms-extensions
