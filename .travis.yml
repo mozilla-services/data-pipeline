@@ -18,5 +18,5 @@ script:
     - cd build/heka
     - . env.sh
     - cd build
-    - make test
+    - make
     - go test github.com/mozilla-services/data-pipeline/s3splitfile
