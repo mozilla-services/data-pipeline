@@ -121,9 +121,9 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "appName"           , info.appName or UNK_DIM)
         update_field(msg.Fields, "appVersion"        , info.appVersion or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , info.appUpdateChannel or UNK_DIM)
+        update_field(msg.Fields, "appBuildId"        , info.appBuildID or UNK_DIM)
 
         -- Do not want default values for these.
-        update_field(msg.Fields, "appBuildId", info.appBuildID)
         update_field(msg.Fields, "os"        , info.OS)
         update_field(msg.Fields, "appVendor" , info.vendor)
         update_field(msg.Fields, "reason"    , info.reason)
@@ -156,9 +156,9 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "appName"           , app.name or UNK_DIM)
         update_field(msg.Fields, "appVersion"        , app.version or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , app.channel or UNK_DIM)
+        update_field(msg.Fields, "appBuildId"        , app.buildId or UNK_DIM)
 
         -- Do not want default values for these.
-        update_field(msg.Fields, "appBuildId", app.buildId)
         update_field(msg.Fields, "appVendor" , app.vendor)
         clientId = parsed.clientId
         update_field(msg.Fields, "clientId"  , clientId)
