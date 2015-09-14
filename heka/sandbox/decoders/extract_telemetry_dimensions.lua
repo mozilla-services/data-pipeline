@@ -121,9 +121,9 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "appName"           , info.appName or UNK_DIM)
         update_field(msg.Fields, "appVersion"        , info.appVersion or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , info.appUpdateChannel or UNK_DIM)
+        update_field(msg.Fields, "appBuildId"        , info.appBuildID or UNK_DIM)
 
         -- Do not want default values for these.
-        update_field(msg.Fields, "appBuildId", info.appBuildID)
         update_field(msg.Fields, "os"        , info.OS)
         update_field(msg.Fields, "appVendor" , info.vendor)
         update_field(msg.Fields, "reason"    , info.reason)
@@ -156,9 +156,9 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "appName"           , app.name or UNK_DIM)
         update_field(msg.Fields, "appVersion"        , app.version or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , app.channel or UNK_DIM)
+        update_field(msg.Fields, "appBuildId"        , app.buildId or UNK_DIM)
 
         -- Do not want default values for these.
-        update_field(msg.Fields, "appBuildId", app.buildId)
         update_field(msg.Fields, "appVendor" , app.vendor)
         clientId = parsed.clientId
         update_field(msg.Fields, "clientId"  , clientId)
@@ -184,6 +184,23 @@ local function process_json(msg, json, parsed)
         else
             msg.Payload = json
         end
+    elseif type(parsed.deviceinfo) == "table" then
+        -- Old 'appusage' ping, see Bug 982663
+        msg.Payload = json
+
+        -- Special version for this old format
+        update_field(msg.Fields, "sourceVersion", "3")
+
+        local av = parsed.deviceinfo["deviceinfo.platform_version"]
+        local auc = parsed.deviceinfo["deviceinfo.update_channel"]
+        local abi = parsed.deviceinfo["deviceinfo.platform_build_id"]
+
+        -- Get some more dimensions.
+        update_field(msg.Fields, "docType"           , "appusage")
+        update_field(msg.Fields, "appName"           , "FirefoxOS")
+        update_field(msg.Fields, "appVersion"        , av or UNK_DIM)
+        update_field(msg.Fields, "appUpdateChannel"  , auc or UNK_DIM)
+        update_field(msg.Fields, "appBuildId"        , abi or UNK_DIM)
     end
     update_field(msg.Fields, "sampleId", sample(clientId, 100))
     return nil -- processing was successful
