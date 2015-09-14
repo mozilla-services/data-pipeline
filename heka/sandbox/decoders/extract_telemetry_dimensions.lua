@@ -184,6 +184,23 @@ local function process_json(msg, json, parsed)
         else
             msg.Payload = json
         end
+    elseif parsed.deviceinfo then
+        -- Old 'appusage' ping, see Bug 982663
+        msg.Payload = json
+
+        -- Special version for this old format
+        update_field(msg.Fields, "sourceVersion", "3")
+
+        local av = parsed.deviceinfo["deviceinfo.platform_version"]
+        local auc = parsed.deviceinfo["deviceinfo.update_channel"]
+        local abi = parsed.deviceinfo["deviceinfo.platform_build_id"]
+
+        -- Get some more dimensions.
+        update_field(msg.Fields, "docType"           , "appusage")
+        update_field(msg.Fields, "appName"           , "FirefoxOS")
+        update_field(msg.Fields, "appVersion"        , av or UNK_DIM)
+        update_field(msg.Fields, "appUpdateChannel"  , auc or UNK_DIM)
+        update_field(msg.Fields, "appBuildId"        , abi or UNK_DIM)
     end
     update_field(msg.Fields, "sampleId", sample(clientId, 100))
     return nil -- processing was successful
