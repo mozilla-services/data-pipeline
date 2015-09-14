@@ -184,7 +184,7 @@ local function process_json(msg, json, parsed)
         else
             msg.Payload = json
         end
-    elseif parsed.deviceinfo then
+    elseif type(parsed.deviceinfo) == "table" then
         -- Old 'appusage' ping, see Bug 982663
         msg.Payload = json
 
