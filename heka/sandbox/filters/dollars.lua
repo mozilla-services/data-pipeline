@@ -15,13 +15,12 @@ factors relevant to budget planning. See Bug 1179751.
     [PipelineBudget]
     type = "SandboxFilter"
     filename = "lua_filters/dollars.lua"
-    message_matcher = "Type == 'telemetry'"
+    message_matcher = "Type == 'payload_size'"
     ticker_interval = 60
     preserve_data = false
 
 --]]
 
-require "os"
 require "table"
 
 local bdate_grammar
@@ -122,19 +121,19 @@ local function record_size(sizes, counter, channel, date, docType, size)
 end
 
 function process_message()
-    local bdate = get_build_date(read_message("Fields[appBuildId]"))
+    local bdate = get_build_date(read_message("Fields[build]"))
     if not bdate then
         -- Skip it.
         return 0
     end
 
-    local channel = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
-    local sdate = os.date("%Y%m%d", read_message("Timestamp") / 1e9)
+    local channel = fx.normalize_channel(read_message("Fields[channel]"))
+    local sdate = read_message("Fields[submissionDate]")
     local msgType = read_message("Fields[docType]")
     if msgType ~= "main" and msgType ~= "saved-session" then
         msgType = "other"
     end
-    local size = read_message("Fields[Size]")
+    local size = read_message("Fields[size]")
 
     record_size(sizes.submission, counters.submission, channel, sdate, msgType, size)
     record_size(sizes.build, counters.build, channel, bdate, msgType, size)
