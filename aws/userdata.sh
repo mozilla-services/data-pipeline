@@ -1,8 +1,12 @@
 #!/bin/bash
 
 #sudo su -
+# As of 2015/09/10, build requires geoip >= 1.6.3.
+# Add a PPA for recent versions.
+add-apt-repository ppa:maxmind/ppa -y
+
 apt-get update
-apt-get --yes install mdadm xfsprogs jq git python-pip python-protobuf cmake libgeoip-dev zlib1g-dev mercurial
+apt-get --yes install mdadm xfsprogs jq git python-pip python-protobuf cmake libgeoip-dev zlib1g-dev mercurial debhelper
 pip install awscli boto
 umount /mnt
 yes | mdadm --create /dev/md0 --level=0 -c64 --raid-devices=2 /dev/xvdb /dev/xvdc
