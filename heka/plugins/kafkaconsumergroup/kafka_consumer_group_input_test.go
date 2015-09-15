@@ -52,6 +52,25 @@ func TestBadZookeeperConnectionString(t *testing.T) {
 	}
 }
 
+func TestInvalidOffsetMethod(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
+	ki := new(KafkaConsumerGroupInput)
+	ki.SetName("test")
+	ki.SetPipelineConfig(pConfig)
+
+	config := ki.ConfigStruct().(*KafkaConsumerGroupInputConfig)
+	config.ConsumerGroup = "test"
+	config.Topics = []string{"test"}
+	config.ZookeeperConnectionString = "localhost:2181"
+	config.OffsetMethod = "last"
+	err := ki.Init(config)
+
+	errmsg := "invalid offset_method: last"
+	if err.Error() != errmsg {
+		t.Errorf("Expected: %s, received: %s", errmsg, err)
+	}
+}
+
 func TestEmptyInputTopics(t *testing.T) {
 	pConfig := NewPipelineConfig(nil)
 	ki := new(KafkaConsumerGroupInput)

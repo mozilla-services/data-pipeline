@@ -18,6 +18,8 @@ package kafkaconsumergroup
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -26,15 +28,7 @@ import (
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/wvanbergen/kafka/consumergroup"
 	"github.com/wvanbergen/kazoo-go"
-
-	// "os"
-	// "log"
 )
-
-// FIXME can heka's logging infrastructure be used for this?
-// func init() {
-// 	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
-// }
 
 type KafkaConsumerGroupInputConfig struct {
 	Splitter string
@@ -60,6 +54,9 @@ type KafkaConsumerGroupInputConfig struct {
 	ConsumerGroup             string   `toml:"consumer_group"`
 	Topics                    []string `toml:"topics"`
 	ZookeeperConnectionString string   `toml:"zookeeper_connection_string"`
+	OffsetMethod              string   `toml:"offset_method"` // Newest, Oldest
+	EventBufferSize           int      `toml:"event_buffer_size"`
+	LogSarama                 bool     `toml:"log_sarama"`
 }
 
 type KafkaConsumerGroupInput struct {
@@ -89,6 +86,9 @@ func (k *KafkaConsumerGroupInput) ConfigStruct() interface{} {
 		DefaultFetchSize:           1024 * 32,
 		MinFetchSize:               1,
 		MaxWaitTime:                250,
+		OffsetMethod:               "Oldest",
+		EventBufferSize:            16,
+		LogSarama:                  false,
 	}
 }
 
@@ -112,8 +112,23 @@ func (k *KafkaConsumerGroupInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("zookeeper_connection_string required")
 	}
 
+	// FIXME heka's logging infrastructure can probably be used for this
+	// contains useful information for debugging consumer group partition
+	// changes
+	if k.config.LogSarama {
+		sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
+	}
+
 	k.consumerConfig = consumergroup.NewConfig()
-	k.consumerConfig.Offsets.Initial = sarama.OffsetOldest
+	switch k.config.OffsetMethod {
+	case "Newest":
+		k.consumerConfig.Offsets.Initial = sarama.OffsetNewest
+	case "Oldest":
+		k.consumerConfig.Offsets.Initial = sarama.OffsetOldest
+	default:
+		return fmt.Errorf("invalid offset_method: %s", k.config.OffsetMethod)
+	}
+
 	k.consumerConfig.Offsets.ProcessingTimeout = 10 * time.Second
 
 	k.consumerConfig.Config.Metadata.Retry.Max = k.config.MetadataRetries
@@ -129,6 +144,7 @@ func (k *KafkaConsumerGroupInput) Init(config interface{}) (err error) {
 	k.consumerConfig.Config.Consumer.Fetch.Min = k.config.MinFetchSize
 	k.consumerConfig.Config.Consumer.Fetch.Max = k.config.MaxMessageSize
 	k.consumerConfig.Config.Consumer.MaxWaitTime = time.Duration(k.config.MaxWaitTime) * time.Millisecond
+	k.consumerConfig.Config.ChannelBufferSize = k.config.EventBufferSize
 
 	var zookeeperNodes []string
 	zookeeperNodes, k.consumerConfig.Zookeeper.Chroot = kazoo.ParseConnectionString(k.config.ZookeeperConnectionString)
@@ -168,7 +184,8 @@ func (k *KafkaConsumerGroupInput) Run(ir pipeline.InputRunner, h pipeline.Plugin
 
 	go func() {
 		for err := range k.consumer.Errors() {
-			// this isn't a process message failure, as the failure channel is async
+			// this isn't necessarily a process message failure, as the failure
+			// channel is async
 			// atomic.AddInt64(&k.processMessageFailures, 1)
 			ir.LogError(err)
 		}
