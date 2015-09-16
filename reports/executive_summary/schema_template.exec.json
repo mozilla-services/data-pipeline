@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "dimensions": [
+    { "field_name": "submissionDate",   "allowed_values": [ "__TARGET__" ] }
+  ]
+} 

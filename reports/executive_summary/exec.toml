@@ -1,0 +1,74 @@
+[hekad]
+maxprocs = 8
+base_dir = "/mnt/telemetry/output"
+share_dir = "/mnt/telemetry/heka-0_10_0-linux-amd64/share/heka"
+# 8MB
+max_message_size = 8388608
+
+[SnappyDecoder]
+
+[Multi]
+type = "MultiDecoder"
+subs = ["SnappyDecoder", "ProtobufDecoder"]
+cascade_strategy = "all"
+log_sub_errors = true
+
+[ExecInput]
+type = "S3SplitFileInput"
+s3_bucket = "net-mozaws-prod-us-west-2-pipeline-data"
+s3_bucket_prefix = "telemetry-executive-summary-2"
+s3_worker_count = 16
+s3_read_timeout = 600
+schema_file = "schema.exec.json"
+decoder = "Multi"
+
+[FirefoxMonthly]
+type = "SandboxFilter"
+instruction_limit = 0
+filename = "lua_filters/firefox_executive_report.lua"
+message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
+output_limit = 0
+memory_limit = 0
+ticker_interval = 0
+preserve_data = true
+timer_event_on_shutdown = true
+
+    [FirefoxMonthly.config]
+    items = 100000000
+    rollup_interval = "month"
+
+[FirefoxWeekly]
+type = "SandboxFilter"
+instruction_limit = 0
+filename = "lua_filters/firefox_executive_report.lua"
+message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
+output_limit = 0
+memory_limit = 0
+ticker_interval = 0
+preserve_data = true
+timer_event_on_shutdown = true
+
+    [FirefoxWeekly.config]
+    items = 100000000
+    rollup_interval = "week"
+
+[FirefoxDaily]
+type = "SandboxFilter"
+instruction_limit = 0
+filename = "lua_filters/firefox_executive_report.lua"
+message_matcher = "Logger == 'fx' && Type == 'executive_summary' && Fields[vendor] == 'Mozilla' && Fields[app] == 'Firefox'"
+output_limit = 0
+memory_limit = 0
+ticker_interval = 0
+preserve_data = true
+timer_event_on_shutdown = true
+
+    [FirefoxDaily.config]
+    items = 100000000
+    rollup_interval = "day"
+    finalize_on_exit = true
+
+[DashboardOutput]
+address = ":8080"
+static_directory = "/mnt/telemetry/heka-0_10_0-linux-amd64/share/heka/dasher"
+ticker_interval = 10
