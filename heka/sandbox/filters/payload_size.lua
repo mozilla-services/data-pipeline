@@ -13,7 +13,7 @@ derived messages for reporting.
     [PayloadSize]
     type = "SandboxFilter"
     filename = "lua_filters/payload_size.lua"
-    message_matcher = "Type == 'telemetry'"
+    message_matcher = "Type == 'telemetry' && Logger == 'telemetry'"
     ticker_interval = 0
     preserve_data = false
 
@@ -21,8 +21,6 @@ derived messages for reporting.
 
 local msg = {
     Timestamp  = nil,
-    Type       = "payload_size",
-    Logger     = "telemetry",
     Payload    = nil,
     Fields     = {
         build = "",
