@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "dimensions": [
+    { "field_name": "submissionDate", "allowed_values": "__TARGET__" },
+    { "field_name": "docType",        "allowed_values": "*" },
+    { "field_name": "channel",        "allowed_values": "*" }
+  ]
+}
