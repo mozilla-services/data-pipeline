@@ -184,9 +184,7 @@ func (k *KafkaConsumerGroupInput) Run(ir pipeline.InputRunner, h pipeline.Plugin
 
 	go func() {
 		for err := range k.consumer.Errors() {
-			// this isn't necessarily a process message failure, as the failure
-			// channel is async
-			// atomic.AddInt64(&k.processMessageFailures, 1)
+			atomic.AddInt64(&k.processMessageFailures, 1)
 			ir.LogError(err)
 		}
 	}()
