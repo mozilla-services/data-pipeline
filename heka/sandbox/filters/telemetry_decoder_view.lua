@@ -38,6 +38,9 @@ id_failures         = {} -- array of decoder ids and the last seen failure count
 local alert_throttle    = read_config("alert_throttle") or 3600
 alert.set_throttle(alert_throttle * 1e9)
 
+-- multi-decoder cascade means that we may need to apply a scaling factor to
+-- get an accurate count
+local scaling_factor = read_config("scaling_factor") or 1
 
 local function update_delta(ts, col, id, parray, cur)
     local previous = parray[id]
@@ -85,11 +88,11 @@ function process_message ()
                 id = tonumber(id)
 
                 if type(v["ProcessMessageCount-TelemetryDecoder"]) == "table" then
-                    update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value)
+                    update_delta(ts, TOTAL, id, id_count, v["ProcessMessageCount-TelemetryDecoder"].value / scaling_factor)
                 end
 
                 if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
-                    update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
+                    update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value / scaling_factor)
                 end
             end
         end
