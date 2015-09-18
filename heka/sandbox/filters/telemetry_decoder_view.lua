@@ -92,7 +92,7 @@ function process_message ()
                 end
 
                 if type(v["ProcessMessageFailures-TelemetryDecoder"]) == "table" then
-                    update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value / scaling_factor)
+                    update_delta(ts, FAILURES, id, id_failures, v["ProcessMessageFailures-TelemetryDecoder"].value)
                 end
             end
         end
