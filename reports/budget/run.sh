@@ -1,9 +1,5 @@
 #!/bin/bash
-
-echo "ohai"
-
 OUTPUT=output
-TODAY=$(date +%Y%m%d)
 if [ ! -d "$OUTPUT" ]; then
     mkdir -p "$OUTPUT/sandbox_preservation"
 fi
@@ -16,7 +12,7 @@ if [ -z "$TARGET" ]; then
 fi
 
 # Install heka
-wget http://people.mozilla.org/~mreid/heka-20150916-0_10_0-linux-amd64.tar.gz -O heka.tar.gz
+wget http://people.mozilla.org/~mreid/heka-20150918-0_11_0-linux-amd64.tar.gz -O heka.tar.gz
 tar xzf heka.tar.gz
 mv heka-* heka
 
