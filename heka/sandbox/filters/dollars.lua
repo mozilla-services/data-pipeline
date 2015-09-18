@@ -20,8 +20,6 @@ factors relevant to budget planning. See Bug 1179751.
     preserve_data = false
 
 --]]
-_PRESERVATION_VERSION = 1
-
 require "table"
 
 local bdate_grammar
