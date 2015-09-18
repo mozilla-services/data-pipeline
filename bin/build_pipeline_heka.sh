@@ -57,7 +57,7 @@ fi
 cd heka
 # pin the Heka version
 git fetch
-git checkout 6094d1db354301813384273e3e09fb33df8137c2
+git checkout 6f4b61a11cd01f1548dbd7dc8ebd0ed1cf9edbba
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
@@ -74,7 +74,12 @@ if [ ! -f "patches_applied" ]; then
 
     echo "Adding external plugin for golang-lru output"
     echo "add_external_plugin(git https://github.com/mreid-moz/golang-lru acc5bd27065280640fa0a79a973076c6abaccec8)" >> cmake/plugin_loader.cmake
-    echo "add_external_plugin(git https://github.com/golang/snappy master)" >> cmake/plugin_loader.cmake
+
+    echo "Adding kafka consumer group input"
+    echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline/kafkaconsumergroup :local)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/wvanbergen/kafka master __ignore_root)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/wvanbergen/kazoo-go master)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/samuel/go-zookeeper master __ignore_root)" >> cmake/plugin_loader.cmake
 fi
 
 # TODO: do this using cmake externals instead of shell-fu.

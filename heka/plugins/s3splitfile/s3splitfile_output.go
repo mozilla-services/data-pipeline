@@ -452,7 +452,7 @@ func (o *S3SplitFileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 			}
 			// else the encoder did not emit a message.
 
-			pack.Recycle()
+			pack.Recycle(nil)
 		case <-o.timerChan:
 			if e = o.rotateFiles(); e != nil {
 				or.LogError(fmt.Errorf("Error rotating files by time: %s", e))

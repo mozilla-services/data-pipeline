@@ -20,3 +20,4 @@ script:
     - cd build
     - make
     - go test github.com/mozilla-services/data-pipeline/s3splitfile
+    - go test github.com/mozilla-services/data-pipeline/kafkaconsumergroup
