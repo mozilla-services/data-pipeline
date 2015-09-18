@@ -21,6 +21,7 @@ tar xzf heka.tar.gz
 mv heka-* heka
 
 echo "Fetching previous state..."
+
 aws s3 sync s3://telemetry-private-analysis/budget-report/data/sandbox_preservation/ "$OUTPUT/sandbox_preservation/"
 
 sed -r "s/__TARGET__/$TARGET/" schema_template.json > schema.json
@@ -28,3 +29,5 @@ heka/bin/hekad -config budget.toml
 
 # TODO: push json to prod report bucket/path
 # aws s3 cp "$OUTPUT/dashboard/data/PipelineBudget.SubmissionSizesbychannelanddate.json" s3://bucket/path/to/budget.json
+
+# TODO: alert if data for $TARGET exceeds expected volume.
