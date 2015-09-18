@@ -26,7 +26,7 @@ for f in $(ls $OUTPUT/sandbox_preservation/Firefox*.data.gz); do
     BACKUP=$(echo "$f" | sed -r "s/[.]data[.]/.data.prev./")
     cp "$f" "$BACKUP"
     gunzip "$f"
-fi
+done
 
 # Run the report on $TARGET
 heka-0_10_0-linux-amd64/bin/hekad -config exec.toml
