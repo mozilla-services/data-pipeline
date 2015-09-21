@@ -7,6 +7,8 @@
 package s3splitfile
 
 import (
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"path/filepath"
 )
@@ -65,5 +67,36 @@ func S3SplitFileSpec(c gs.Context) {
 		testFieldVal(c, schema, "range", "aa0", "OTHER")
 		testFieldVal(c, schema, "range", "bbc", "OTHER")
 		testFieldVal(c, schema, "range", "ccc", "OTHER")
+	})
+
+	c.Specify("Non-string fields", func() {
+		schema, _ := LoadSchema(filepath.Join(".", "testsupport", "schema.json"))
+		pack := NewPipelinePack(nil)
+
+		// No fields
+		dims := schema.GetDimensions(pack)
+		c.Expect(dims[0], gs.Equals, "UNKNOWN")
+
+		// Integer field
+		f, _ := message.NewField("any", 1, "")
+		pack.Message.AddField(f)
+		dims = schema.GetDimensions(pack)
+		c.Expect(dims[0], gs.Equals, "1")
+		pack.Message.DeleteField(f)
+
+		// Boolean field
+		f, _ = message.NewField("any", true, "")
+		pack.Message.AddField(f)
+		dims = schema.GetDimensions(pack)
+		c.Expect(dims[0], gs.Equals, "true")
+		pack.Message.DeleteField(f)
+
+		// Double field
+		f, _ = message.NewField("any", 1.23, "")
+		pack.Message.AddField(f)
+		dims = schema.GetDimensions(pack)
+		c.Expect(dims[0], gs.Equals, "1.23")
+		pack.Message.DeleteField(f)
+
 	})
 }

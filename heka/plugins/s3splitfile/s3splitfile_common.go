@@ -62,11 +62,11 @@ func (s *Schema) GetDimensions(pack *PipelinePack) (dimensions []string) {
 		idx, ok := s.FieldIndices[field.GetName()]
 		if ok {
 			remaining -= 1
-			inValues := field.GetValueString()
-			if len(inValues) > 0 {
-				// We use the first available value, even if several have been
-				// provided.
-				v, err := s.GetValue(field.GetName(), inValues[0])
+			// We use the first available value, even if several have been
+			// provided.
+			inValue := field.GetValue()
+			if inValue != nil {
+				v, err := s.GetValue(field.GetName(), fmt.Sprintf("%v", inValue))
 				if err != nil {
 					fmt.Printf("How did this happen? %s", err)
 				}
