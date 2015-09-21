@@ -21,6 +21,7 @@ derived messages for reporting.
 
 local msg = {
     Timestamp  = nil,
+    Type       = "payload_size",
     Payload    = nil,
     Fields     = {
         build = "",
