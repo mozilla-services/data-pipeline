@@ -98,5 +98,12 @@ func S3SplitFileSpec(c gs.Context) {
 		c.Expect(dims[0], gs.Equals, "1.23")
 		pack.Message.DeleteField(f)
 
+		// Empty string field
+		f, _ = message.NewField("any", "", "")
+		pack.Message.AddField(f)
+		dims = schema.GetDimensions(pack)
+		c.Expect(dims[0], gs.Equals, "UNKNOWN")
+		pack.Message.DeleteField(f)
+
 	})
 }

@@ -70,7 +70,9 @@ func (s *Schema) GetDimensions(pack *PipelinePack) (dimensions []string) {
 				if err != nil {
 					fmt.Printf("How did this happen? %s", err)
 				}
-				dims[idx] = v
+				if v != "" {
+					dims[idx] = v
+				} // Else the value was an empty string, leave as unknown.
 			} // Else there were no values, leave this field as unknown.
 		}
 	}
