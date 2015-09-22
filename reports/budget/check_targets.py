@@ -90,7 +90,7 @@ def main():
 
     if len(errors) > 0:
         message = "Incoming data for {} exceeded budget targets:\n".format(args.day) + "\n".join(sorted(errors))
-        subject = "TEST MESSAGE 2: Incoming Telemetry data exceeded budget targets for {}".format(args.day)
+        subject = "Incoming Telemetry data exceeded budget targets for {}".format(args.day)
         if args.dry_run:
             print "Dry-run mode. Would have sent:"
             print "=============================="
