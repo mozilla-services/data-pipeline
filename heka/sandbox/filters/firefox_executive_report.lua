@@ -54,6 +54,7 @@ fx_cids             = fx.executive_report.new(items)
 intervals           = {}
 current_day         = -1
 current_interval    = -1
+current_interval_ts = -1
 
 local get_os_id
 local get_os_name
@@ -85,7 +86,10 @@ end
 
 local function update_row(r, cid, country, channel, _os, dow)
     local dflt = fx.get_boolean_value(read_message("Fields[default]"))
-    fx_cids:add(cid, country, channel, _os, dow, dflt)
+    local pct = read_message("Fields[profileCreationTimestamp]")
+    if type(pct) ~= "number" then pct = 0 end
+
+    fx_cids:add(cid, country, channel, _os, dow, dflt, pct >= current_interval_ts)
 
     local doc_type = read_message("Fields[docType]")
     if doc_type == "main" then
@@ -109,13 +113,21 @@ local function clear_intervals(s, e, size)
 end
 
 
+local function set_day_interval_ts(day)
+    current_interval_ts = day * SEC_IN_DAY * 1e9
+end
+
 local function update_day(ts, cid, day)
-    if current_interval == -1 then current_interval = day end
+    if current_interval == -1 then
+        current_interval = day
+        set_day_interval_ts(day)
+    end
 
     local delta = day - current_interval
     if delta > 0 and delta < DAYS then
         fx_cids:report(intervals[current_interval % DAYS + 1])
         clear_intervals(current_interval, day, DAYS)
+        set_day_interval_ts(day)
     elseif delta >= DAYS then
         error(string.format("data gap over %d days", DAYS))
     end
@@ -128,14 +140,22 @@ local function update_day(ts, cid, day)
 end
 
 
+local function set_week_interval_ts(week)
+    current_interval_ts = (week * SEC_IN_WEEK - (SEC_IN_DAY * DAY_OFFSET)) * 1e9
+end
+
 local function update_week(_, cid, day)
     local week = floor((day + DAY_OFFSET) / 7)
-    if current_interval == -1 then current_interval = week end
+    if current_interval == -1 then
+        current_interval = week
+        set_week_interval_ts(week)
+    end
 
     local delta = week - current_interval
     if delta > 0 and delta < WEEKS then
         fx_cids:report(intervals[current_interval % WEEKS + 1])
         clear_intervals(current_interval, week, WEEKS)
+        set_week_interval_ts(week)
     elseif delta >= WEEKS then
         error(string.format("data gap over %d weeks", WEEKS))
     end
@@ -153,18 +173,27 @@ local function update_week(_, cid, day)
 end
 
 
+local function set_month_interval_ts(year, day)
+    current_interval_ts = os.time({year = year, month = month, day = 1}) * 1e9
+end
+
 local function update_month(ts, cid, _, day_changed)
     local month = current_interval
+    local t
     if current_interval == -1 or day_changed then
-        local t = date("*t", ts / 1e9)
+        t = date("*t", ts / 1e9)
         month = (tonumber(t.year) - 1) * 12 + tonumber(t.month)
-        if current_interval == -1 then current_interval = month end
+        if current_interval == -1 then
+            current_interval = month
+            set_month_interval_ts(t.year, t.month)
+        end
     end
 
     local delta = month - current_interval
     if delta > 0 and delta < MONTHS then
         fx_cids:report(intervals[current_interval % MONTHS + 1])
         clear_intervals(current_interval, month, MONTHS)
+        set_month_interval_ts(t.year, t.month)
     elseif delta >= MONTHS then
         error(string.format("data gap over %d months", MONTHS))
     end

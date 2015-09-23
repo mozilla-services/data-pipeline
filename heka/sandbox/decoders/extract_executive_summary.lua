@@ -110,6 +110,19 @@ local function get_os_version()
 end
 
 
+local function get_profile_creation()
+    local json = read_message("Fields[environment.profile]")
+    local ok, profile = pcall(cjson.decode, json)
+    if not ok then return 0 end
+
+    local days = profile.creationDate
+    if type(days) == "number" and days > 0 then
+        return days * SEC_IN_DAY * 1e9
+    end
+    return 0
+end
+
+
 local function set_string_field(field, key)
     field.value = ""
     local s = read_message(key)
@@ -121,44 +134,46 @@ end
 
 ----
 local crash_fields = {
-    docType             = {value = ""},
-    submissionDate      = {value = ""},
-    activityTimestamp   = {value = 0},
-    clientId            = {value = ""},
-    documentId          = {value = ""},
-    country             = {value = ""},
-    channel             = {value = ""},
-    os                  = {value = ""},
-    osVersion           = {value = ""},
-    default             = {value = false},
-    buildId             = {value = ""},
-    app                 = {value = ""},
-    version             = {value = ""},
-    vendor              = {value = ""},
+    docType                     = {value = ""},
+    submissionDate              = {value = ""},
+    activityTimestamp           = {value = 0},
+    profileCreationTimestamp    = {value = 0},
+    clientId                    = {value = ""},
+    documentId                  = {value = ""},
+    country                     = {value = ""},
+    channel                     = {value = ""},
+    os                          = {value = ""},
+    osVersion                   = {value = ""},
+    default                     = {value = false},
+    buildId                     = {value = ""},
+    app                         = {value = ""},
+    version                     = {value = ""},
+    vendor                      = {value = ""},
 }
 
 local main_fields = {
-    docType             = crash_fields.docType,
-    submissionDate      = crash_fields.submissionDate,
-    activityTimestamp   = crash_fields.activityTimestamp,
-    clientId            = crash_fields.clientId,
-    documentId          = crash_fields.documentId,
-    country             = crash_fields.country,
-    channel             = crash_fields.channel,
-    os                  = crash_fields.os,
-    osVersion           = crash_fields.osVersion,
-    default             = crash_fields.default,
-    buildId             = crash_fields.buildId,
-    app                 = crash_fields.app,
-    version             = crash_fields.version,
-    vendor              = crash_fields.vendor,
-    reason              = {value = ""},
-    hours               = {value = 0},
-    google              = {value = 0, value_type = 2},
-    bing                = {value = 0, value_type = 2},
-    yahoo               = {value = 0, value_type = 2},
-    other               = {value = 0, value_type = 2},
-    pluginHangs         = {value = 0, value_type = 2},
+    docType                     = crash_fields.docType,
+    submissionDate              = crash_fields.submissionDate,
+    activityTimestamp           = crash_fields.activityTimestamp,
+    profileCreationTimestamp    = crash_fields.profileCreationTimestamp,
+    clientId                    = crash_fields.clientId,
+    documentId                  = crash_fields.documentId,
+    country                     = crash_fields.country,
+    channel                     = crash_fields.channel,
+    os                          = crash_fields.os,
+    osVersion                   = crash_fields.osVersion,
+    default                     = crash_fields.default,
+    buildId                     = crash_fields.buildId,
+    app                         = crash_fields.app,
+    version                     = crash_fields.version,
+    vendor                      = crash_fields.vendor,
+    reason                      = {value = ""},
+    hours                       = {value = 0},
+    google                      = {value = 0, value_type = 2},
+    bing                        = {value = 0, value_type = 2},
+    yahoo                       = {value = 0, value_type = 2},
+    other                       = {value = 0, value_type = 2},
+    pluginHangs                 = {value = 0, value_type = 2},
 }
 
 local msg = {
@@ -191,6 +206,7 @@ function process_message()
     local cts = read_message("Fields[creationTimestamp]")
     if type(cts) ~= "number" then cts = 0 end
     msg.Fields.activityTimestamp.value = cts
+    msg.Fields.profileCreationTimestamp.value = get_profile_creation()
 
     local cid = read_message("Fields[clientId]")
     if type(cid) ~= "string" then return 0 end
