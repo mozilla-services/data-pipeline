@@ -1,0 +1,42 @@
+[hekad]
+maxprocs = 8
+base_dir = "/mnt/telemetry/output"
+share_dir = "/mnt/telemetry/heka/share/heka"
+# 8MB
+max_message_size = 8388608
+
+[SnappyDecoder]
+
+[Multi]
+type = "MultiDecoder"
+subs = ["SnappyDecoder", "ProtobufDecoder"]
+cascade_strategy = "all"
+log_sub_errors = true
+
+[S3Input]
+type = "S3SplitFileInput"
+s3_bucket = "net-mozaws-prod-us-west-2-pipeline-data"
+s3_bucket_prefix = "telemetry-payload-size"
+s3_worker_count = 16
+s3_read_timeout = 600
+schema_file = "schema.json"
+decoder = "Multi"
+
+[PipelineBudget]
+type = "SandboxFilter"
+filename = "lua_filters/dollars.lua"
+message_matcher = "Logger == 'PayloadSize' && Type == 'heka.sandbox.payload_size'"
+output_limit = 0
+instruction_limit = 0
+memory_limit = 0
+ticker_interval = 60
+timer_event_on_shutdown = true
+preserve_data = true
+
+    [PipelineBudget.config]
+    max_per_channel = 90
+
+[DashboardOutput]
+address = ":8080"
+static_directory = "/mnt/telemetry/heka/share/heka/dasher"
+ticker_interval = 10

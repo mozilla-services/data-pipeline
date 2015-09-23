@@ -20,7 +20,6 @@ factors relevant to budget planning. See Bug 1179751.
     preserve_data = false
 
 --]]
-
 require "table"
 
 local bdate_grammar
@@ -36,13 +35,13 @@ if not TestMode then
 end
 
 -- Size and count by day
-local sizes = {
+sizes = {
     submission = {},
     build = {},
 }
 
 -- Key count by channel (for eviction purposes)
-local counters = {
+counters = {
     submission = {},
     build = {},
 }
