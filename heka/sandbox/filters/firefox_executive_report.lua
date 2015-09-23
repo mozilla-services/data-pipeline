@@ -86,7 +86,7 @@ end
 
 local function update_row(r, cid, country, channel, _os, dow)
     local dflt = fx.get_boolean_value(read_message("Fields[default]"))
-    local pct = read_message("Fields[profileCreationTimestamp")
+    local pct = read_message("Fields[profileCreationTimestamp]")
     if type(pct) ~= "number" then pct = 0 end
 
     fx_cids:add(cid, country, channel, _os, dow, dflt, pct >= current_interval_ts)
