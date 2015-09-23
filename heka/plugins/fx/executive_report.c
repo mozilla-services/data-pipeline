@@ -114,7 +114,7 @@ static bool bucket_insert_lookup(er_bucket* b, unsigned fp, const er_data* data)
         b->data[i].channel = data->channel;
         b->data[i].os = data->os;
         b->data[i].dflt = data->dflt;
-        b->data[i].dow |= data->dow;
+        b->data[i].dow |= data->dow & 0x7F; // don't alter the new flag on an existing entry
       }
       return true;
     }
@@ -142,7 +142,6 @@ static bool bucket_add(er_bucket* b, unsigned fp, const er_data* data)
     if (b->entries[i] == 0) {
       b->entries[i] = fp;
       b->data[i] = *data;
-      b->data[i].dow |= 128; // set the new flag
       return true;
     }
   }
@@ -191,9 +190,9 @@ static bool bucket_insert(fxer* cf, unsigned i1, unsigned i2, unsigned fp,
 
 static int fxer_add(lua_State* lua)
 {
-  fxer* cf = check_fxer(lua, 7);
+  fxer* cf = check_fxer(lua, 8);
   size_t len = 0;
-  unsigned country, channel, os, day, dflt;
+  unsigned country, channel, os, day, dflt, new;
   if (lua_type(lua, 2) != LUA_TSTRING) {
     return luaL_argerror(lua, 2, "must be a string");
   }
@@ -235,12 +234,19 @@ static int fxer_add(lua_State* lua)
   } else {
     return luaL_argerror(lua, 7, "must a boolean");
   }
+  if (lua_type(lua, 8) == LUA_TBOOLEAN) {
+    new = (unsigned)lua_toboolean(lua, 8);
+  } else {
+    return luaL_argerror(lua, 8, "must a boolean");
+  }
   er_data data;
   data.channel = channel;
   data.country = country;
   data.os = os;
   data.dflt = dflt;
   data.dow = 1 << day;
+  if (new) data.dow |= 0x80;
+
   unsigned h = XXH32(key, (int)len, 1);
   unsigned fp = fingerprint(h);
   unsigned i1 = h % cf->num_buckets;
