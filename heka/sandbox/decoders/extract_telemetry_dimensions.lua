@@ -7,6 +7,7 @@ require "cjson"
 require "hash"
 require "os"
 require "table"
+local fx = require "fx"
 local gzip = require "gzip"
 local dt = require("date_time")
 
@@ -122,6 +123,10 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "appVersion"        , info.appVersion or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , info.appUpdateChannel or UNK_DIM)
         update_field(msg.Fields, "appBuildId"        , info.appBuildID or UNK_DIM)
+        update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(info.appUpdateChannel))
+
+        -- Old telemetry was always "enabled"
+        update_field(msg.Fields, "telemetryEnabled"  , true)
 
         -- Do not want default values for these.
         update_field(msg.Fields, "os"        , info.OS)
@@ -143,20 +148,24 @@ local function process_json(msg, json, parsed)
                update_field(msg.Fields, "reason", parsed.payload.info.reason)
         end
 
-        if type(parsed.environment) == "table" and
-           type(parsed.environment.system) == "table" and
-           type(parsed.environment.system.os) == "table" then
-               update_field(msg.Fields, "os", parsed.environment.system.os.name)
+        if type(parsed.environment) == "table" then
+            if type(parsed.environment.system) == "table" and
+               type(parsed.environment.system.os) == "table" then
+                   update_field(msg.Fields, "os", parsed.environment.system.os.name)
+            end
+            if type(parsed.environment.settings) == "table" then
+                update_field(msg.Fields, "telemetryEnabled", parsed.environment.settings.telemetryEnabled)
+            end
         end
 
+        -- Get some more dimensions.
         update_field(msg.Fields, "sourceVersion", tostring(parsed.version))
         update_field(msg.Fields, "docType"      , parsed.type or UNK_DIM)
-
-        -- Get some more dimensions.
         update_field(msg.Fields, "appName"           , app.name or UNK_DIM)
         update_field(msg.Fields, "appVersion"        , app.version or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , app.channel or UNK_DIM)
         update_field(msg.Fields, "appBuildId"        , app.buildId or UNK_DIM)
+        update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(app.channel))
 
         -- Do not want default values for these.
         update_field(msg.Fields, "appVendor" , app.vendor)
@@ -201,6 +210,9 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "appVersion"        , av or UNK_DIM)
         update_field(msg.Fields, "appUpdateChannel"  , auc or UNK_DIM)
         update_field(msg.Fields, "appBuildId"        , abi or UNK_DIM)
+        update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(auc))
+
+        -- The "telemetryEnabled" flag does not apply to this type of ping.
     end
     update_field(msg.Fields, "sampleId", sample(clientId, 100))
     return nil -- processing was successful
