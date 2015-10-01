@@ -61,7 +61,6 @@ local landfill_msg = {
     Hostname   = nil,
     Pid        = nil,
     Logger     = nil,
-    Payload    = nil,
     EnvVersion = nil,
     Severity   = nil,
     Fields     = nil
@@ -71,7 +70,6 @@ local landfill_msg = {
 local main_msg = {
     Timestamp   = nil,
     Type        = "http_edge_incoming",
-    Payload     = nil,
     EnvVersion  = nil,
     Hostname    = nil,
     Fields      = nil
@@ -85,7 +83,6 @@ function process_message()
     landfill_msg.Pid        = read_message("Pid")
     -- UUID is auto-generated and meaningless anyways
     landfill_msg.Logger     = read_message("Logger")
-    landfill_msg.Payload    = read_message("Payload")
     landfill_msg.EnvVersion = read_message("EnvVersion")
     landfill_msg.Severity   = read_message("Severity")
     -- Now copy the fields:
@@ -100,6 +97,7 @@ function process_message()
         end
     end
     landfill_msg.Fields.submissionDate = os.date("%Y%m%d", landfill_msg.Timestamp / 1e9)
+    landfill_msg.Fields.submission = {value = read_message("Payload"), value_type = 1} -- Bugzilla 1204589
 
     -- Insert geo info.
     local xff = landfill_msg.Fields["X-Forwarded-For"]
@@ -118,8 +116,7 @@ function process_message()
     -- Reset Fields, since different namespaces may use different fields.
     main_msg.Fields = {}
 
-    -- Carry forward payload some incoming fields.
-    main_msg.Payload = landfill_msg.Payload
+    -- Carry forward some incoming headers.
     main_msg.Timestamp = landfill_msg.Timestamp
     main_msg.EnvVersion = landfill_msg.EnvVersion
 
@@ -131,6 +128,7 @@ function process_message()
     main_msg.Fields.DNT        = landfill_msg.Fields.DNT
     main_msg.Fields.Date       = landfill_msg.Fields.Date
     main_msg.Fields.geoCountry = landfill_msg.Fields.geoCountry
+    main_msg.Fields.submission = landfill_msg.Fields.submission
 
     -- Path should be of the form:
     --     ^/submit/namespace/id[/extra/path/components]$
@@ -158,10 +156,10 @@ function process_message()
     end
 
     main_msg.Logger = namespace
-    local dataLength = string.len(main_msg.Payload)
-    -- Skip this message: Payload too large.
+    local dataLength = string.len(main_msg.Fields.submission.value)
+    -- Skip this message: submission too large.
     if dataLength > cfg.max_data_length then
-        return -1, string.format("Payload too large: %d > %d", dataLength, cfg.max_data_length)
+        return -1, string.format("submission data too large: %d > %d", dataLength, cfg.max_data_length)
     end
 
     local pathLength = string.len(path)

@@ -62,6 +62,12 @@ local function update_field(fields, name, value)
     if value then fields[#fields + 1] = value end
 end
 
+local function find_field(fields, name)
+    for i,v in ipairs(fields) do
+        if name == v.name then return v end
+    end
+end
+
 local function split_objects(fields, root, section, objects)
     for i, name in ipairs(objects) do
         if type(root[name]) == "table" then
@@ -248,14 +254,18 @@ function process_message()
     update_field(msg.Fields, "submissionDate", os.date("%Y%m%d", msg.Timestamp / 1e9))
 
     -- Attempt to uncompress the payload if it is gzipped.
-    local ok, json = uncompress(msg.Payload)
+    local submission = find_field(msg.Fields, "submission")
+    if not submission or type(submission.value[1]) ~= "string" then
+        return send_message(msg, "read", "invalid/missing submission")
+    end
+    local ok, json = uncompress(submission.value[1])
     if not ok then return send_message(msg, "gzip", json) end
 
     -- This size check should match the output_limit config param. We want to
     -- check the size early to avoid parsing JSON if we don't have to.
     local size = string.len(json)
     if size > 2097152 then
-        return send_message(msg, "size", "Uncompressed Payload too large: " .. size)
+        return send_message(msg, "size", "Uncompressed submission too large: " .. size)
     end
     update_field(msg.Fields, "Size", size)
 
