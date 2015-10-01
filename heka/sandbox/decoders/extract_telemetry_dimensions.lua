@@ -46,7 +46,7 @@ local duplicate_original = read_config("duplicate_original")
 -- telemetry messages should not contain duplicate keys so this function
 -- replaces/removes the first key that exists or adds a new key to the end
 local function update_field(fields, name, value)
-    if value then value = {name = name, value = value} end
+    if value ~= nil then value = {name = name, value = value} end
 
     for i,v in ipairs(fields) do
         if name == v.name then
