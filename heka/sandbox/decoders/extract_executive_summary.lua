@@ -44,7 +44,6 @@ require "cjson"
 require "lpeg"
 local fx = require "fx"
 local dt = require "date_time"
-require "os"
 require "string"
 
 local duplicate_original = read_config("duplicate_original")
@@ -201,7 +200,6 @@ function process_message()
     end
 
     msg.Timestamp = read_message("Timestamp")
-    msg.Fields.submissionDate.value = os.date("%Y%m%d", msg.Timestamp / 1e9)
 
     local cts = read_message("Fields[creationTimestamp]")
     if type(cts) ~= "number" then cts = 0 end
@@ -225,6 +223,7 @@ function process_message()
     set_string_field(msg.Fields.app, "Fields[appName]")
     set_string_field(msg.Fields.version, "Fields[appVersion]")
     set_string_field(msg.Fields.vendor, "Fields[appVendor]")
+    set_string_field(msg.Fields.submissionDate, "Fields[submissionDate]")
 
     if doc_type == "main" then
         set_string_field(msg.Fields.reason, "Fields[reason]")
