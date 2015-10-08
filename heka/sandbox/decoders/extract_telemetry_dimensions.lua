@@ -5,7 +5,6 @@
 require "string"
 require "cjson"
 require "hash"
-require "os"
 require "table"
 local fx = require "fx"
 local gzip = require "gzip"
@@ -251,7 +250,6 @@ function process_message()
     if not msg.Fields then msg.Fields = {} end
 
     update_field(msg.Fields, "sourceName", "telemetry")
-    update_field(msg.Fields, "submissionDate", os.date("%Y%m%d", msg.Timestamp / 1e9))
 
     -- Attempt to uncompress the payload if it is gzipped.
     local submission = find_field(msg.Fields, "submission")
