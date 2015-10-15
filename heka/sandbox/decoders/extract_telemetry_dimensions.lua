@@ -274,5 +274,6 @@ function process_message()
     local err = process_json(msg, json, parsed)
     if err then return send_message(msg, "payload", err) end
 
+    update_field(msg.Fields, "submission", nil) -- remove the original data
     return send_message(msg)
 end
