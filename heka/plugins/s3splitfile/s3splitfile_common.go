@@ -16,6 +16,7 @@ import (
 	"io/ioutil"
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -84,6 +85,7 @@ func (s *Schema) GetDimensions(pack *PipelinePack) (dimensions []string) {
 // as-is, or if it should be replaced with a default value.
 type DimensionChecker interface {
 	IsAllowed(v string) bool
+	ListValues() ([]string, bool)
 }
 
 // Accept any value at all.
@@ -92,6 +94,10 @@ type AnyDimensionChecker struct {
 
 func (adc AnyDimensionChecker) IsAllowed(v string) bool {
 	return true
+}
+
+func (adc AnyDimensionChecker) ListValues() ([]string, bool) {
+	return nil, false
 }
 
 // Accept a specific list of values, anything not in the list
@@ -104,6 +110,16 @@ type ListDimensionChecker struct {
 func (ldc ListDimensionChecker) IsAllowed(v string) bool {
 	_, ok := ldc.allowed[SanitizeDimension(v)]
 	return ok
+}
+
+// Return the list of allowed values, sorted alphabetically.
+func (ldc ListDimensionChecker) ListValues() ([]string, bool) {
+	var keys []string
+	for k := range ldc.allowed {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, true
 }
 
 // Factory for creating a ListDimensionChecker using a list instead of a map
@@ -136,6 +152,10 @@ func (rdc RangeDimensionChecker) IsAllowed(v string) bool {
 	}
 
 	return true
+}
+
+func (rdc RangeDimensionChecker) ListValues() ([]string, bool) {
+	return nil, false
 }
 
 // Pattern to use for sanitizing path/file components.
@@ -330,14 +350,31 @@ func FilterS3(bucket *s3.Bucket, prefix string, level int, schema Schema, kc cha
 		} else {
 			// We are still looking at prefixes. Recursively list each one that
 			// matches the specified schema's allowed values.
-			for _, pf := range response.CommonPrefixes {
-				// Get just the last piece of the prefix to check it as a
-				// dimension. If we have '/foo/bar/baz', we just want 'baz'.
-				stripped := pf[len(prefix) : len(pf)-1]
-				allowed := schema.Dims[schema.Fields[level]].IsAllowed(stripped)
-				marker = pf
-				if allowed {
-					FilterS3(bucket, pf, level+1, schema, kc)
+			field := schema.Dims[schema.Fields[level]]
+
+			if values, ok := field.ListValues(); ok {
+				// If we have a list of allowed values, check each one directly
+				// instead of listing the entire bucket. This is MUCH faster in the
+				// case of high-cardinality dimensions (more than 1000 unique values
+				// for the dimension).
+				for _, v := range values {
+					newPrefix := fmt.Sprintf("%s%s/", prefix, v)
+					marker = newPrefix
+					FilterS3(bucket, newPrefix, level+1, schema, kc)
+				}
+				done = true
+			} else {
+				// We have a Range or All type dimension, so list all values and
+				// check if each one is allowed.
+				for _, pf := range response.CommonPrefixes {
+					// Get just the last piece of the prefix to check it as a
+					// dimension. If we have '/foo/bar/baz', we just want 'baz'.
+					stripped := pf[len(prefix) : len(pf)-1]
+					allowed := field.IsAllowed(stripped)
+					marker = pf
+					if allowed {
+						FilterS3(bucket, pf, level+1, schema, kc)
+					}
 				}
 			}
 		}
