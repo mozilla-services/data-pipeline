@@ -18,7 +18,7 @@ mv heka-* heka
 
 echo "Fetching previous state..."
 
-aws s3 sync s3://telemetry-private-analysis/budget-report/data/sandbox_preservation/ "$OUTPUT/sandbox_preservation/"
+aws s3 sync s3://telemetry-private-analysis-2/budget-report/data/sandbox_preservation/ "$OUTPUT/sandbox_preservation/"
 
 sed -r "s/__TARGET__/$TARGET/" schema_template.json > schema.json
 heka/bin/hekad -config budget.toml

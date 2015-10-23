@@ -16,7 +16,7 @@ fi
 sed -r "s/__TARGET__/$TARGET/" schema_template.exec.json > schema.exec.json
 
 echo "Fetching previous state..."
-aws s3 sync s3://telemetry-private-analysis/executive-report-v4/data/sandbox_preservation/ "$OUTPUT/sandbox_preservation/"
+aws s3 sync s3://telemetry-private-analysis-2/executive-report-v4/data/sandbox_preservation/ "$OUTPUT/sandbox_preservation/"
 
 wget http://people.mozilla.org/~mreid/heka-minimal.tar.gz
 tar xzf heka-minimal.tar.gz
