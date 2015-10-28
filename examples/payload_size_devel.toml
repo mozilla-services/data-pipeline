@@ -1,0 +1,48 @@
+[hekad]
+base_dir = "."
+share_dir = "."
+# 8MB
+max_message_size = 8388608
+
+# Decode S3 data
+[SnappyDecoder]
+[Multi]
+type = "MultiDecoder"
+subs = ["SnappyDecoder", "ProtobufDecoder"]
+cascade_strategy = "all"
+log_sub_errors = true
+
+# Read data from S3
+[DevInput]
+type = "S3SplitFileInput"
+s3_bucket = "net-mozaws-prod-us-west-2-pipeline-data"
+s3_bucket_prefix = "telemetry-2"
+s3_worker_count = 16
+s3_read_timeout = 600
+schema_file = "examples/payload_size_devel_filter.json"
+decoder = "Multi"
+
+# Generate the "payload_size" derived stream messages.
+[PayloadSize]
+type = "SandboxFilter"
+filename = "heka/sandbox/filters/payload_size.lua"
+message_matcher = "Type == 'telemetry' && Logger == 'telemetry'"
+ticker_interval = 0
+preserve_data = false
+
+
+# Print both derived-stream messages to the console
+[RstEncoder]
+[LogOutput]
+type = "LogOutput"
+message_matcher = "Type == 'heka.sandbox.payload_size'"
+encoder = "RstEncoder"
+
+# Write derived-stream messages to local disk
+[ProtobufEncoder]
+[ArchiveOutput]
+type = "FileOutput"
+path = "./derived_data.out"
+use_framing = true
+message_matcher = "Logger == 'PayloadSize' && Type == 'heka.sandbox.payload_size'"
+encoder = "ProtobufEncoder"
