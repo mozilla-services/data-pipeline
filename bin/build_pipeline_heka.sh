@@ -141,6 +141,22 @@ git checkout fe9853ea561d0957a18eb3c4970ca249c0325d84
 
 gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
 
+echo 'Installing lua-openssl lib'
+cd $BASE/build
+if [ ! -d lua-openssl ]; then
+    git clone https://github.com/zhaozg/lua-openssl.git
+fi
+cd lua-openssl
+
+# Use a known revision (current "master" as of 2015-10-28)
+git checkout c85eb39a0fa5f45a778b09672773f95c2609c2d0
+
+LUA_OPENSSL_SRC="src/asn1.c src/auxiliar.c src/bio.c src/cipher.c src/cms.c src/compat.c src/crl.c src/csr.c src/dh.c src/digest.c src/dsa.c
+src/ec.c src/engine.c src/hmac.c src/lbn.c src/lhash.c src/misc.c src/ocsp.c src/openssl.c src/ots.c src/pkcs12.c src/pkcs7.c
+src/pkey.c src/rsa.c src/ssl.c src/th-lock.c src/util.c src/x509.c src/xattrs.c src/xexts.c src/xname.c src/xstore.c src/xalgor.c src/callback.c"
+
+gcc -DPTHREADS -I${LUA_INCLUDE_PATH} -Ideps $SO_FLAGS $LUA_OPENSSL_SRC -lssl -lcrypto -lrt -ldl -o $HEKA_MODS/openssl.so
+
 echo 'Installing lua_hash lib'
 cd $BASE
 # Build a hash module with the zlib checksum functions
