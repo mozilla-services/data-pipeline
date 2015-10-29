@@ -173,7 +173,7 @@ local function update_week(_, cid, day)
 end
 
 
-local function set_month_interval_ts(year, day)
+local function set_month_interval_ts(year, month)
     current_interval_ts = os.time({year = year, month = month, day = 1}) * 1e9
 end
 
