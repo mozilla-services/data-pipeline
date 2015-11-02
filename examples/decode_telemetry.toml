@@ -1,0 +1,82 @@
+[hekad]
+base_dir = "."
+share_dir = "."
+# 8MB
+max_message_size = 8388608
+
+[RstEncoder]
+
+[TestInput]
+type = "HttpListenInput"
+address = "127.0.0.1:8080"
+request_headers = ["Content-Length", "X-Forwarded-For", "DNT", "Date"]
+decoder = "TelemetryDecoders"
+send_decode_failures = true
+
+[LogOutput]
+# Print all incoming http messages (both raw and decoded)
+type = "LogOutput"
+#message_matcher = "Type == 'http_edge_incoming' || Type == 'heka.httpdata.request'"
+#message_matcher = "TRUE"
+message_matcher = "Logger != 'hekad'"
+encoder = "RstEncoder"
+
+[TelemetryDecoders]
+type = "MultiDecoder"
+subs = ["HttpEdgeDecoder", "TelemetryDecoder" , "ExecutiveSummary"]
+cascade_strategy = "all"
+log_sub_errors = true
+
+[HttpEdgeDecoder]
+type = "SandboxDecoder"
+filename = "heka/sandbox/decoders/http_edge_decoder.lua"
+memory_limit = 90000000
+output_limit = 8388608
+    [HttpEdgeDecoder.config]
+    geoip_city_db = "GeoLiteCity.dat"
+    namespace_config = '{"test":{"logger":"test_input","max_path_length":20480,"max_data_length":1048576},"telemetry":{"dimensions":["reason","appName","appVersion","appUpdateChannel","appBuildID"],"max_path_length":10240,"max_data_length":204800}}'
+
+[TelemetryDecoder]
+type = "SandboxDecoder"
+filename = "heka/sandbox/decoders/extract_telemetry_dimensions.lua"
+memory_limit = 90000000
+output_limit = 2097152
+    [TelemetryDecoder.config]
+    duplicate_original = true
+
+[ExecutiveSummary]
+type = "SandboxDecoder"
+filename = "heka/sandbox/decoders/extract_executive_summary.lua"
+memory_limit = 90000000
+output_limit = 2097152
+    [ExecutiveSummary.config]
+    duplicate_original = true
+
+[DashboardOutput]
+address = "localhost:4352"
+static_directory = "build/heka/dasher"
+ticker_interval = 1
+
+[PayloadEncoder]
+[ProtobufEncoder]
+
+[TelemetryDecodedOutput]
+type = "FileOutput"
+path = "./data_decoded.out"
+use_framing = true
+message_matcher = "Logger == 'telemetry' && Type == 'telemetry'"
+encoder = "ProtobufEncoder"
+
+[TelemetryErrorOutput]
+type = "FileOutput"
+path = "./data_errors.out"
+use_framing = true
+message_matcher = "Logger == 'telemetry' && Type == 'telemetry.error'"
+encoder = "ProtobufEncoder"
+
+[TelemetryExecutiveSummaryOutput]
+type = "FileOutput"
+path = "./data_exsum.out"
+use_framing = true
+message_matcher = "Logger == 'fx' && Type == 'executive_summary'"
+encoder = "ProtobufEncoder"
