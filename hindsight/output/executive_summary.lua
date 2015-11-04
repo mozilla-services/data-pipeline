@@ -100,7 +100,7 @@ local schema = {
     {'"default"'                    ,"BOOLEAN"      ,nil    ,nil        ,ping.is_default_browser},
     {"hours"                        ,"FLOAT8"       ,nil    ,nil        ,ping.hours},
     {"google"                       ,"INT"          ,nil    ,nil        ,function () return search_counts[1] end},
-    {"bing  "                       ,"INT"          ,nil    ,nil        ,function () return search_counts[2] end},
+    {"bing"                         ,"INT"          ,nil    ,nil        ,function () return search_counts[2] end},
     {"yahoo"                        ,"INT"          ,nil    ,nil        ,function () return search_counts[3] end},
     {"other"                        ,"INT"          ,nil    ,nil        ,function () return search_counts[4] end},
 }

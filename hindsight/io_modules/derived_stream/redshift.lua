@@ -39,6 +39,7 @@ function esc_str(con, v, max)
     if max == nil then max = VARCHAR_MAX_LENGTH end
     if type(v) ~= "string" then v = tostring(v) end
     if string.len(v) > max then v = string.sub(v, 1, max) end
+    v = string.gsub(v, "[^\032-\126]", "?")
 
     local escd = con:escape(v)
     if not escd then return "NULL" end

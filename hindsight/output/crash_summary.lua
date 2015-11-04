@@ -47,7 +47,7 @@ local schema = {
 --  column name                 type            length  attributes  field /function
     {"Timestamp"                ,"TIMESTAMP"    ,nil    ,"SORTKEY"  ,"Timestamp"},
     {"crashDate"                ,"DATE"         ,nil    ,nil        ,function () return ping.get_date(ping.payload().payload.crashDate) end},
-    {"clientId "                ,"CHAR"         ,36     ,"DISTKEY"  ,"Fields[clientId]"},
+    {"clientId"                 ,"CHAR"         ,36     ,"DISTKEY"  ,"Fields[clientId]"},
     {"buildVersion"             ,"VARCHAR"      ,32     ,nil        ,function () return ping.build().version end},
     {"buildId"                  ,"CHAR"         ,14     ,nil        ,function () return ping.build().buildId end},
     {"buildArchitecture"        ,"VARCHAR"      ,32     ,nil        ,function () return ping.build().architecture end},

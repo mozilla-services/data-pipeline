@@ -190,7 +190,7 @@ function load_schema(name, schema)
 
         return process_message, timer_event
     else
-        error("invalid derived stream format: " .. format)
+        error("invalid derived stream format: " .. tostring(format))
     end
 end
 
