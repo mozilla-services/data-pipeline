@@ -10,31 +10,10 @@ Config:
 filename = "crash_summary.lua"
 message_matcher = "Type == 'telemetry' && Fields[docType] == 'crash'"
 
-format      = "redshift"
-buffer_path = "/mnt/output" -- path where the temporary buffer files are stored
-buffer_size = 10000 * 1024  -- size of the largest buffer before performing a multi-line insert
-ts_field    = "Timestamp"   -- default
-
-db_config = {
-host = "example.com",
-port = 5432,
-name = "pipeline",
-user = "user",
-_password = "password",
-}
-
--- OR
-
-format = "protobuf"
-output_path = "/mnt/output" -- path where the daily output files are written
-ts_field    = "Timestamp"   -- default
-
--- OR
-
-format = "tsv"
-output_path = "/mnt/output" -- path where the daily output files are written
-ts_field    = "Timestamp"   -- default
-nil_value   = "NULL"        -- defaults to an empty string
+format      = "redshift.psv"
+buffer_path = "/mnt/output"
+buffer_size = 20 * 1024 * 1024
+s3_path     = "s3://test"
 
 --]]
 

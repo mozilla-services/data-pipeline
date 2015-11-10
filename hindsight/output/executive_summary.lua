@@ -13,29 +13,18 @@ message_matcher = "Type == 'telemetry' && (Fields[docType] == 'main' || Fields[d
 
 format      = "redshift"
 buffer_path = "/mnt/output" -- path where the temporary buffer files are stored
-buffer_size = 10000 * 1024  -- size of the largest buffer before performing a multi-line insert
+buffer_size = 15000 * 1000  -- size of the largest buffer before performing a multi-line insert
 ts_field    = "Timestamp"   -- default
 
 db_config = {
-host = "example.com",
-port = 5432,
-name = "pipeline",
-user = "user",
-_password = "password",
+    host = "example.com",
+    port = 5432,
+    keepalives = 1,
+    keepalives_idle = 30,
+    dbname = "pipeline",
+    user = "user",
+    _password = "password",
 }
-
--- OR
-
-format = "protobuf"
-output_path = "/mnt/output" -- path where the daily output files are written
-ts_field    = "Timestamp"   -- default
-
--- OR
-
-format = "tsv"
-output_path = "/mnt/output" -- path where the daily output files are written
-ts_field    = "Timestamp"   -- default
-nil_value   = "NULL"        -- defaults to an empty string
 
 --]]
 
@@ -81,28 +70,28 @@ end
 
 local name = "executive_summary"
 local schema = {
---  column name                     type            length  attributes  field /function
-    {"Timestamp"                    ,"TIMESTAMP"    ,nil    ,"SORTKEY"  ,"Timestamp"},
-    {"activityTimestamp"            ,"TIMESTAMP"    ,nil    ,nil        ,get_activity_timestamp},
-    {"profileCreationTimestamp"     ,"TIMESTAMP"    ,nil    ,nil        ,ping.profile_creation_timestamp},
-    {"buildId"                      ,"CHAR"         ,14     ,nil        ,"Fields[appBuildId]"},
-    {"clientId"                     ,"CHAR"         ,36     ,"DISTKEY"  ,"Fields[clientId]"},
-    {"documentId"                   ,"CHAR"         ,36     ,nil        ,"Fields[documentId]"},
-    {"docType"                      ,"CHAR"         ,36     ,nil        ,function () return doc_type end},
-    {"country"                      ,"VARCHAR"      ,5      ,nil        ,function () return fx.normalize_country(read_message("Fields[geoCountry]")) end},
-    {"channel"                      ,"VARCHAR"      ,7      ,nil        ,function () return fx.normalize_channel(read_message("Fields[appUpdateChannel]")) end},
-    {"os"                           ,"VARCHAR"      ,7      ,nil        ,function () return fx.normalize_os(read_message("Fields[os]")) end},
-    {"osVersion"                    ,"VARCHAR"      ,32     ,nil        ,function () return ping.system().os.version end},
-    {"app"                          ,"VARCHAR"      ,32     ,nil        ,"Fields[appName]"},
-    {"version"                      ,"VARCHAR"      ,32     ,nil        ,"Fields[appVersion]"},
-    {"vendor"                       ,"VARCHAR"      ,32     ,nil        ,"Fields[appVendor]"},
-    {"reason"                       ,"VARCHAR"      ,32     ,nil        ,"Fields[reason]"},
-    {'"default"'                    ,"BOOLEAN"      ,nil    ,nil        ,ping.is_default_browser},
-    {"hours"                        ,"FLOAT8"       ,nil    ,nil        ,ping.hours},
-    {"google"                       ,"INT"          ,nil    ,nil        ,function () return search_counts[1] end},
-    {"bing"                         ,"INT"          ,nil    ,nil        ,function () return search_counts[2] end},
-    {"yahoo"                        ,"INT"          ,nil    ,nil        ,function () return search_counts[3] end},
-    {"other"                        ,"INT"          ,nil    ,nil        ,function () return search_counts[4] end},
+--  column name                     type                length  attributes  field /function
+    {"Timestamp"                    ,"TIMESTAMP"        ,nil    ,"SORTKEY"  ,"Timestamp"},
+    {"activityTimestamp"            ,"TIMESTAMP"        ,nil    ,nil        ,get_activity_timestamp},
+    {"profileCreationTimestamp"     ,"TIMESTAMP"        ,nil    ,nil        ,ping.profile_creation_timestamp},
+    {"buildId"                      ,"CHAR"             ,14     ,nil        ,"Fields[appBuildId]"},
+    {"clientId"                     ,"CHAR"             ,36     ,"DISTKEY"  ,"Fields[clientId]"},
+    {"documentId"                   ,"CHAR"             ,36     ,nil        ,"Fields[documentId]"},
+    {"docType"                      ,"CHAR"             ,36     ,nil        ,function () return doc_type end},
+    {"country"                      ,"VARCHAR"          ,5      ,nil        ,function () return fx.normalize_country(read_message("Fields[geoCountry]")) end},
+    {"channel"                      ,"VARCHAR"          ,7      ,nil        ,function () return fx.normalize_channel(read_message("Fields[appUpdateChannel]")) end},
+    {"os"                           ,"VARCHAR"          ,7      ,nil        ,function () return fx.normalize_os(read_message("Fields[os]")) end},
+    {"osVersion"                    ,"VARCHAR"          ,32     ,nil        ,function () return ping.system().os.version end},
+    {"app"                          ,"VARCHAR"          ,32     ,nil        ,"Fields[appName]"},
+    {"version"                      ,"VARCHAR"          ,32     ,nil        ,"Fields[appVersion]"},
+    {"vendor"                       ,"VARCHAR"          ,32     ,nil        ,"Fields[appVendor]"},
+    {"reason"                       ,"VARCHAR"          ,32     ,nil        ,"Fields[reason]"},
+    {'"default"'                    ,"BOOLEAN"          ,nil    ,nil        ,ping.is_default_browser},
+    {"hours"                        ,"DOUBLE PRECISION" ,nil    ,nil        ,ping.hours},
+    {"google"                       ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[1] end},
+    {"bing"                         ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[2] end},
+    {"yahoo"                        ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[3] end},
+    {"other"                        ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[4] end},
 }
 
 local ds_pm

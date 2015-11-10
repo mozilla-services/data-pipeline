@@ -15,6 +15,7 @@ local cjson     = require "cjson"
 local dt        = require "date_time"
 local l         = require "lpeg"
 l.locale(l)
+local format    = require "string".format
 
 setfenv(1, M) -- Remove external access to contain everything in the module
 
@@ -214,7 +215,7 @@ function get_date(d)
     if type(d) == "string" then
         local t = crash_date:match(d)
         if t then
-            return t.year .. t.month .. t.day
+            return format("%s-%s-%s", t.year, t.month, t.day)
         end
 
     end
