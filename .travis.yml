@@ -9,7 +9,7 @@ before_install:
     - sudo add-apt-repository ppa:andykimpe/cmake3 -y
     - sudo add-apt-repository ppa:maxmind/ppa -y
     - sudo apt-get update -qq
-    - sudo apt-get install -y protobuf-compiler cmake libgeoip-dev
+    - sudo apt-get install -y protobuf-compiler cmake libgeoip-dev libpq-dev
 
 install:
     - bash bin/build_pipeline_heka.sh
