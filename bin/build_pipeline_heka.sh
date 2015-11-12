@@ -87,6 +87,7 @@ echo "Installing/updating source files for extra cmds"
 cp -R $BASE/heka/cmd/heka-export ./cmd/
 cp -R $BASE/heka/cmd/heka-s3list ./cmd/
 cp -R $BASE/heka/cmd/heka-s3cat ./cmd/
+cp -R $BASE/heka/cmd/s3cat ./cmd/
 
 echo 'Installing/updating lua filters/modules/decoders/encoders'
 rsync -vr $BASE/heka/sandbox/ ./sandbox/lua/
