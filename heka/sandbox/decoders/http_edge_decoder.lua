@@ -9,7 +9,8 @@ require "lpeg"
 require "os"
 require "string"
 require "table"
-require 'geoip.city'
+require "math"
+require "geoip.city"
 
 -- Split a path into components. Multiple consecutive separators do not
 -- result in empty path components.
@@ -31,6 +32,8 @@ end
 
 local city_db = assert(geoip.city.open(read_config("geoip_city_db")))
 local UNK_GEO = "??"
+-- Track the hour to facilitate reopening city_db hourly.
+local hour = math.floor(os.time() / 3600)
 
 function get_geo_country(xff, remote_addr)
     local country
@@ -99,6 +102,13 @@ function process_message()
     landfill_msg.Fields.submissionDate = os.date("%Y%m%d", landfill_msg.Timestamp / 1e9)
     landfill_msg.Fields.submission = {value = read_message("Payload"), value_type = 1} -- Bugzilla 1204589
 
+    -- Reopen city_db once an hour.
+    local current_hour = math.floor(os.time() / 3600)
+    if current_hour > hour then
+        city_db:close()
+        city_db = assert(geoip.city.open(read_config("geoip_city_db")))
+        hour = current_hour
+    end
     -- Insert geo info.
     local xff = landfill_msg.Fields["X-Forwarded-For"]
     local remote_addr = landfill_msg.Fields["RemoteAddr"]
