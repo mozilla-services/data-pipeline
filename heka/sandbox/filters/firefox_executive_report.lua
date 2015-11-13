@@ -99,7 +99,17 @@ local function update_row(r, cid, country, channel, _os, dow)
         r[12] = r[12] + (tonumber(read_message("Fields[yahoo]")) or 0)
         r[13] = r[13] + (tonumber(read_message("Fields[other]")) or 0)
     elseif doc_type == "crash" then
-        r[8] = r[8] + 1
+        local num_crashes = read_message("Fields[crashes]")
+        -- If field is missing, assume one crash per record.
+        if num_crashes == nil then
+            num_crashes = 1
+        end
+
+        -- If field contains an unexpected value, assume zero crashes.
+        if type(num_crashes) ~= "number" or num_crashes < 0 then
+            num_crashes = 0
+        end
+        r[8] = r[8] + num_crashes
     end
 end
 
