@@ -77,9 +77,10 @@ if [ ! -f "patches_applied" ]; then
 
     echo "Adding kafka consumer group input"
     echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline/kafkaconsumergroup :local)" >> cmake/plugin_loader.cmake
-    echo "add_external_plugin(git https://github.com/wvanbergen/kafka master __ignore_root)" >> cmake/plugin_loader.cmake
-    echo "add_external_plugin(git https://github.com/wvanbergen/kazoo-go master)" >> cmake/plugin_loader.cmake
-    echo "add_external_plugin(git https://github.com/samuel/go-zookeeper master __ignore_root)" >> cmake/plugin_loader.cmake
+    # Use known revisions (current "master" as of 2015-11-13)
+    echo "add_external_plugin(git https://github.com/wvanbergen/kafka f56c2422fa9e4739981ed686ac5133d10e41b2d5 __ignore_root)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/wvanbergen/kazoo-go 549793569f2034e3779263fb0d6b16db94186607)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/samuel/go-zookeeper 218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f __ignore_root)" >> cmake/plugin_loader.cmake
 fi
 
 # TODO: do this using cmake externals instead of shell-fu.
