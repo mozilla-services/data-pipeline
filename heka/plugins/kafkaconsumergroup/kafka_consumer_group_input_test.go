@@ -47,7 +47,7 @@ func TestBadZookeeperConnectionString(t *testing.T) {
 	config.ZookeeperConnectionString = "::"
 	err := ki.Init(config)
 
-	errmsg := "zk: could not connect to a server"
+	errmsg := "too many colons in address ::"
 	if err.Error() != errmsg {
 		t.Errorf("Expected: %s, received: %s", errmsg, err)
 	}
