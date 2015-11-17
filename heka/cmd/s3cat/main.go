@@ -116,6 +116,9 @@ RetryS3:
 			if err != nil && err != io.EOF {
 				fmt.Fprintf(os.Stderr, "Error in attempt %d writing %s at offset %d: %s\n", attempt, s3Key, lastGoodOffset, err)
 				rc.Close()
+				if err.Error() == "write /dev/stdout: broken pipe" {
+					os.Exit(1)
+				}
 				continue RetryS3
 			}
 			lastGoodOffset += uint64(n)
