@@ -10,10 +10,10 @@ See output/main_summary and output/crash_summary.lua for examples.
 The schema is a lua table consisting of five columns:
 1) column name - The name of the field in the output.
    For protobuf output if it exactly matches a message header name the header
-   variable will is used otherwise it is added in the message Fields table.
+   variable will be used otherwise it is added in the message Fields table.
 2) type - http://docs.aws.amazon.com/redshift/latest/dg/c_Supported_data_types.html
 3) length - Maximum length for string fields (nil for everything else)
-4) attributes - http://docs.aws.amazon.com/redshift/latest/dg/r_CREATE_TABLE_NEW.html?tag=duckduckgo-d-20
+4) attributes - http://docs.aws.amazon.com/redshift/latest/dg/r_CREATE_TABLE_NEW.html
 5) field /function - If this is a string the data is retrieved from read_message(field) otherwise the provided
    function is invoked and its return value is used for the column data.
 
