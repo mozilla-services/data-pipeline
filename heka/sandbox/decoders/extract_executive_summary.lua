@@ -172,7 +172,6 @@ local main_fields = {
     bing                        = {value = 0, value_type = 2},
     yahoo                       = {value = 0, value_type = 2},
     other                       = {value = 0, value_type = 2},
-    pluginHangs                 = {value = 0, value_type = 2},
 }
 
 local msg = {
@@ -232,7 +231,6 @@ function process_message()
         msg.Fields.bing.value           = 0
         msg.Fields.yahoo.value          = 0
         msg.Fields.other.value          = 0
-        msg.Fields.pluginHangs.value    = 0
 
         local json = read_message("Fields[payload.info]")
         local ok, info = pcall(cjson.decode, json)
@@ -256,18 +254,6 @@ function process_message()
         local ok, khist = pcall(cjson.decode, json)
         if ok then
             get_search_counts(khist, msg.Fields)
-
-            -- add plugin hang information
-            local t = khist.SUBPROCESS_ABNORMAL_ABORT
-            if type(t) == "table" then
-                t = t.plugin
-                if type(t) == "table" then
-                    local sum = t.sum
-                    if type(sum) == "number" and sum > 0 then
-                        msg.Fields.pluginHangs.value = sum
-                    end
-                end
-            end
         end
     elseif doc_type == "crash" then
         local json = read_message("Payload")
