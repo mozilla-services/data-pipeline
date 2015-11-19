@@ -81,6 +81,11 @@ if [ ! -f "patches_applied" ]; then
     echo "add_external_plugin(git https://github.com/wvanbergen/kafka f56c2422fa9e4739981ed686ac5133d10e41b2d5 __ignore_root)" >> cmake/plugin_loader.cmake
     echo "add_external_plugin(git https://github.com/wvanbergen/kazoo-go 549793569f2034e3779263fb0d6b16db94186607)" >> cmake/plugin_loader.cmake
     echo "add_external_plugin(git https://github.com/samuel/go-zookeeper 218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f __ignore_root)" >> cmake/plugin_loader.cmake
+
+    echo "Fixup Hindsight plugin installation"
+    echo "install(DIRECTORY $BASE/hindsight/modules/ DESTINATION share/heka/lua_modules)" >> cmake/plugin_loader.cmake
+    echo "install(DIRECTORY $BASE/hindsight/io_modules/ DESTINATION share/heka/lua_io_modules)" >> cmake/plugin_loader.cmake
+    echo "install(DIRECTORY $BASE/hindsight/output/ DESTINATION share/heka/lua_outputs)" >> cmake/plugin_loader.cmake
 fi
 
 # TODO: do this using cmake externals instead of shell-fu.
@@ -157,6 +162,20 @@ src/ec.c src/engine.c src/hmac.c src/lbn.c src/lhash.c src/misc.c src/ocsp.c src
 src/pkey.c src/rsa.c src/ssl.c src/th-lock.c src/util.c src/x509.c src/xattrs.c src/xexts.c src/xname.c src/xstore.c src/xalgor.c src/callback.c"
 
 gcc -DPTHREADS -I${LUA_INCLUDE_PATH} -Ideps $SO_FLAGS $LUA_OPENSSL_SRC -lssl -lcrypto -lrt -ldl -o $HEKA_MODS/openssl.so
+
+HEKA_IO_MODS=$BASE/build/heka/build/heka/lib/luasandbox/io_modules
+mkdir -p $HEKA_IO_MODS/luasql
+echo 'Installing luasql-postgresql lib'
+cd $BASE/build
+if [ ! -d luasql-postgresql ]; then
+    git clone https://github.com/LuaDist/luasql-postgresql.git
+fi
+cd luasql-postgresql
+
+# Use a known revision (current "master" 2013-02-18)
+git checkout 29a3aa1964aeac93323ec5d1446ac7d32ec700df
+
+gcc -I/usr/include/postgresql -I${LUA_INCLUDE_PATH} $SO_FLAGS src/ls_postgres.c src/luasql.c -lpq -o $HEKA_IO_MODS/luasql/postgres.so
 
 echo 'Installing lua_hash lib'
 cd $BASE
