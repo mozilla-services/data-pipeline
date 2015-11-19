@@ -175,7 +175,12 @@ cd luasql-postgresql
 # Use a known revision (current "master" 2013-02-18)
 git checkout 29a3aa1964aeac93323ec5d1446ac7d32ec700df
 
-gcc -I/usr/include/postgresql -I${LUA_INCLUDE_PATH} $SO_FLAGS src/ls_postgres.c src/luasql.c -lpq -o $HEKA_IO_MODS/luasql/postgres.so
+PG_INCLUDE_PATH=/usr/include/postgresql
+if [ ! -z "$(which pg_config)" ]; then
+    PG_INCLUDE_PATH=$(pg_config --includedir)
+fi
+echo "PG INCLUDE PATH = $PG_INCLUDE_PATH"
+gcc -I${PG_INCLUDE_PATH} -I${LUA_INCLUDE_PATH} $SO_FLAGS src/ls_postgres.c src/luasql.c -lpq -o $HEKA_IO_MODS/luasql/postgres.so
 
 echo 'Installing lua_hash lib'
 cd $BASE
