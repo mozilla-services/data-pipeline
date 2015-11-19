@@ -42,7 +42,7 @@ function write_message(fh, schema)
         elseif v[2] == "DOUBLE PRECISION" or v[2] == "REAL" or v[2] == "DECIMAL" then
             value = rs.esc_double(value, "")
         elseif v[2] == "BOOLEAN" then
-            value = rs.esc_boolean(value, "NULL")
+            value = rs.esc_boolean(value, "")
         elseif v[2] == "CHAR" then
             value = esc_varchar(rs.strip_nonprint(value), v[3])
         elseif v[2] == "VARCHAR" or v[2] == "DATE" then
