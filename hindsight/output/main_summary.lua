@@ -31,7 +31,7 @@ local schema = {
     {"buildId"                      ,"CHAR"         ,14     ,nil        ,function () return ping.build().buildId end},
     {"buildArchitecture"            ,"VARCHAR"      ,32     ,nil        ,function () return ping.build().architecture end},
     {"channel"                      ,"VARCHAR"      ,7      ,nil        ,function () return fx.normalize_channel(read_message("Fields[appUpdateChannel]")) end},
-    {"os"                           ,"VARCHAR"      ,7      ,nil        ,function () return ping.system().os.name end},
+    {"os"                           ,"VARCHAR"      ,7      ,nil        ,function () return fx.normalize_os(read_message("Fields[os]")) end},
     {"osVersion"                    ,"VARCHAR"      ,32     ,nil        ,function () return ping.system().os.version end},
     {"osServicepackMajor"           ,"VARCHAR"      ,32     ,nil        ,function () return ping.system().os.servicePackMajor end},
     {"osServicepackMinor"           ,"VARCHAR"      ,32     ,nil        ,function () return ping.system().os.servicePackMinor end},
