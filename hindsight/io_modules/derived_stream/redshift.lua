@@ -24,7 +24,9 @@ function strip_nonprint(v)
 end
 
 function esc_timestamp(v, default)
-    if type(v) ~= "number" then return default end
+    if type(v) ~= "number" or v > 4294967296e9 or v < 0 then
+        return default
+    end
     return date("%Y-%m-%d %H:%M:%S.", floor(v / 1e9)) .. tostring(floor(v % 1e9 / 1e3))
 end
 
