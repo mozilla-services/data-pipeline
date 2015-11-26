@@ -21,27 +21,64 @@ from datetime import datetime, timedelta
 
 # TODO: fetch db credentials from S3 or something?
 
-# TODO: monthly mode?
-
 def this_week(start_date):
     tables = []
     for i in range(7):
         tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(start_date + timedelta(i), "%Y%m%d")))
-
     return " UNION ALL ".join(tables)
+
+def this_month(start_date):
+    tables = []
+    for i in range(32):
+        next_date = start_date + timedelta(i)
+        if next_date.month != start_date.month:
+            break
+        tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
+    return " UNION ALL ".join(tables)
+
 
 def last_week(start_date):
     tables = []
     for i in range(7):
         tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(start_date + timedelta(-1 * (7 - i)), "%Y%m%d")))
-
     return " UNION ALL ".join(tables)
 
-def client_values(start_date, inline_date=False):
+def last_month(start_date):
+    tables = []
+    for i in range(32):
+        next_date = start_date + timedelta(-1 * (32 - i))
+        tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
+        if next_date.day == start_date.day:
+            break
+    return " UNION ALL ".join(tables)
+
+def get_target_date(start_date, inline_date):
+    if inline_date:
+        return "'{}'::DATE".format(datetime.strftime(start_date, "%Y-%m-%d"))
+    return '%s'
+
+def get_this_period(start_date, mode):
+    if mode == 'monthly':
+        return this_month(start_date)
+    else:
+        return this_week(start_date)
+
+def get_last_period(start_date, mode):
+    if mode == 'monthly':
+        return last_month(start_date)
+    else:
+        return last_week(start_date)
+
+def get_targets(start_date, inline_date, mode):
+    date_param = get_target_date(start_date, inline_date)
+    target_param = get_this_period(start_date, mode)
+    return date_param, target_param
+
+def client_values(start_date, inline_date, mode):
     template = """SELECT clientid, country, channel, os, new_client, default_client FROM (
  SELECT
   clientid, country, channel, os,
-  CASE WHEN profilecreationtimestamp >= {start_date} THEN 1 ELSE 0 END as new_client,
+  CASE WHEN profilecreationtimestamp >= {report_date} THEN 1 ELSE 0 END as new_client,
   CASE WHEN "default" THEN 1 ELSE 0 END as default_client,
   -- Do not use "rank()" because it gives ties all the same value, so we end
   -- up with many "1" values if we order by country, channel, geo (hence over-
@@ -50,17 +87,16 @@ def client_values(start_date, inline_date=False):
    -- Use the most recently observed values:
    PARTITION BY clientid ORDER BY "timestamp" desc
   ) AS clientid_rank
- FROM ({this_week}) this_week
+ FROM ({target}) t
 ) v
 WHERE v.clientid_rank = 1"""
-    if inline_date:
-        return template.format("'{}'::DATE".format(start_date=datetime.strftime(start_date, "%Y-%m-%d")), this_week=this_week(start_date))
-    return template.format(start_date='%s', this_week=this_week(start_date))
+    report_date, target = get_targets(start_date, inline_date, mode)
+    return template.format(report_date=report_date, target=target)
 
 
-def get_easy_aggregates(start_date, inline_date=False):
+def get_easy_aggregates(start_date, inline_date=False, mode='monthly'):
     template = """SELECT
- country AS geo, channel, os, {start_date} AS "date",
+ country AS geo, channel, os, {report_date} AS "date",
  sum(hours) AS hours,
  -- Count the number of crash documents
  sum(case when doctype = 'crash' then 1 else 0 end) AS crashes,
@@ -68,27 +104,23 @@ def get_easy_aggregates(start_date, inline_date=False):
  sum(bing) AS bing,
  sum(yahoo) AS yahoo,
  sum(other) AS other
-FROM ({this_week}) this_week GROUP BY 1, 2, 3, 4"""
-    date_param = '%s'
-    if inline_date:
-        date_param = "'{}'::DATE".format(datetime.strftime(start_date, "%Y-%m-%d"))
-    return template.format(start_date=date_param, this_week=this_week(start_date))
+FROM ({target}) t GROUP BY 1, 2, 3, 4"""
+    report_date, target = get_targets(start_date, inline_date, mode)
+    return template.format(report_date=report_date, target=target)
 
-def get_client_aggregates(start_date, inline_date=False):
+def get_client_aggregates(start_date, inline_date=False, mode='monthly'):
     template = """SELECT
- country AS geo, channel, os, {start_date} as "date",
+ country AS geo, channel, os, {report_date} as "date",
  COUNT(*) AS actives,
  SUM(new_client) AS new_clients,
  SUM(default_client) AS "default"
 FROM ({client_values}) client_values
-GROUP BY 1, 2, 3, 4;"""
-    date_param = '%s'
-    if inline_date:
-        date_param = "'{}'::DATE".format(datetime.strftime(start_date, "%Y-%m-%d"))
-    return template.format(start_date=date_param, client_values=client_values(start_date))
+GROUP BY 1, 2, 3, 4"""
+    report_date = get_target_date(start_date, inline_date)
+    return template.format(report_date=report_date, client_values=client_values(start_date, inline_date, mode))
 
-def get_inactives(start_date, inline_date=False):
-    template = """SELECT country AS geo, channel, os, {start_date} as "date", COUNT(*) AS inactives FROM (
+def get_inactives(start_date, inline_date=False, mode='monthly'):
+    template = """SELECT country AS geo, channel, os, {report_date} as "date", COUNT(*) AS inactives FROM (
  SELECT * FROM (
   SELECT
    clientid,
@@ -102,36 +134,45 @@ def get_inactives(start_date, inline_date=False):
     -- Use the most recently observed values:
     PARTITION BY clientid ORDER BY "timestamp" desc
    ) AS clientid_rank
-  FROM ({this_week}) this_week WHERE clientid IN (
-   SELECT clientid FROM ({last_week}) last_week EXCEPT SELECT clientid FROM ({this_week}) this_week
+  FROM ({this_period}) t WHERE clientid IN (
+   SELECT clientid FROM ({last_period}) l EXCEPT SELECT clientid FROM ({this_period}) t
   )
  ) AS ranked
  WHERE ranked.clientid_rank = 1
-) t GROUP BY 1, 2, 3, 4;"""
-    date_param = '%s'
-    if inline_date:
-        date_param = "'{}'::DATE".format(datetime.strftime(start_date, "%Y-%m-%d"))
-    return template.format(start_date=date_param, last_week=last_week(start_date), this_week=this_week(start_date))
+) t GROUP BY 1, 2, 3, 4"""
+    report_date, this_period = get_targets(start_date, inline_date, mode)
+    last_period = get_last_period(start_date, mode)
+    return template.format(report_date=report_date, this_period=this_period, last_period=last_period)
 
-def get_five_of_seven(start_date, inline_date=False):
-    template = """SELECT country as geo, channel, os, {start_date} as "date",
+def get_five_of_seven(start_date, inline_date=False, mode='monthly'):
+    template = """SELECT country as geo, channel, os, {report_date} as "date",
  sum(
-  CASE WHEN num_days >= 5 THEN 1 ELSE 0 END
+  -- For weekly, 5/7 = 0.714 Let's call it 21 days out of the month, which
+  -- corresponds to min 21/31 = 0.677, max 21/28 = 0.75
+  CASE WHEN num_days >= {fos_days} THEN 1 ELSE 0 END
  ) as five_of_seven
 FROM (
  SELECT
   clientid, country, channel, os,
   -- Number of days on which we received submissions from this client.
   count(distinct "timestamp"::date) as num_days
- FROM ({this_week}) this_week GROUP BY 1, 2, 3, 4
+ FROM ({target}) t GROUP BY 1, 2, 3, 4
 ) v GROUP BY 1, 2, 3, 4;"""
-    date_param = '%s'
-    if inline_date:
-        date_param = "'{}'::DATE".format(datetime.strftime(start_date, "%Y-%m-%d"))
-    return template.format(start_date=date_param, this_week=this_week(start_date))
+    report_date, target = get_targets(start_date, inline_date, mode)
+    # Using 'format' to insert a value into a query is a no-no, but in this case
+    # we can guarantee that it's a known int value.
+    fos_days = 5
+    if mode == 'monthly':
+        fos_days = 21
+    return template.format(report_date=report_date, fos_days=fos_days, target=target)
 
 def get_row_key(row):
-    return (row["geo"], row["channel"], row["os"], datetime.strftime(row["date"], "%Y-%m-%d"))
+    return (ne(row["geo"]), ne(row["channel"]), ne(row["os"]), ne(datetime.strftime(row["date"], u"%Y-%m-%d")))
+
+def ne(v):
+    if v is None:
+        return u""
+    return unicode(v)
 
 def nz(v):
     if v is None:
@@ -178,14 +219,14 @@ def main():
     report = {}
 
     if args.verbose:
-        print >> sys.stderr, "Preparing to generate weekly report for {}".format(args.report_start)
+        print >> sys.stderr, "Preparing to generate {} report for {}".format(args.mode, args.report_start)
 
     if args.dry_run:
         print >> sys.stderr, "-- Dry run mode. Printing queries only."
-        print get_easy_aggregates(report_start_date, inline_date=True)
-        print get_client_aggregates(report_start_date, inline_date=True)
-        print get_inactives(report_start_date, inline_date=True)
-        print get_five_of_seven(report_start_date, inline_date=True)
+        print get_easy_aggregates(report_start_date, inline_date=True, mode=args.mode)
+        print get_client_aggregates(report_start_date, inline_date=True, mode=args.mode)
+        print get_inactives(report_start_date, inline_date=True, mode=args.mode)
+        print get_five_of_seven(report_start_date, inline_date=True, mode=args.mode)
         return exit_code
 
     sd = report_start_date.date()
@@ -196,7 +237,7 @@ def main():
             if not args.skip_easy:
                 if args.verbose:
                     print >> sys.stderr, "Generating simple aggregates..."
-                cursor.execute(get_easy_aggregates(report_start_date), (sd,))
+                cursor.execute(get_easy_aggregates(report_start_date, mode=args.mode), (sd,))
                 for row in cursor:
                     # Key fields
                     k = get_row_key(row)
@@ -206,7 +247,7 @@ def main():
             if not args.skip_client:
                 if args.verbose:
                     print >> sys.stderr, "Generating per-client aggregates..."
-                cursor.execute(get_client_aggregates(report_start_date), (sd,sd))
+                cursor.execute(get_client_aggregates(report_start_date, mode=args.mode), (sd,sd))
                 for row in cursor:
                     k = get_row_key(row)
                     v = report.get(k)
@@ -220,7 +261,7 @@ def main():
             if not args.skip_inactive:
                 if args.verbose:
                     print >> sys.stderr, "Generating inactives..."
-                cursor.execute(get_inactives(report_start_date), (sd,))
+                cursor.execute(get_inactives(report_start_date, mode=args.mode), (sd,))
                 for row in cursor:
                     k = get_row_key(row)
                     v = report.get(k)
@@ -232,7 +273,7 @@ def main():
             if not args.skip_fos:
                 if args.verbose:
                     print >> sys.stderr, "Generating five-of-seven..."
-                cursor.execute(get_five_of_seven(report_start_date), (sd,))
+                cursor.execute(get_five_of_seven(report_start_date, mode=args.mode), (sd,))
                 for row in cursor:
                     k = get_row_key(row)
                     v = report.get(k)
@@ -247,12 +288,12 @@ def main():
     if args.verbose:
         print >> sys.stderr, "Outputting data."
 
-    print "geo,channel,os,date,actives,hours,inactives,new_records,five_of_seven,total_records,crashes,default,google,bing,yahoo,other"
+    print u"geo,channel,os,date,actives,hours,inactives,new_records,five_of_seven,total_records,crashes,default,google,bing,yahoo,other"
     for k, v in report.iteritems():
-        s = [ "{}".format(kk) for kk in k ]
+        s = [ unicode(kk) for kk in k ]
         for vv in v:
-            s.append("{}".format(vv))
-        print ",".join(s)
+            s.append(unicode(vv))
+        print u",".join(s)
 
     return exit_code
 
