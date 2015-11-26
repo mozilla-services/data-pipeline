@@ -19,13 +19,27 @@ from psycopg2.extras import DictCursor
 from boto.ses import connect_to_region as ses_connect
 from datetime import datetime, timedelta
 
-# TODO: fetch db credentials from S3 or something?
+def union(tables):
+    global summary_tables
+    good_tables = tables
+    if summary_tables is not None:
+        print "Checking tables..."
+        good_tables = []
+        for table in tables:
+            print "Checking if {} exists...".format(table)
+            if table not in summary_tables:
+                print >> sys.stderr, "WARNING: Skipping nonexistent table {}. Output will be incomplete".format(table)
+                continue
+            else:
+                print "it does."
+            good_tables.append(table)
+    return " UNION ALL ".join([ "SELECT * FROM {}".format(t) for t in good_tables ])
 
 def this_week(start_date):
     tables = []
     for i in range(7):
-        tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(start_date + timedelta(i), "%Y%m%d")))
-    return " UNION ALL ".join(tables)
+        tables.append = "executive_summary_{}".format(datetime.strftime(start_date + timedelta(i), "%Y%m%d"))
+    return union(tables)
 
 def this_month(start_date):
     tables = []
@@ -33,24 +47,23 @@ def this_month(start_date):
         next_date = start_date + timedelta(i)
         if next_date.month != start_date.month:
             break
-        tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
-    return " UNION ALL ".join(tables)
-
+        tables.append("executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
+    return union(tables)
 
 def last_week(start_date):
     tables = []
     for i in range(7):
-        tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(start_date + timedelta(-1 * (7 - i)), "%Y%m%d")))
-    return " UNION ALL ".join(tables)
+        tables.append("executive_summary_{}".format(datetime.strftime(start_date + timedelta(-1 * (7 - i)), "%Y%m%d")))
+    return union(tables)
 
 def last_month(start_date):
     tables = []
     for i in range(32):
         next_date = start_date + timedelta(-1 * (32 - i))
-        tables.append("SELECT * FROM executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
+        tables.append("executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
         if next_date.day == start_date.day:
             break
-    return " UNION ALL ".join(tables)
+    return union(tables)
 
 def get_target_date(start_date, inline_date):
     if inline_date:
@@ -192,12 +205,15 @@ BING = 9
 YAHOO = 10
 OTHER = 11
 
+summary_tables = None
+
 def main():
     parser = argparse.ArgumentParser(description="Run Executive Report")
     parser.add_argument("--report-start",  help="Start day of the reporting period (YYYYMMDD)", required=True)
     parser.add_argument("--mode",          help="Report mode: weekly or monthly", default="monthly")
     parser.add_argument("--db-url",        help="Database URL to connect to", required=True)
-    parser.add_argument("--dry-run",       help="Print out what would happen instead of sending alert email", action="store_true")
+    parser.add_argument("--dry-run",       help="Print out what would happen instead of running queries", action="store_true")
+    parser.add_argument("--check-tables",  help="Check that the underlying tables exist when creating UNION queries", action="store_true")
     parser.add_argument("--skip-easy",     help="Skip computation of easy aggregates", action="store_true")
     parser.add_argument("--skip-client",   help="Skip computation of client aggregates", action="store_true")
     parser.add_argument("--skip-inactive", help="Skip computation of inactive count", action="store_true")
@@ -233,6 +249,17 @@ def main():
     with psycopg2.connect(args.db_url) as conn:
         # with conn.cursor('exec_report{}'.format(args.report_start), cursor_factory=DictCursor) as cursor:
         with conn.cursor(cursor_factory=DictCursor) as cursor:
+
+            if args.check_tables:
+                if args.verbose:
+                    print >> sys.stderr, "Listing existing daily tables..."
+                global summary_tables
+                summary_tables = []
+                cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'executive_summary_%' ORDER BY 1")
+                for row in cursor:
+                    if args.verbose:
+                        print >> sys.stderr, "Found one: {}".format(row["table_name"])
+                    summary_tables.append(row["table_name"])
 
             if not args.skip_easy:
                 if args.verbose:
