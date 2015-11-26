@@ -107,7 +107,8 @@ function load_schema(name, schema)
             return concat(options, " ")
         end
 
-        local uuid          = nil
+        local file          = nil
+        local retry_insert  = false
         local constr        = build_connection_string()
         local buffer_path   = read_config("buffer_path") or error("buffer_path must be set")
         local buffer_max    = 16000 * 1000 -- 16MB
@@ -177,13 +178,11 @@ function load_schema(name, schema)
         end
 
         local function process_message()
-            local file
-            if not (uuid and uuid == read_message("Uuid")) then -- make sure we aren't in a retry loop
+            if not retry_insert then
                 local err
                 file, err = get_output_file(read_message(ts_field))
                 if not file then return -3, err end
 
-                uuid = nil
                 if file.offset == 0 then
                     file.fh:write("INSERT INTO ", file.table_name, " VALUES ")
                 else
@@ -194,11 +193,13 @@ function load_schema(name, schema)
                 if not file.offset then error("out of disk space") end
             end
 
-            if not file or file.offset >= buffer_size then
+            if file.offset >= buffer_size then
                 local err = insert_file(file)
                 if err then
-                    uuid = read_message("Uuid")
+                    retry_insert = true
                     return -3, err
+                else
+                    retry_insert = false
                 end
             end
             return 0
@@ -206,9 +207,15 @@ function load_schema(name, schema)
 
         local function timer_event(ns, shutdown)
             if shutdown then
+                local err
                 for k,v in pairs(files) do
-                    insert_file(v)
+                    local e = insert_file(v)
+                    if e then
+                        e = insert_file(v) -- retry once
+                    end
+                    if e then err = e end
                 end
+                if err then error(err) end -- the file(s) will be left on disk and the log will contain the last error
             end
         end
 
@@ -216,7 +223,8 @@ function load_schema(name, schema)
     elseif format == "redshift.psv" then
         local rpsv = require "derived_stream.redshift.psv"
 
-        local uuid          = nil
+        local file          = nil
+        local retry_copy    = false
         local s3_path       = read_config("s3_path") or error("s3_path must be set")
         local buffer_path   = read_config("buffer_path") or error("buffer_path must be set")
         local buffer_max    = 1024 * 1024 * 1024 -- 1GiB
@@ -267,23 +275,23 @@ function load_schema(name, schema)
         end
 
         local function process_message()
-            local file
-            if not (uuid and uuid == read_message("Uuid")) then -- make sure we aren't in a retry loop
+            if not retry_copy then
                 local err
                 file, err = get_output_file(read_message(ts_field))
                 if not file then return -3, err end
 
-                uuid = nil
                 rpsv.write_message(file.fh, schema)
                 file.offset = file.fh:seek("end")
                 if not file.offset then error("out of disk space") end
             end
 
-            if not file or file.offset >= buffer_size then
+            if file.offset >= buffer_size then
                 local err = copy_file(file)
                 if err then
-                    uuid = read_message("Uuid")
+                    retry_copy = true
                     return -3, err
+                else
+                    retry_copy = false
                 end
             end
             return 0
@@ -291,9 +299,15 @@ function load_schema(name, schema)
 
         local function timer_event(ns, shutdown)
             if shutdown then
+                local err
                 for k,v in pairs(files) do
-                    copy_file(v)
+                    local e = copy_file(v)
+                    if e then
+                        e = copy_file(v) -- retry once
+                    end
+                    if e then err = e end
                 end
+                if err then error(err) end -- the file(s) will be left on disk and the log will contain the last error
             end
         end
 

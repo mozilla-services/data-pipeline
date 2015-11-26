@@ -20,7 +20,7 @@ function esc_varchar(v, max)
     if type(v) ~= "string" then v = tostring(v) end
     if string.len(v) > max then v = string.sub(v, 1, max) end
     local s, e = string.find(v, "%z")
-    if s then string.sub(v, 1, s-1) end
+    if s then v = string.sub(v, 1, s-1) end
     return string.gsub(v, "[|\r\n]", esc_chars)
 end
 
