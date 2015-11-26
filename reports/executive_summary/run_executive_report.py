@@ -23,15 +23,11 @@ def union(tables):
     global summary_tables
     good_tables = tables
     if summary_tables is not None:
-        print "Checking tables..."
         good_tables = []
         for table in tables:
-            print "Checking if {} exists...".format(table)
             if table not in summary_tables:
                 print >> sys.stderr, "WARNING: Skipping nonexistent table {}. Output will be incomplete".format(table)
                 continue
-            else:
-                print "it does."
             good_tables.append(table)
     return " UNION ALL ".join([ "SELECT * FROM {}".format(t) for t in good_tables ])
 
