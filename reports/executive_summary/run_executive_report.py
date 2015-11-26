@@ -38,10 +38,11 @@ def this_week(start_date):
     return union(tables)
 
 def this_month(start_date):
-    tables = []
-    for i in range(32):
+    tables = ["executive_summary_{}".format(datetime.strftime(start_date, "%Y%m%d"))]
+    for i in range(1, 32):
         next_date = start_date + timedelta(i)
-        if next_date.month != start_date.month:
+        # Stop (and exclude) when we iterate to the same day in the next month
+        if next_date.day == start_date.day:
             break
         tables.append("executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
     return union(tables)
@@ -54,11 +55,16 @@ def last_week(start_date):
 
 def last_month(start_date):
     tables = []
+    skip = True
     for i in range(32):
         next_date = start_date + timedelta(-1 * (32 - i))
+        # Skip days until we find the same day in the previous month.
+        if skip:
+            if next_date.day == start_date.day:
+                skip = False
+            else:
+                continue
         tables.append("executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
-        if next_date.day == start_date.day:
-            break
     return union(tables)
 
 def get_target_date(start_date, inline_date):
