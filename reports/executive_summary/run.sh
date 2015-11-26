@@ -1,42 +1,75 @@
 #!/bin/bash
 
+USAGE="Usage: bash $0 {monthly|weekly} [report_start_yyyymmdd]\nIf not specified, report start defaults to the period ending yesterday"
 OUTPUT=output
 TODAY=$(date +%Y%m%d)
 if [ ! -d "$OUTPUT" ]; then
-    mkdir -p "$OUTPUT/sandbox_preservation"
+    mkdir -p "$OUTPUT"
+fi
+
+# First argument is "mode". It is required.
+MODE=$1
+if [ "$MODE" != "weekly" -a "$MODE" != "monthly" ]; then
+    echo "Error: specify 'weekly' or 'monthly' report mode."
+    echo -e $USAGE
+    exit 1
 fi
 
 # If we have an argument, process that day.
-TARGET=$1
+TARGET=$2
 if [ -z "$TARGET" ]; then
-  # Default to processing "yesterday"
-  TARGET=$(date -d 'yesterday' +%Y%m%d)
+    # Default to processing the report period ending "yesterday"
+    if [ "$MODE" = "weekly" ]; then
+        TARGET=$(date -d '1 week ago - 1 day' +%Y%m%d)
+    else
+        TARGET=$(date -d '1 month ago - 1 day' +%Y%m%d)
+    fi
 fi
 
-sed -r "s/__TARGET__/$TARGET/" schema_template.exec.json > schema.exec.json
+echo "Running $MODE report for period starting on $TARGET"
+exit 1
 
-echo "Fetching previous state..."
-aws s3 sync s3://telemetry-private-analysis-2/executive-report-v4/data/sandbox_preservation/ "$OUTPUT/sandbox_preservation/"
+## TODO: fetch db connection details
+aws s3 cp s3://net-mozaws-prod-us-west-2-pipeline-metadata/sources.json ./
+## TODO: get read-only conn string out.
+DB_URL="postgresql://username:password@hostname:port/dbname"
 
-wget http://people.mozilla.org/~mreid/heka-minimal.tar.gz
-tar xzf heka-minimal.tar.gz
+CURRENT="$OUTPUT/executive_report.${MODE}.${TARGET}.csv"
+time python run_executive_report.py \
+        --verbose \
+        --db-url "$DB_URL" \
+        --report-start $TARGET \
+        --mode $MODE > "$CURRENT"
 
-for f in $(ls $OUTPUT/sandbox_preservation/Firefox*.data.gz); do
-    # Back up previous state
-    BACKUP=$(echo "$f" | sed -r "s/[.]data[.]/.data.prev./")
-    cp "$f" "$BACKUP"
-    gunzip "$f"
-done
+OVERALL="v4-${MODE}.csv"
+echo "Fetching previous state from $OVERALL..."
+aws s3 cp "s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard/$OVERALL" ./
 
-# Run the report on $TARGET
-heka-0_10_0-linux-amd64/bin/hekad -config exec.toml
+if [ -s "$OVERALL" ]; then
+    echo "Backing up previous state"
+    # If we have an existing file, back it up.
+    cp "$OVERALL" "$OUTPUT/${OVERALL}.pre_${TARGET}"
+    gzip "$OUTPUT/${OVERALL}.pre_${TARGET}"
+else
+    echo "No previous state found, starting fresh"
+    # If we don't have a previous state, add the header line from this run.
+    head -n 1 "$CURRENT" > "$OVERALL"
+fi
 
-echo "Compressing output"
-gzip $OUTPUT/sandbox_preservation/Firefox*.data
-echo "Done!"
+echo "Appending current date to overall state (minus header)"
+# TODO: Should we error if the header doesn't match the overall header?
+tail -n +2 "$CURRENT" >> "$OVERALL"
 
-echo "Outputting to demo dashboard"
-aws s3 cp "$OUTPUT/dashboard/data/FirefoxMonthly.month.csv" s3://net-mozaws-prod-metrics-data/data-pipeline-demo/firefox_monthly_data.csv --grants full=emailaddress=mmayo@mozilla.com,emailaddress=cloudservices-aws-dev@mozilla.com,emailaddress=svcops-aws-dev@mozilla.com,emailaddress=svcops-aws-prod@mozilla.com
-aws s3 cp "$OUTPUT/dashboard/data/FirefoxWeekly.week.csv" s3://net-mozaws-prod-metrics-data/data-pipeline-demo/firefox_weekly_data.csv --grants full=emailaddress=mmayo@mozilla.com,emailaddress=cloudservices-aws-dev@mozilla.com,emailaddress=svcops-aws-dev@mozilla.com,emailaddress=svcops-aws-prod@mozilla.com
-aws s3 cp "$OUTPUT/dashboard/data/FirefoxDaily.day.csv" s3://net-mozaws-prod-metrics-data/data-pipeline-demo/firefox_daily_data.csv --grants full=emailaddress=mmayo@mozilla.com,emailaddress=cloudservices-aws-dev@mozilla.com,emailaddress=svcops-aws-dev@mozilla.com,emailaddress=svcops-aws-prod@mozilla.com
-echo "Done!"
+# Run the cleanup script from:
+#  https://github.com/mozilla/firefox-executive-dashboard/blob/master/data/reformat_v4.py
+python reformat_v4.py --file "$OVERALL" --output "$OVERALL"
+
+echo "Uploading updated state back to dashboard bucket"
+# Upload the state back.
+aws s3 cp "$OVERALL" "s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard/"
+
+# Then stick it in the output dir
+mv "$OVERALL" "$OUTPUT/"
+
+# And finally gzip it.
+gzip "$OUTPUT/$OVERALL"
