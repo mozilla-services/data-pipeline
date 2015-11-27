@@ -27,12 +27,18 @@ if [ -z "$TARGET" ]; then
 fi
 
 echo "Running $MODE report for period starting on $TARGET"
-exit 1
 
-## TODO: fetch db connection details
+# Make sure we have 'jq'
+export DEBIAN_FRONTEND=noninteractive; sudo apt-get --yes install jq
+
+# Fetch db connection details
+## TODO: add this info to sources.json
 aws s3 cp s3://net-mozaws-prod-us-west-2-pipeline-metadata/sources.json ./
-## TODO: get read-only conn string out.
-DB_URL="postgresql://username:password@hostname:port/dbname"
+
+# Get read-only conn string out.
+# Code expects a URL of the form:
+#   postgresql://username:password@hostname:port/dbname
+DB_URL=$(jq -r '.["telemetry-executive-summary-db"].db_url' < sources.json)
 
 CURRENT="$OUTPUT/executive_report.${MODE}.${TARGET}.csv"
 time python run_executive_report.py \
@@ -57,7 +63,7 @@ else
 fi
 
 echo "Appending current date to overall state (minus header)"
-# TODO: Should we error if the header doesn't match the overall header?
+# We should probably error if the header doesn't match the overall header...
 tail -n +2 "$CURRENT" >> "$OVERALL"
 
 # Run the cleanup script from:
