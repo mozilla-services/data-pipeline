@@ -259,8 +259,6 @@ def main():
                 summary_tables = []
                 cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'executive_summary_%' ORDER BY 1")
                 for row in cursor:
-                    if args.verbose:
-                        print >> sys.stderr, "Found one: {}".format(row["table_name"])
                     summary_tables.append(row["table_name"])
 
             if not args.skip_easy:
