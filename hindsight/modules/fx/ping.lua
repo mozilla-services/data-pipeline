@@ -85,6 +85,7 @@ function flash_version()
     if type(addons.activePlugins) == "table" then
         for i,v in ipairs(addons.activePlugins) do
             if type(v) == "table" and v.name == "Shockwave Flash" then
+                if type(v.version) ~= "string" then v.version = "" end
                 local sv = flash_ver_grammar:match(v.version)
                 if sv then
                     if not version
