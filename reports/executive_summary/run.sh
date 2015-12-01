@@ -28,8 +28,9 @@ fi
 
 echo "Running $MODE report for period starting on $TARGET"
 
-# Make sure we have 'jq'
-export DEBIAN_FRONTEND=noninteractive; sudo apt-get --yes install jq
+# Make sure we have 'jq' and other prereqs
+export DEBIAN_FRONTEND=noninteractive; sudo apt-get --yes --force-yes install jq libpq-dev python-dev
+sudo pip install psycopg2
 
 # Fetch db connection details
 ## TODO: add this info to sources.json
