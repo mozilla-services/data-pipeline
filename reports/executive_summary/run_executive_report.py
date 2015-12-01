@@ -97,7 +97,7 @@ def client_values(start_date, inline_date, mode):
   CASE WHEN "default" THEN 1 ELSE 0 END as default_client,
   -- Do not use "rank()" because it gives ties all the same value, so we end
   -- up with many "1" values if we order by country, channel, geo (hence over-
-  -- counting the inactives)
+  -- counting the per-client aggregates)
   row_number() OVER (
    -- Use the most recently observed values:
    PARTITION BY clientid ORDER BY "timestamp" desc
@@ -184,11 +184,13 @@ FROM (
 def get_row_key(row):
     return (ne(row["geo"]), ne(row["channel"]), ne(row["os"]), ne(datetime.strftime(row["date"], u"%Y-%m-%d")))
 
+# Replace None with an empty string
 def ne(v):
     if v is None:
         return u""
     return unicode(v)
 
+# Replace None with zero
 def nz(v):
     if v is None:
         return 0
@@ -281,6 +283,9 @@ def main():
                     if v is None:
                         v = [0,0,0,0,0,0,0,0,0,0,0,0]
                     v[ACTIVES] = nz(row["actives"])
+                    # total_records = actives + inactives
+                    # So we initialize with ACTIVES, and add in INACTIVES below.
+                    v[TOTAL_RECORDS] = v[ACTIVES]
                     v[NEW_RECORDS] = nz(row["new_clients"])
                     v[DEFAULT] = nz(row["default"])
                     report[k] = v
@@ -295,6 +300,9 @@ def main():
                     if v is None:
                         v = [0,0,0,0,0,0,0,0,0,0,0,0]
                     v[INACTIVES] = nz(row["inactives"])
+                    # total_records = actives + inactives
+                    # So add in INACTIVES.
+                    v[TOTAL_RECORDS] += v[INACTIVES]
                     report[k] = v
 
             if not args.skip_fos:
