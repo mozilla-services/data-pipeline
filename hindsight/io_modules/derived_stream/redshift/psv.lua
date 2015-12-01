@@ -13,7 +13,7 @@ local string    = require "string"
 
 setfenv(1, M) -- Remove external access to contain everything in the module
 
-local esc_chars = { ["|"] = "\\|", ["\r"] = "\\r", ["\n"] = "\\n" }
+local esc_chars = { ["|"] = "\\|", ["\r"] = "\\r", ["\n"] = "\\n", ["\\"] = "\\\\" }
 function esc_varchar(v, max)
     if v == nil then return "" end
     if max == nil then max = rs.VARCHAR_MAX_LENGTH end
@@ -21,7 +21,7 @@ function esc_varchar(v, max)
     if string.len(v) > max then v = string.sub(v, 1, max) end
     local s, e = string.find(v, "%z")
     if s then v = string.sub(v, 1, s-1) end
-    return string.gsub(v, "[|\r\n]", esc_chars)
+    return string.gsub(v, "[|\r\n\\]", esc_chars)
 end
 
 function write_message(fh, schema)
