@@ -53,6 +53,7 @@ DB_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 CURRENT="$OUTPUT/executive_report.${MODE}.${TARGET}.csv"
 time python run_executive_report.py \
         --verbose \
+        --check-tables \
         --db-url "$DB_URL" \
         --report-start $TARGET \
         --mode $MODE > "$CURRENT"
@@ -79,7 +80,7 @@ if [ ! -z "$HEADER_DIFFS" ]; then
     echo "WARNING: headers were different.  <<<old  >>>current"
     echo $HEADER_DIFFS
 else
-    echo "Headers match."
+    echo "None. Headers match."
 fi
 
 echo "Appending current date to overall state (minus header)"
