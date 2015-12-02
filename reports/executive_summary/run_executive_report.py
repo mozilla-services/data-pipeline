@@ -34,7 +34,7 @@ def union(tables):
 def this_week(start_date):
     tables = []
     for i in range(7):
-        tables.append = "executive_summary_{}".format(datetime.strftime(start_date + timedelta(i), "%Y%m%d"))
+        tables.append("executive_summary_{}".format(datetime.strftime(start_date + timedelta(i), "%Y%m%d")))
     return union(tables)
 
 def this_month(start_date):
@@ -142,14 +142,14 @@ def get_inactives(start_date, inline_date=False, mode='monthly'):
    country,
    channel,
    os,
-   -- Do not use "rank()" because it gives ties all the same value, so we end
-   -- up with many "1" values if we order by country, channel, geo (hence over-
-   -- counting the inactives)
+   -- Do not use "rank()" because it gives tied rows all the same value, so we
+   -- end up with many "1" values if we order by country, channel, geo (hence
+   -- over-counting the inactives)
    row_number() OVER (
     -- Use the most recently observed values:
     PARTITION BY clientid ORDER BY "timestamp" desc
    ) AS clientid_rank
-  FROM ({this_period}) t WHERE clientid IN (
+  FROM ({last_period}) l WHERE clientid IN (
    SELECT clientid FROM ({last_period}) l EXCEPT SELECT clientid FROM ({this_period}) t
   )
  ) AS ranked
@@ -243,9 +243,13 @@ def main():
 
     if args.dry_run:
         print >> sys.stderr, "-- Dry run mode. Printing queries only."
+        print "-- Easy aggregates:"
         print get_easy_aggregates(report_start_date, inline_date=True, mode=args.mode)
+        print "-- Client aggregates:"
         print get_client_aggregates(report_start_date, inline_date=True, mode=args.mode)
+        print "-- Inactives:"
         print get_inactives(report_start_date, inline_date=True, mode=args.mode)
+        print "-- Five of Seven:"
         print get_five_of_seven(report_start_date, inline_date=True, mode=args.mode)
         return exit_code
 
