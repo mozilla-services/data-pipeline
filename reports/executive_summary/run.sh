@@ -2,7 +2,6 @@
 
 USAGE="Usage: bash $0 {monthly|weekly} [report_start_yyyymmdd]\nIf not specified, report start defaults to the period ending yesterday"
 OUTPUT=output
-TODAY=$(date +%Y%m%d)
 if [ ! -d "$OUTPUT" ]; then
     mkdir -p "$OUTPUT"
 fi
@@ -15,10 +14,11 @@ if [ "$MODE" != "weekly" -a "$MODE" != "monthly" ]; then
     exit 1
 fi
 
-# If we have an argument, process that day.
+# If we have a date argument, use that as the report start day.
 TARGET=$2
 if [ -z "$TARGET" ]; then
-    # Default to processing the report period ending "yesterday"
+    # Default to processing the report period ending "yesterday". Reporting
+    # code uses the report start date, so calculate that here.
     if [ "$MODE" = "weekly" ]; then
         TARGET=$(date -d '1 week ago - 1 day' +%Y%m%d)
     else
@@ -33,13 +33,22 @@ export DEBIAN_FRONTEND=noninteractive; sudo apt-get --yes --force-yes install jq
 sudo pip install psycopg2
 
 # Fetch db connection details
-## TODO: add this info to sources.json
-aws s3 cp s3://net-mozaws-prod-us-west-2-pipeline-metadata/sources.json ./
+META=net-mozaws-prod-us-west-2-pipeline-metadata
+# Get metadata:
+aws s3 cp s3://$META/sources.json ./
+META_PREFIX=$(jq -r '.["telemetry-executive-summary-db"]["metadata_prefix"]' < sources.json)
+# Get read-only credentials:
+aws s3 cp s3://$META/$META_PREFIX/read/credentials.json ./
 
-# Get read-only conn string out.
+DB_HOST=$(jq -r '.host' < credentials.json)
+DB_PORT=$(jq -r '.port' < credentials.json)
+DB_NAME=$(jq -r '.db_name' < credentials.json)
+DB_USER=$(jq -r '.username' < credentials.json)
+DB_PASS=$(jq -r '.password' < credentials.json)
+
 # Code expects a URL of the form:
 #   postgresql://username:password@hostname:port/dbname
-DB_URL=$(jq -r '.["telemetry-executive-summary-db"].db_url' < sources.json)
+DB_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
 CURRENT="$OUTPUT/executive_report.${MODE}.${TARGET}.csv"
 time python run_executive_report.py \
@@ -49,8 +58,9 @@ time python run_executive_report.py \
         --mode $MODE > "$CURRENT"
 
 OVERALL="v4-${MODE}.csv"
+DASHBOARD_S3="s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard"
 echo "Fetching previous state from $OVERALL..."
-aws s3 cp "s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard/$OVERALL" ./
+aws s3 cp "$DASHBOARD_S3/$OVERALL" ./
 
 if [ -s "$OVERALL" ]; then
     echo "Backing up previous state"
@@ -63,8 +73,16 @@ else
     head -n 1 "$CURRENT" > "$OVERALL"
 fi
 
+echo "Checking if the csv header is the same. Diffs:"
+HEADER_DIFFS=$(diff <(head -n 1 $OVERALL) <(head -n 1 $CURRENT))
+if [ ! -z "$HEADER_DIFFS" ]; then
+    echo "WARNING: headers were different.  <<<old  >>>current"
+    echo $HEADER_DIFFS
+else
+    echo "Headers match."
+fi
+
 echo "Appending current date to overall state (minus header)"
-# We should probably error if the header doesn't match the overall header...
 tail -n +2 "$CURRENT" >> "$OVERALL"
 
 # Run the cleanup script from:
@@ -73,7 +91,7 @@ python reformat_v4.py --file "$OVERALL" --output "$OVERALL"
 
 echo "Uploading updated state back to dashboard bucket"
 # Upload the state back.
-aws s3 cp "$OVERALL" "s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard/"
+aws s3 cp "$OVERALL" "$DASHBOARD_S3/"
 
 # Then stick it in the output dir
 mv "$OVERALL" "$OUTPUT/"
