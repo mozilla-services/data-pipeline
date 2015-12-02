@@ -1,0 +1,1 @@
+../../../heka/share/heka/lua_outputs/crash_summary.lua

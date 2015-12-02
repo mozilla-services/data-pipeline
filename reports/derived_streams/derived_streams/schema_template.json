@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "dimensions": [
+    { "field_name": "submissionDate",   "allowed_values": "__TARGET__"},
+    { "field_name": "sourceName",       "allowed_values": "telemetry" },
+    { "field_name": "sourceVersion",    "allowed_values": "4" },
+    { "field_name": "docType",          "allowed_values": ["main", "crash"]},
+    { "field_name": "appName",          "allowed_values": "*" },
+    { "field_name": "appUpdateChannel", "allowed_values": "*" },
+    { "field_name": "appVersion",       "allowed_values": "*" },
+    { "field_name": "appBuildId",       "allowed_values": "*"}
+  ]
+}
+
