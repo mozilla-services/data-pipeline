@@ -57,7 +57,7 @@ fi
 cd heka
 # pin the Heka version
 git fetch
-git checkout 6f4b61a11cd01f1548dbd7dc8ebd0ed1cf9edbba
+git checkout e99096e737959d6991ceed8a962c2aa1eefa1d93
 
 if [ ! -f "patches_applied" ]; then
     touch patches_applied
