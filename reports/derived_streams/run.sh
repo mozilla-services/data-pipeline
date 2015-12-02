@@ -34,6 +34,6 @@ fi
 sed -r "s/__TARGET__/$TARGET/" schema_template.json > schema.json
 
 # Run code:
-../heka/bin/heka-s3list -schema schema.json -bucket='net-mozaws-prod-us-west-2-pipeline-data' -bucket-prefix='telemetry-release' > list.txt
+../heka/bin/heka-s3list -schema schema.json -bucket='net-mozaws-prod-us-west-2-pipeline-data' -bucket-prefix='telemetry-2' > list.txt
 lua splitter.lua
 ../hindsight/bin/hindsight_cli hindsight.cfg 7
