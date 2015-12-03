@@ -6,7 +6,7 @@
 add-apt-repository ppa:maxmind/ppa -y
 
 apt-get update
-apt-get --yes install mdadm xfsprogs jq git python-pip python-protobuf cmake libgeoip-dev zlib1g-dev mercurial debhelper
+apt-get --yes install mdadm xfsprogs jq git python-pip python-protobuf cmake libgeoip-dev zlib1g-dev mercurial debhelper libpq-dev libssl-dev
 pip install awscli boto
 umount /mnt
 yes | mdadm --create /dev/md0 --level=0 -c64 --raid-devices=2 /dev/xvdb /dev/xvdc
