@@ -92,7 +92,7 @@ python reformat_v4.py --file "$OVERALL" --output "$OVERALL"
 
 echo "Uploading updated state back to dashboard bucket"
 # Upload the state back.
-aws s3 cp "$OVERALL" "$DASHBOARD_S3/"
+aws s3 cp "$OVERALL" "$DASHBOARD_S3/" --acl bucket-owner-full-control
 
 # Then stick it in the output dir
 mv "$OVERALL" "$OUTPUT/"
