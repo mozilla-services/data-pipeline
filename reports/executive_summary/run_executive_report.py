@@ -93,14 +93,14 @@ def client_values(start_date, inline_date, mode):
     template = """SELECT clientid, country, channel, os, new_client, default_client FROM (
  SELECT
   clientid, country, channel, os,
-  CASE WHEN profilecreationtimestamp >= {report_date} THEN 1 ELSE 0 END as new_client,
-  CASE WHEN "default" THEN 1 ELSE 0 END as default_client,
+  CASE WHEN profilecreationtimestamp >= {report_date} THEN 1 ELSE 0 END AS new_client,
+  CASE WHEN "default" THEN 1 ELSE 0 END AS default_client,
   -- Do not use "rank()" because it gives ties all the same value, so we end
   -- up with many "1" values if we order by country, channel, geo (hence over-
   -- counting the per-client aggregates)
   row_number() OVER (
    -- Use the most recently observed values:
-   PARTITION BY clientid ORDER BY "timestamp" desc
+   PARTITION BY clientid ORDER BY "timestamp" DESC
   ) AS clientid_rank
  FROM ({target}) t
 ) v
@@ -125,7 +125,7 @@ FROM ({target}) t GROUP BY 1, 2, 3, 4"""
 
 def get_client_aggregates(start_date, inline_date=False, mode='monthly'):
     template = """SELECT
- country AS geo, channel, os, {report_date} as "date",
+ country AS geo, channel, os, {report_date} AS "date",
  COUNT(*) AS actives,
  SUM(new_client) AS new_clients,
  SUM(default_client) AS "default"
@@ -135,7 +135,7 @@ GROUP BY 1, 2, 3, 4"""
     return template.format(report_date=report_date, client_values=client_values(start_date, inline_date, mode))
 
 def get_inactives(start_date, inline_date=False, mode='monthly'):
-    template = """SELECT country AS geo, channel, os, {report_date} as "date", COUNT(*) AS inactives FROM (
+    template = """SELECT country AS geo, channel, os, {report_date} AS "date", COUNT(*) AS inactives FROM (
  SELECT * FROM (
   SELECT
    clientid,
@@ -147,7 +147,7 @@ def get_inactives(start_date, inline_date=False, mode='monthly'):
    -- over-counting the inactives)
    row_number() OVER (
     -- Use the most recently observed values:
-    PARTITION BY clientid ORDER BY "timestamp" desc
+    PARTITION BY clientid ORDER BY "timestamp" DESC
    ) AS clientid_rank
   FROM ({last_period}) l WHERE clientid IN (
    SELECT clientid FROM ({last_period}) l EXCEPT SELECT clientid FROM ({this_period}) t
@@ -160,17 +160,17 @@ def get_inactives(start_date, inline_date=False, mode='monthly'):
     return template.format(report_date=report_date, this_period=this_period, last_period=last_period)
 
 def get_five_of_seven(start_date, inline_date=False, mode='monthly'):
-    template = """SELECT country as geo, channel, os, {report_date} as "date",
+    template = """SELECT country AS geo, channel, os, {report_date} AS "date",
  sum(
   -- For weekly, 5/7 = 0.714 Let's call it 21 days out of the month, which
   -- corresponds to min 21/31 = 0.677, max 21/28 = 0.75
   CASE WHEN num_days >= {fos_days} THEN 1 ELSE 0 END
- ) as five_of_seven
+ ) AS five_of_seven
 FROM (
  SELECT
   clientid, country, channel, os,
   -- Number of days on which we received submissions from this client.
-  count(distinct "timestamp"::date) as num_days
+  count(distinct "timestamp"::date) AS num_days
  FROM ({target}) t GROUP BY 1, 2, 3, 4
 ) v GROUP BY 1, 2, 3, 4;"""
     report_date, target = get_targets(start_date, inline_date, mode)
@@ -255,7 +255,6 @@ def main():
 
     sd = report_start_date.date()
     with psycopg2.connect(args.db_url) as conn:
-        # with conn.cursor('exec_report{}'.format(args.report_start), cursor_factory=DictCursor) as cursor:
         with conn.cursor(cursor_factory=DictCursor) as cursor:
 
             if args.check_tables:
