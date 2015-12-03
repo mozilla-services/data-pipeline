@@ -83,7 +83,7 @@ else
     echo "None. Headers match."
 fi
 
-echo "Appending current date to overall state (minus header)"
+echo "Appending current data to overall state (minus header)"
 tail -n +2 "$CURRENT" >> "$OVERALL"
 
 # Run the cleanup script from:
