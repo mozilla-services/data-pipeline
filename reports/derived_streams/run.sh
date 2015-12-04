@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Install dependencies
-sudo apt-get --yes install lua5.1 postgresql-client
+sudo apt-get --yes install lua5.1 postgresql-client jq
 sudo dpkg -i luasandbox-0.10.2-Linux-core.deb
 
 OUTPUT=output
@@ -66,7 +66,7 @@ DB_PASS=$(jq -r '.password' < credentials.json)
 echo "$DB_HOST:$DB_PORT:$DB_NAME:$DB_USER:$DB_PASS" >> ~/.pgpass
 chmod 0600 ~/.pgpass
 
-PQ="psql -U \"$DB_USER\" -h \"$DB_HOST\" -p $DB_PORT $DB_NAME"
+PQ="psql -U $DB_USER -h $DB_HOST -p $DB_PORT $DB_NAME"
 
 # Fetch AWS credentials for IAM role
 #  See http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#instance-metadata-security-credentials
@@ -81,7 +81,5 @@ for t in main crash executive; do
     echo "Copying data for $NEW_TABLE..."
     $PQ -c "CREATE TABLE IF NOT EXISTS $NEW_TABLE (LIKE ${t}_summary including defaults);"
     $PQ -c "COPY $NEW_TABLE FROM 's3://telemetry-private-analysis-2/derived_streams/data/${NEW_TABLE}' CREDENTIALS '$CREDS' ACCEPTANYDATE TRUNCATECOLUMNS ESCAPE;"
-done
-for u in read_only read_write; do
-    $PQ -c "GRANT SELECT ON ALL TABLES IN SCHEMA PUBLIC TO $u;"
+    $PQ -c "GRANT SELECT ON $NEW_TABLE TO read_only;"
 done
