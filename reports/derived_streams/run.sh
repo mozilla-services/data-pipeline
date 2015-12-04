@@ -47,6 +47,13 @@ PREFIX=$(jq -r '.["telemetry"].prefix' < sources.json)
 lua splitter.lua
 ../hindsight/bin/hindsight_cli hindsight.cfg 7
 
+RV=$?
+
+if [ $RV -ne 0 ]; then
+    echo "Hindsight encountered an error, returned a value of $RV. Not proceeding with DB load."
+    exit $RV
+fi
+
 echo "Loading data for $TARGET into Redshift..."
 
 ## TODO: We assume these are all in the same database. Should fetch credentials
