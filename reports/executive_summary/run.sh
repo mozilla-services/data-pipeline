@@ -17,12 +17,16 @@ fi
 # If we have a date argument, use that as the report start day.
 TARGET=$2
 if [ -z "$TARGET" ]; then
-    # Default to processing the report period ending "yesterday". Reporting
-    # code uses the report start date, so calculate that here.
+    # Default to processing the most recent completed reporting period.
+    # For a week, that is the period ending on the most recent Saturday (and
+    # starting on the prior Sunday)
+    # For a month, it is the period starting on the first of the previous month.
     if [ "$MODE" = "weekly" ]; then
-        TARGET=$(date -d '1 week ago - 1 day' +%Y%m%d)
+        # The Sunday of the previous complete week
+        TARGET=$(date -d 'last sunday - 1 week' +%Y%m%d)
     else
-        TARGET=$(date -d '1 month ago - 1 day' +%Y%m%d)
+        # The first day of the previous complete month
+        TARGET=$(date -d '1 month ago' +%Y%m01)
     fi
 fi
 
@@ -68,6 +72,8 @@ if [ -s "$OVERALL" ]; then
     # If we have an existing file, back it up.
     cp "$OVERALL" "$OUTPUT/${OVERALL}.pre_${TARGET}"
     gzip "$OUTPUT/${OVERALL}.pre_${TARGET}"
+    # TODO: Should we grep -v the TARGET date, replacing instead of potentially
+    #       duplicating?
 else
     echo "No previous state found, starting fresh"
     # If we don't have a previous state, add the header line from this run.
