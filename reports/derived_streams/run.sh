@@ -74,8 +74,10 @@ IAM_ROLE_NAME=$(curl http://169.254.169.254/latest/meta-data/iam/security-creden
 curl http://169.254.169.254/latest/meta-data/iam/security-credentials/${IAM_ROLE_NAME} > aws_creds.json
 AWS_KEY=$(jq -r '.AccessKeyId' < aws_creds.json)
 AWS_SECRET_KEY=$(jq -r '.SecretAccessKey' < aws_creds.json)
+TOKEN=$(jq -r '.Token' < aws_creds.json)
 
-CREDS="aws_access_key_id=$AWS_KEY;aws_secret_access_key=$AWS_SECRET_KEY"
+# See http://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-credentials.html
+CREDS="aws_access_key_id=${AWS_KEY};aws_secret_access_key=${AWS_SECRET_KEY};token=${TOKEN}"
 for t in main crash executive; do
     NEW_TABLE="${t}_summary_${TARGET}"
     echo "Copying data for $NEW_TABLE..."
