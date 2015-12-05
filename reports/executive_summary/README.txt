@@ -15,7 +15,7 @@ To Deploy
     Day of Week:           Monday
     Day of Month:          n/a (1)
     Time of Day (UTC):     10am
-    Job Timeout (minutes): 120
+    Job Timeout (minutes): 300
   4b. Monthly:
     Job Name:              executive-report-monthly
     Code Tarball:          Upload executive-report-v4-0.X.tar.gz
@@ -26,4 +26,4 @@ To Deploy
     Day of Week:           n/a (Sunday)
     Day of Month:          1 (It will run for the previous month)
     Time of Day (UTC):     10am
-    Job Timeout (minutes): 240
+    Job Timeout (minutes): 600
