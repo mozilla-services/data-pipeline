@@ -140,6 +140,7 @@ local crash_fields = {
     clientId                    = {value = ""},
     documentId                  = {value = ""},
     country                     = {value = ""},
+    city                        = {value = ""},
     channel                     = {value = ""},
     os                          = {value = ""},
     osVersion                   = {value = ""},
@@ -158,6 +159,7 @@ local main_fields = {
     clientId                    = crash_fields.clientId,
     documentId                  = crash_fields.documentId,
     country                     = crash_fields.country,
+    city                        = crash_fields.city,
     channel                     = crash_fields.channel,
     os                          = crash_fields.os,
     osVersion                   = crash_fields.osVersion,
@@ -214,6 +216,7 @@ function process_message()
     msg.Fields.documentId.value = did
 
     msg.Fields.country.value    = fx.normalize_country(read_message("Fields[geoCountry]"))
+    msg.Fields.city.value       = read_message("Fields[geoCity]")
     msg.Fields.channel.value    = fx.normalize_channel(read_message("Fields[appUpdateChannel]"))
     msg.Fields.os.value         = fx.normalize_os(read_message("Fields[os]"))
     msg.Fields.osVersion.value  = get_os_version()

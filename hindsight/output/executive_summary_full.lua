@@ -69,6 +69,7 @@ local schema = {
     {"documentId"                   ,"CHAR"             ,36     ,nil        ,"Fields[documentId]"},
     {"docType"                      ,"CHAR"             ,36     ,nil        ,function () return doc_type end},
     {"country"                      ,"VARCHAR"          ,5      ,nil        ,function () return fx.normalize_country(read_message("Fields[geoCountry]")) end},
+    {"city"                         ,"VARCHAR"          ,32     ,nil        ,"Fields[geoCity]"},
     {"channel"                      ,"VARCHAR"          ,7      ,nil        ,function () return fx.normalize_channel(read_message("Fields[appUpdateChannel]")) end},
     {"os"                           ,"VARCHAR"          ,7      ,nil        ,function () return fx.normalize_os(read_message("Fields[os]")) end},
     {"osVersion"                    ,"VARCHAR"          ,32     ,nil        ,function () return ping.system().os.version end},

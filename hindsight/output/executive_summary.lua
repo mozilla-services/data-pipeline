@@ -30,6 +30,7 @@ local schema = {
     {"documentId"                   ,"CHAR"             ,36     ,nil        ,"Fields[documentId]"},
     {"docType"                      ,"CHAR"             ,36     ,nil        ,"Fields[docType]"},
     {"country"                      ,"VARCHAR"          ,5      ,nil        ,"Fields[country]"},
+    {"city"                         ,"VARCHAR"          ,32     ,nil        ,"Fields[city]"},
     {"channel"                      ,"VARCHAR"          ,7      ,nil        ,"Fields[channel]"},
     {"os"                           ,"VARCHAR"          ,7      ,nil        ,"Fields[os]"},
     {"osVersion"                    ,"VARCHAR"          ,32     ,nil        ,"Fields[osVersion]"},
