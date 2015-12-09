@@ -54,7 +54,7 @@ function get_geo_country(xff, remote_addr)
     return get_geo_field(xff, remote_addr, "country_code", UNK_GEO)
 end
 
-function get_geo_country(xff, remote_addr)
+function get_geo_city(xff, remote_addr)
     return get_geo_field(xff, remote_addr, "city", UNK_GEO)
 end
 
