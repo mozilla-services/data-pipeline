@@ -18,7 +18,7 @@ Config:
     preserve_data = false # should always be reset on Heka restarts
     message_matcher = "Type == 'heka.all-report'"
     [TelemetryS3OutputMonitors.config]
-    -- CSV to ignore low volume streams
+    # CSV to ignore low volume streams
     ignore_stalls = "TelemetryErrorsOutput"
 --]]
 
