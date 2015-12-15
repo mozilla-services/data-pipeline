@@ -19,7 +19,7 @@ Config:
     message_matcher = "Type == 'heka.all-report'"
     [TelemetryS3OutputMonitors.config]
     # CSV to ignore low volume streams
-    ignore_stalls = "TelemetryErrorsOutput"
+    ignore_stalls = "TelemetryErrorsOutput,TelemetryLoopOutput"
 --]]
 
 require "cjson"
@@ -32,7 +32,7 @@ local elem = l.C((1 - sep)^1)
 local item = elem / l.P
 local list = item * ("," * item)^0
 local function add (a, b) return a + b end
-local grammar = lpeg.Cf(list, add)
+local grammar = l.Cf(list, add)
 grammar = grammar:match(read_config("ignore_stalls") or "TelemetryErrorsOutput")
 
 local plugins        = {}
