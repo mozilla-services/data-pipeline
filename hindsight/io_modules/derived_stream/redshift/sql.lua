@@ -3,6 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 local M = {}
+local error = error
 local ipairs = ipairs
 local read_message = read_message
 local tostring = tostring
