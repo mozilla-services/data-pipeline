@@ -115,30 +115,42 @@ end
 local function process_json(msg, json, parsed)
     local clientId
     if parsed.ver then
-        -- Old-style telemetry.
-        local info = parsed.info
-        if type(info) ~= "table" then return "missing info object" end
+        if parsed.ver == 3 then
+            -- Special case for FxOS FTU pings
+            msg.Payload = json
+            update_field(msg.Fields, "sourceVersion", tostring(parsed.ver))
 
-        msg.Payload = json
-        update_field(msg.Fields, "sourceVersion", tostring(parsed.ver))
+            -- Get some more dimensions.
+            local channel = find_field(msg.Fields, "appUpdateChannel")
+            if channel and type(channel.value[1]) == "string" then
+                update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(channel.value[1]))
+            end
+        else
+            -- Old-style telemetry.
+            local info = parsed.info
+            if type(info) ~= "table" then return "missing info object" end
 
-        -- Get some more dimensions.
-        update_field(msg.Fields, "docType"           , info.reason or UNK_DIM)
-        update_field(msg.Fields, "appName"           , info.appName or UNK_DIM)
-        update_field(msg.Fields, "appVersion"        , info.appVersion or UNK_DIM)
-        update_field(msg.Fields, "appUpdateChannel"  , info.appUpdateChannel or UNK_DIM)
-        update_field(msg.Fields, "appBuildId"        , info.appBuildID or UNK_DIM)
-        update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(info.appUpdateChannel))
+            msg.Payload = json
+            update_field(msg.Fields, "sourceVersion", tostring(parsed.ver))
 
-        -- Old telemetry was always "enabled"
-        update_field(msg.Fields, "telemetryEnabled"  , true)
+            -- Get some more dimensions.
+            update_field(msg.Fields, "docType"           , info.reason or UNK_DIM)
+            update_field(msg.Fields, "appName"           , info.appName or UNK_DIM)
+            update_field(msg.Fields, "appVersion"        , info.appVersion or UNK_DIM)
+            update_field(msg.Fields, "appUpdateChannel"  , info.appUpdateChannel or UNK_DIM)
+            update_field(msg.Fields, "appBuildId"        , info.appBuildID or UNK_DIM)
+            update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(info.appUpdateChannel))
 
-        -- Do not want default values for these.
-        update_field(msg.Fields, "os"        , info.OS)
-        update_field(msg.Fields, "appVendor" , info.vendor)
-        update_field(msg.Fields, "reason"    , info.reason)
-        clientId = parsed.clientID -- uppercase ID is correct
-        update_field(msg.Fields, "clientId"  , clientId)
+            -- Old telemetry was always "enabled"
+            update_field(msg.Fields, "telemetryEnabled"  , true)
+
+            -- Do not want default values for these.
+            update_field(msg.Fields, "os"        , info.OS)
+            update_field(msg.Fields, "appVendor" , info.vendor)
+            update_field(msg.Fields, "reason"    , info.reason)
+            clientId = parsed.clientID -- uppercase ID is correct
+            update_field(msg.Fields, "clientId"  , clientId)
+        end
     elseif parsed.version then
         -- New-style telemetry, see http://mzl.la/1zobT1S
         local app = parsed.application
