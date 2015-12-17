@@ -1,6 +1,6 @@
 #!/bin/bash
 
-USAGE="Usage: bash $0 {monthly|weekly} [report_start_yyyymmdd]\nIf not specified, report start defaults to the period ending yesterday"
+USAGE="Usage: bash $0 {monthly|weekly} [report_start_yyyymmdd]\nIf not specified, report start defaults to the most recent completed reporting period."
 OUTPUT=output
 if [ ! -d "$OUTPUT" ]; then
     mkdir -p "$OUTPUT"
@@ -40,9 +40,21 @@ sudo pip install psycopg2
 META=net-mozaws-prod-us-west-2-pipeline-metadata
 # Get metadata:
 aws s3 cp s3://$META/sources.json ./
+RC=$?
+# Check if the copy succeeded. See:
+#   http://docs.aws.amazon.com/cli/latest/topic/return-codes.html
+if [ "$RC" -ne "0" ]; then
+    echo "ERROR $RC fetching data sources."
+    exit 2
+fi
 META_PREFIX=$(jq -r '.["telemetry-executive-summary-db"]["metadata_prefix"]' < sources.json)
 # Get read-only credentials:
 aws s3 cp s3://$META/$META_PREFIX/read/credentials.json ./
+RC=$?
+if [ "$RC" -ne "0" ]; then
+    echo "ERROR $RC fetching read credentials."
+    exit 3
+fi
 
 DB_HOST=$(jq -r '.host' < credentials.json)
 DB_PORT=$(jq -r '.port' < credentials.json)
@@ -66,14 +78,20 @@ OVERALL="v4-${MODE}.csv"
 DASHBOARD_S3="s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard"
 echo "Fetching previous state from $OVERALL..."
 aws s3 cp "$DASHBOARD_S3/$OVERALL" ./
+RC=$?
 
 if [ -s "$OVERALL" ]; then
-    echo "Backing up previous state"
-    # If we have an existing file, back it up.
-    cp "$OVERALL" "$OUTPUT/${OVERALL}.pre_${TARGET}"
-    gzip "$OUTPUT/${OVERALL}.pre_${TARGET}"
-    # TODO: Should we grep -v the TARGET date, replacing instead of potentially
-    #       duplicating?
+    if  [ "$RC" -eq "0" ]; then
+        echo "Backing up previous state"
+        # If we have an existing file, back it up.
+        cp "$OVERALL" "$OUTPUT/${OVERALL}.pre_${TARGET}"
+        gzip "$OUTPUT/${OVERALL}.pre_${TARGET}"
+        # TODO: Should we grep -v the TARGET date, replacing instead of potentially
+        #       duplicating?
+    else
+        echo "ERROR $RC fetching previous state, aborting."
+        exit 4
+    fi
 else
     echo "No previous state found, starting fresh"
     # If we don't have a previous state, add the header line from this run.
@@ -99,6 +117,10 @@ python reformat_v4.py --file "$OVERALL" --output "$OVERALL"
 echo "Uploading updated state back to dashboard bucket"
 # Upload the state back.
 aws s3 cp "$OVERALL" "$DASHBOARD_S3/" --acl bucket-owner-full-control
+RC=$?
+if [ "$RC" -ne "0" ]; then
+    echo "ERROR $RC re-uploading to dashbord bucket ($DASHBOARD_S3)."
+fi
 
 # Then stick it in the output dir
 mv "$OVERALL" "$OUTPUT/"
