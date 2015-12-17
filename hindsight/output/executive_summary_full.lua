@@ -82,6 +82,7 @@ local schema = {
     {"bing"                         ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[2] end},
     {"yahoo"                        ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[3] end},
     {"other"                        ,"INTEGER"          ,nil    ,nil        ,function () return search_counts[4] end},
+    {"city"                         ,"VARCHAR"          ,32     ,nil        ,"Fields[geoCity]"},
 }
 
 local ds_pm

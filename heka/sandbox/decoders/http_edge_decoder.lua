@@ -35,19 +35,27 @@ local UNK_GEO = "??"
 -- Track the hour to facilitate reopening city_db hourly.
 local hour = math.floor(os.time() / 3600)
 
-function get_geo_country(xff, remote_addr)
-    local country
+function get_geo_field(xff, remote_addr, field_name, default_value)
+    local geo
     if xff then
         local first_addr = string.match(xff, "([^, ]+)")
         if first_addr then
-            country = city_db:query_by_addr(first_addr, "country_code")
+            geo = city_db:query_by_addr(first_addr, field_name)
         end
     end
-    if country then return country end
+    if geo then return geo end
     if remote_addr then
-        country = city_db:query_by_addr(remote_addr, "country_code")
+        geo = city_db:query_by_addr(remote_addr, field_name)
     end
-    return country or UNK_GEO
+    return geo or default_value
+end
+
+function get_geo_country(xff, remote_addr)
+    return get_geo_field(xff, remote_addr, "country_code", UNK_GEO)
+end
+
+function get_geo_city(xff, remote_addr)
+    return get_geo_field(xff, remote_addr, "city", UNK_GEO)
 end
 
 -- Load the namespace configuration externally.
@@ -113,6 +121,7 @@ function process_message()
     local xff = landfill_msg.Fields["X-Forwarded-For"]
     local remote_addr = landfill_msg.Fields["RemoteAddr"]
     landfill_msg.Fields.geoCountry = get_geo_country(xff, remote_addr)
+    landfill_msg.Fields.geoCity = get_geo_city(xff, remote_addr)
 
     -- Remove the PII Bugzilla 1143818
     landfill_msg.Fields["X-Forwarded-For"] = nil

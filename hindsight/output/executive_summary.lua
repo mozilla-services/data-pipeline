@@ -43,6 +43,7 @@ local schema = {
     {"bing"                         ,"INTEGER"          ,nil    ,nil        ,"Fields[bing]"},
     {"yahoo"                        ,"INTEGER"          ,nil    ,nil        ,"Fields[yahoo]"},
     {"other"                        ,"INTEGER"          ,nil    ,nil        ,"Fields[other]"},
+    {"city"                         ,"VARCHAR"          ,32     ,nil        ,"Fields[city]"},
 }
 
 process_message, timer_event = ds.load_schema(name, schema)
