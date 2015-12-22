@@ -46,12 +46,14 @@ local function get_search_counts()
     if type(sc) ~= "table" then return cnts end
 
     for k, v in pairs(sc) do
-        for i, e in ipairs({"[Gg]oogle", "[Bb]ing", "[Yy]ahoo", "."}) do
-            if string.match(k, e) then
-                if type(v.sum) == "number" then
-                    cnts[i] = cnts[i] + v.sum
+        if type(v) == "table" then
+            for i, e in ipairs({"[Gg]oogle", "[Bb]ing", "[Yy]ahoo", "."}) do
+                if string.match(k, e) then
+                    if type(v.sum) == "number" then
+                        cnts[i] = cnts[i] + v.sum
+                    end
+                    break
                 end
-                break
             end
         end
     end
