@@ -16,7 +16,6 @@ import json
 import argparse
 import psycopg2
 from psycopg2.extras import DictCursor
-from boto.ses import connect_to_region as ses_connect
 from datetime import datetime, timedelta
 
 def union(tables):

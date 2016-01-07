@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION=0.11
+VERSION=0.12
 
 if [ ! -s reformat_v4.py ]; then
     echo "Missing: reformat_v4.py"
