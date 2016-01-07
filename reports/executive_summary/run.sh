@@ -74,6 +74,12 @@ time python run_executive_report.py \
         --report-start $TARGET \
         --mode $MODE > "$CURRENT"
 
+RC=$?
+if [ "$RC" -ne "0" ]; then
+    echo "ERROR $RC running report."
+    exit 5
+fi
+
 OVERALL="v4-${MODE}.csv"
 DASHBOARD_S3="s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard"
 echo "Fetching previous state from $OVERALL..."
