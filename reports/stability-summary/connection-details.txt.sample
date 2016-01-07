@@ -1,0 +1,1 @@
+host=something.something dbname=pipeline user=read_only password=AAAABBBB

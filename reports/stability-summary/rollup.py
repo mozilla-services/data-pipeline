@@ -11,7 +11,7 @@ latency_interval = 10
 
 default_bucket = 'telemetry-public-analysis-2'
 
-current_cutoff = date.today() - timedelta(days=2)
+current_cutoff = date.today() - timedelta(days=1)
 
 def date_range(date, days, cutoff):
     """Iterate from `date` for the next `days`"""
