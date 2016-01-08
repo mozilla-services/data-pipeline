@@ -20,20 +20,37 @@ Derived stream for webrtc. https://bugzilla.mozilla.org/show_bug.cgi?id=1231410
 
 require 'cjson'
 
-function process_message()
-    local raw = read_message("raw")
-    local payload, json = pcall(cjson.decode, read_message("Payload"))
-    if not payload then return -1, json end
-    local p = json['payload'] or {}
-    local w = p['webrtc'] or {}
+local function check_payload (payload)
+    local w = payload['webrtc'] or {}
     local i = w['IceCandidatesStats'] or {}
     if next(i['webrtc'] or {}) or next(i['loop'] or {}) then
-        inject_message(raw)
-        return 0
+        return true
     end
-    -- FIXME I'm guessing we should also examine child payloads
-    -- local payload, json = pcall(cjson.decode, read_message("Fields[payload.childPayloads]"))
-    -- if not payload then return -1, json end
+    return false
+end
+
+function process_message()
+    local ok, json = pcall(cjson.decode, read_message("Payload"))
+    if not ok then return -1, json end
+    local p = json['payload'] or {}
+    local found = check_payload(p)
+    if not found then
+        -- check child payloads for E10s
+        local children = read_message("Fields[payload.childPayloads]")
+        if not children then return 0 end
+        local ok, json = pcall(cjson.decode, children)
+        if not ok then return -1, children end
+        if type(json) ~= "table" then return -1 end
+        for i, child in ipairs(json) do
+            found = check_payload(child)
+            if found then break end
+        end
+    end
+
+    if found then
+        local raw = read_message("raw")
+        inject_message(raw)
+    end
     return 0
 end
 
