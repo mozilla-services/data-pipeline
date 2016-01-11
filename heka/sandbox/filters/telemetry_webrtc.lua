@@ -21,9 +21,9 @@ Derived stream for webrtc. https://bugzilla.mozilla.org/show_bug.cgi?id=1231410
 require 'cjson'
 
 local function check_payload (payload)
-    local w = payload['webrtc'] or {}
-    local i = w['IceCandidatesStats'] or {}
-    if next(i['webrtc'] or {}) or next(i['loop'] or {}) then
+    local w = payload["webrtc"] or {}
+    local i = w["IceCandidatesStats"] or {}
+    if next(i["webrtc"] or {}) or next(i["loop"] or {}) then
         return true
     end
     return false
@@ -32,13 +32,13 @@ end
 function process_message()
     local ok, json = pcall(cjson.decode, read_message("Payload"))
     if not ok then return -1, json end
-    local p = json['payload'] or {}
+    local p = json["payload"] or {}
     local found = check_payload(p)
     if not found then
         -- check child payloads for E10s
         local children = read_message("Fields[payload.childPayloads]")
         if not children then return 0 end
-        local ok, json = pcall(cjson.decode, children)
+        ok, json = pcall(cjson.decode, children)
         if not ok then return -1, children end
         if type(json) ~= "table" then return -1 end
         for i, child in ipairs(json) do
