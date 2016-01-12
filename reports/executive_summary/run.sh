@@ -81,7 +81,7 @@ if [ "$RC" -ne "0" ]; then
 fi
 
 OVERALL="v4-${MODE}.csv"
-DASHBOARD_S3="s3://net-mozaws-prod-metrics-data/firefox-executive-dashboard"
+DASHBOARD_S3="s3://net-mozaws-prod-metrics-data/firefox-dashboard"
 echo "Fetching previous state from $OVERALL..."
 aws s3 cp "$DASHBOARD_S3/$OVERALL" ./
 RC=$?
@@ -116,8 +116,7 @@ fi
 echo "Appending current data to overall state (minus header)"
 tail -n +2 "$CURRENT" >> "$OVERALL"
 
-# Run the cleanup script from:
-#  https://github.com/mozilla/firefox-executive-dashboard/blob/master/data/reformat_v4.py
+# Run the cleanup script
 python reformat_v4.py --file "$OVERALL" --output "$OVERALL"
 
 echo "Uploading updated state back to dashboard bucket"
