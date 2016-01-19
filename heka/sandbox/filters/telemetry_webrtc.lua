@@ -21,6 +21,7 @@ Derived stream for webrtc. https://bugzilla.mozilla.org/show_bug.cgi?id=1231410
 require 'cjson'
 
 local function check_payload (payload)
+    if type(payload) ~= "table" then return false end
     local w = payload["webrtc"] or {}
     local i = w["IceCandidatesStats"] or {}
     if next(i["webrtc"] or {}) or next(i["loop"] or {}) then
