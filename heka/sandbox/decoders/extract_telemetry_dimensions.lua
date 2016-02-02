@@ -230,6 +230,15 @@ local function process_json(msg, json, parsed)
         update_field(msg.Fields, "normalizedChannel" , fx.normalize_channel(auc))
 
         -- The "telemetryEnabled" flag does not apply to this type of ping.
+    elseif parsed.v then
+        -- This is a Fennec "core" ping
+        update_field(msg.Fields, "sourceVersion", tostring(parsed.v))
+        clientId = parsed.clientId
+        update_field(msg.Fields, "clientId", clientId)
+        msg.Payload = json
+    else
+        -- Everything else. Just store the submission in the Payload field by default.
+        msg.Payload = json
     end
     update_field(msg.Fields, "sampleId", sample(clientId, 100))
     return nil -- processing was successful
