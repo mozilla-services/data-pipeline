@@ -21,7 +21,6 @@ type Sqs3Input struct {
     sqs       *sqs.SQS
     s3        *s3.S3
     queue_url *string
-//    hostname string
 }
 
 type Sqs3InputConfig struct {
