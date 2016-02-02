@@ -147,6 +147,7 @@ function process_message()
     main_msg.Fields.DNT            = landfill_msg.Fields.DNT
     main_msg.Fields.Date           = landfill_msg.Fields.Date
     main_msg.Fields.geoCountry     = landfill_msg.Fields.geoCountry
+    main_msg.Fields.geoCity        = landfill_msg.Fields.geoCity
     main_msg.Fields.submission     = landfill_msg.Fields.submission
     main_msg.Fields.submissionDate = landfill_msg.Fields.submissionDate
 
