@@ -19,14 +19,20 @@ Darwin)
     echo "Ensuring we have the latest geoip for OSX..."
     MIN_GEOIP_VER=1.6.3
     if [ ! -z "$(which brew)" ]; then
-      OSX_GEO_VER=$(brew info geoip | grep "geoip:" | cut -d\  -f3)
-        if [ ! -z "$OSX_GEO_VER" ]; then
-            X=$(printf '%s\n%s' "$MIN_GEOIP_VER" "$OSX_GEO_VER" | sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n | head -1)
-            if [ "$X" != "$MIN_GEOIP_VER" ]; then
-                echo "Existing geoip version ($OSX_GEO_VER) is too old (we need at least $MIN_GEOIP_VER). Upgrading..."
-                brew upgrade geoip
-            else
-                echo "Looks like geoip version $OSX_GEO_VER is good (>= $MIN_GEOIP_VER)"
+        OSX_GEO_INSTALLED=$(brew info geoip | grep "geoip:")
+        if [ ! -z "$OSX_GEO_INSTALLED" ]; then
+            echo "Geoip is not installed. Installing..."
+            brew install geoip
+        else
+            OSX_GEO_VER=$(brew info geoip | grep "geoip:" | cut -d\  -f3)
+            if [ ! -z "$OSX_GEO_VER" ]; then
+                X=$(printf '%s\n%s' "$MIN_GEOIP_VER" "$OSX_GEO_VER" | sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n | head -1)
+                if [ "$X" != "$MIN_GEOIP_VER" ]; then
+                    echo "Existing geoip version ($OSX_GEO_VER) is too old (we need at least $MIN_GEOIP_VER). Upgrading..."
+                    brew upgrade geoip
+                else
+                    echo "Looks like geoip version $OSX_GEO_VER is good (>= $MIN_GEOIP_VER)"
+                fi
             fi
         fi
     fi
