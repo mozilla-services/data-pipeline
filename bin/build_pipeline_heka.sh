@@ -86,6 +86,12 @@ if [ ! -f "patches_applied" ]; then
     echo "install(DIRECTORY $BASE/hindsight/modules/ DESTINATION share/heka/lua_modules)" >> cmake/plugin_loader.cmake
     echo "install(DIRECTORY $BASE/hindsight/io_modules/ DESTINATION share/heka/lua_io_modules)" >> cmake/plugin_loader.cmake
     echo "install(DIRECTORY $BASE/hindsight/output/ DESTINATION share/heka/lua_outputs)" >> cmake/plugin_loader.cmake
+
+    echo "Adding external plugin for sqs3 input"
+    echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline/sqs3 :local)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/aws/aws-sdk-go a170e9cb76475a0da7c0326a13cc2b39e9244b3b)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/go-ini/ini afbd495e5aaea13597b5e14fe514ddeaa4d76fc3)" >> cmake/plugin_loader.cmake
+    echo "add_external_plugin(git https://github.com/jmespath/go-jmespath 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74)" >> cmake/plugin_loader.cmake
 fi
 
 # TODO: do this using cmake externals instead of shell-fu.
