@@ -88,7 +88,7 @@ func (input *Sqs3Input) Run(runner pipeline.InputRunner,
         if err != nil {
             runner.LogError(fmt.Errorf("Error opening file: %s", err.Error()))
             if aws_err := awserr.Error(err); aws_err != nil {
-                f aws_err.Code == "NoSuchBucket" or aws_err.Code == "NoSuchKey" {
+                if aws_err.Code == "NoSuchBucket" or aws_err.Code == "NoSuchKey" {
                     delete_message(input.sqs, input.queue_url, receipt_handle)
                 }
             }
