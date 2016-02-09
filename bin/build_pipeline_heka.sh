@@ -150,11 +150,14 @@ Darwin)
     ;;
 esac
 
+# Disable some noisy warnings in the default cflags.
+CFLAGS="-Wno-int-conversion -Wno-incompatible-pointer-types-discards-qualifiers -Wno-deprecated -Wno-pointer-sign"
+
 HEKA_MODS=$BASE/build/heka/build/heka/lib/luasandbox/modules
 mkdir -p $HEKA_MODS/geoip
-gcc $SO_FLAGS database.o city.o -l GeoIP -o $HEKA_MODS/geoip/city.so
-gcc $SO_FLAGS database.o country.o -l GeoIP -o $HEKA_MODS/geoip/country.so
-gcc $SO_FLAGS database.o lua-geoip.o -l GeoIP -o $HEKA_MODS/geoip.so
+gcc $CFLAGS $SO_FLAGS database.o city.o -l GeoIP -o $HEKA_MODS/geoip/city.so
+gcc $CFLAGS $SO_FLAGS database.o country.o -l GeoIP -o $HEKA_MODS/geoip/country.so
+gcc $CFLAGS $SO_FLAGS database.o lua-geoip.o -l GeoIP -o $HEKA_MODS/geoip.so
 
 echo 'Installing lua-gzip lib'
 cd $BASE/build
@@ -166,7 +169,7 @@ cd lua-gzip
 # Use a known revision (current "master" as of 2015-02-12)
 git checkout fe9853ea561d0957a18eb3c4970ca249c0325d84
 
-gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
+gcc $CFLAGS -I${LUA_INCLUDE_PATH} $SO_FLAGS lua-gzip.c -lz -o $HEKA_MODS/gzip.so
 
 echo 'Installing lua-openssl lib'
 cd $BASE/build
@@ -182,7 +185,7 @@ LUA_OPENSSL_SRC="src/asn1.c src/auxiliar.c src/bio.c src/cipher.c src/cms.c src/
 src/ec.c src/engine.c src/hmac.c src/lbn.c src/lhash.c src/misc.c src/ocsp.c src/openssl.c src/ots.c src/pkcs12.c src/pkcs7.c
 src/pkey.c src/rsa.c src/ssl.c src/th-lock.c src/util.c src/x509.c src/xattrs.c src/xexts.c src/xname.c src/xstore.c src/xalgor.c src/callback.c"
 
-gcc -DPTHREADS -I${LUA_INCLUDE_PATH} -Ideps $SO_FLAGS $LUA_OPENSSL_SRC -lssl -lcrypto -lrt -ldl -o $HEKA_MODS/openssl.so
+gcc $CFLAGS -DPTHREADS -I${LUA_INCLUDE_PATH} -Ideps $SO_FLAGS $LUA_OPENSSL_SRC -lssl -lcrypto -lrt -ldl -o $HEKA_MODS/openssl.so
 
 HEKA_IO_MODS=$BASE/build/heka/build/heka/lib/luasandbox/io_modules
 mkdir -p $HEKA_IO_MODS/luasql
@@ -201,17 +204,17 @@ if [ ! -z "$(which pg_config)" ]; then
     PG_INCLUDE_PATH=$(pg_config --includedir)
 fi
 echo "PG INCLUDE PATH = $PG_INCLUDE_PATH"
-gcc -I${PG_INCLUDE_PATH} -I${LUA_INCLUDE_PATH} $SO_FLAGS src/ls_postgres.c src/luasql.c -lpq -o $HEKA_IO_MODS/luasql/postgres.so
+gcc $CFLAGS -I${PG_INCLUDE_PATH} -I${LUA_INCLUDE_PATH} $SO_FLAGS src/ls_postgres.c src/luasql.c -lpq -o $HEKA_IO_MODS/luasql/postgres.so
 
 echo 'Installing lua_hash lib'
 cd $BASE
 # Build a hash module with the zlib checksum functions
-gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
+gcc $CFLAGS -I${LUA_INCLUDE_PATH} $SO_FLAGS heka/plugins/hash/lua_hash.c -lz -o $HEKA_MODS/hash.so
 
 echo 'Installing fx libs'
 mkdir -p $HEKA_MODS/fx
 cd $BASE
-gcc -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/executive_report.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/executive_report.so
+gcc $CFLAGS -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/executive_report.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/executive_report.so
 
 cd $BASE/build/heka/build
 
