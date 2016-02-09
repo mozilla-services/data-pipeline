@@ -25,18 +25,22 @@ You can set up a bare-bones data pipeline of your own.  You will get an endpoint
     ```
 
 2. Build and configure heka. If you are unable to build heka, drop by #datapipeline on irc.mozilla.org and we will try to provide you a pre-built version.
-  1. Run `source bin/build_pipeline_heka.sh`
-  2. Install lua modules
+  1. Make sure you have the depencies installed:
+    1. OpenSSL v1.0+ (required by lua_openssl)
+    2. libpq, the PostgreSQL API
+  2. Run `source bin/build_pipeline_heka.sh`
+  3. Install lua modules
 
         ```
         mkdir lua_modules
         rsync -av build/heka/build/heka/lib/luasandbox/modules/ lua_modules/
         ```
 
-  3. Procure a `GeoLiteCity.dat` file and put it in the current dir
+  4. Procure a `GeoLiteCity.dat` file and put it in the current dir
 
         ```
         wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+        gunzip GeoLiteCity.dat.gz
         ```
 
 3. Set up the main Pipeline using the `examples/basic_local_pipeline.toml` config file. This will listen for HTTP POSTs on port 8080, log the raw and decoded messages requests to stdout, run the example filter, and output the records to a file.
