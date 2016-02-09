@@ -1,7 +1,21 @@
 #!/bin/bash
 
-# Exit on error:
-set -o errexit
+# On error print some basic diagnostics and exit.
+function errexit() {
+  local err=$?
+  set +o xtrace
+  local code="${1:-1}"
+  echo "Error in ${BASH_SOURCE[1]}:${BASH_LINENO[0]}. '${BASH_COMMAND}' exited with status $err"
+  echo "Exiting with status ${code}"
+  exit "${code}"
+}
+
+# Trap ERR to provide an error handler whenever a command exits nonzero.
+# This is a more verbose version of set -o errexit.
+trap 'errexit' ERR
+# Setting errtrace allows our ERR trap handler to be propagated to functions,
+# expansions and subshells
+set -o errtrace
 
 pushd .
 # Machine config:
