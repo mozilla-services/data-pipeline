@@ -18,25 +18,29 @@ type Sqs3Input struct {
     stop      chan bool
     sqs       *sqs.SQS
     s3        *s3.S3
-    queue_url *string
+    queueUrl  *string
+    waitTime  *int64
 }
 
 type Sqs3InputConfig struct {
     // So we can default to using ProtobufDecoder.
-    Decoder  string
+    Decoder string
     // So we can default to using HekaFramingSplitter.
     Splitter string
 
-    SqsQueue  string `toml:"sqs_queue"`
+    SqsQueue string `toml:"sqs_queue"`
     // Defaults to us-east-1. used for both sqs and s3.
     AwsRegion string `toml:"aws_region"`
+    // Must be between 0 and 20
+    WaitTimeSeconds int64 `toml:"wait_time_seconds"`
 }
 
 func (input *Sqs3Input) ConfigStruct() interface{} {
     return &Sqs3InputConfig{
-        Decoder:   "ProtobufDecoder",
-        Splitter:  "HekaFramingSplitter",
+        Decoder: "ProtobufDecoder",
+        Splitter: "HekaFramingSplitter",
         AwsRegion: "us-east-1",
+        WaitTimeSeconds: 20,
     }
 }
 
@@ -47,10 +51,11 @@ func (input *Sqs3Input) Init(config interface{}) error {
     input.sqs = sqs.New(session.New(), aws.NewConfig().WithRegion(input.AwsRegion))
     input.s3 = s3.New(session.New(), aws.NewConfig().WithRegion(input.AwsRegion))
 
-    queue_url, err := get_queue(input.sqs, input.SqsQueue)
+    queueUrl, err := getQueue(input.sqs, input.SqsQueue)
     if err != nil { return err }
-    input.queue_url = queue_url
+    input.queueUrl = queueUrl
 
+    input.waitTime = aws.Int64(input.WaitTimeSeconds)
     input.stop = make(chan bool)
     return nil
 }
@@ -70,18 +75,18 @@ func (input *Sqs3Input) Run(runner pipeline.InputRunner, helper pipeline.PluginH
         default:
         }
 
-        receipt_handle, bucket, key, err := receive_from_queue(input.sqs, input.queue_url)
+        receiptHandle, bucket, key, err := receiveFromQueue(input.sqs, input.queueUrl, input.waitTime)
         if err != nil {
             runner.LogError(fmt.Errorf("Error reading queue: %s", err.Error()))
             continue
         }
 
-        o, err := get_object(input.s3, bucket, key)
+        o, err := getObject(input.s3, bucket, key)
         if err != nil {
             runner.LogError(fmt.Errorf("Error opening s3object: %s", err.Error()))
-            if aws_err, ok := err.(awserr.Error); ok {
-                if aws_err.Code() == "NoSuchBucket" || aws_err.Code() == "NoSuchKey" {
-                    delete_message(input.sqs, input.queue_url, receipt_handle)
+            if awsErr, ok := err.(awserr.Error); ok {
+                if awsErr.Code() == "NoSuchBucket" || awsErr.Code() == "NoSuchKey" {
+                    deleteMessage(input.sqs, input.queueUrl, receiptHandle)
                 }
             }
             continue
@@ -90,7 +95,7 @@ func (input *Sqs3Input) Run(runner pipeline.InputRunner, helper pipeline.PluginH
         for err == nil {
             err = splitterRunner.SplitStream(o, nil)
             if err == io.EOF {
-                delete_message(input.sqs, input.queue_url, receipt_handle)
+                deleteMessage(input.sqs, input.queueUrl, receiptHandle)
                 break
             } else if err != nil {
                 runner.LogError(fmt.Errorf("Error reading file: %s", err.Error()))
@@ -123,7 +128,7 @@ type SqsBody struct {
     }
 }
 
-func get_queue(svc *sqs.SQS, queue string) (*string, error) {
+func getQueue(svc *sqs.SQS, queue string) (*string, error) {
     params := &sqs.GetQueueUrlInput{
         QueueName: aws.String(queue),
     }
@@ -132,11 +137,12 @@ func get_queue(svc *sqs.SQS, queue string) (*string, error) {
     return resp.QueueUrl, nil
 }
 
-func receive_from_queue(svc *sqs.SQS, queue_url *string) (*string, *string, *string, error) {
+func receiveFromQueue(svc *sqs.SQS, queueUrl *string, waitTime *int64) (*string, *string, *string, error) {
     // get sqs message
     params := &sqs.ReceiveMessageInput{
-        QueueUrl: queue_url,
+        QueueUrl: queueUrl,
         MaxNumberOfMessages: aws.Int64(1),
+        WaitTimeSeconds: waitTime,
     }
     resp, err := svc.ReceiveMessage(params)
     if err != nil { return nil, nil, nil, err }
@@ -144,7 +150,7 @@ func receive_from_queue(svc *sqs.SQS, queue_url *string) (*string, *string, *str
     // error on empty queue
     if len(resp.Messages) == 0 { return nil, nil, nil, errors.New("queue is empty") }
 
-    receipt_handle := resp.Messages[0].ReceiptHandle
+    receiptHandle := resp.Messages[0].ReceiptHandle
     body := resp.Messages[0].Body
 
     // unmarshal sqs message body
@@ -154,10 +160,10 @@ func receive_from_queue(svc *sqs.SQS, queue_url *string) (*string, *string, *str
 
     bucket := &data.Records[0].S3.Bucket.Name
     key := &data.Records[0].S3.Object.Key
-    return receipt_handle, bucket, key, nil
+    return receiptHandle, bucket, key, nil
 }
 
-func get_object(svc *s3.S3, bucket *string, key *string) (io.ReadCloser, error) {
+func getObject(svc *s3.S3, bucket *string, key *string) (io.ReadCloser, error) {
     params := &s3.GetObjectInput{
         Bucket: bucket,
         Key:    key,
@@ -167,10 +173,10 @@ func get_object(svc *s3.S3, bucket *string, key *string) (io.ReadCloser, error) 
     return resp.Body, nil
 }
 
-func delete_message(svc *sqs.SQS, queue_url *string, receipt_handle *string) error {
+func deleteMessage(svc *sqs.SQS, queueUrl *string, receiptHandle *string) error {
     params := &sqs.DeleteMessageInput{
-        QueueUrl: queue_url,
-        ReceiptHandle: receipt_handle,
+        QueueUrl: queueUrl,
+        ReceiptHandle: receiptHandle,
     }
     _, err := svc.DeleteMessage(params)
     if err != nil { return err }
