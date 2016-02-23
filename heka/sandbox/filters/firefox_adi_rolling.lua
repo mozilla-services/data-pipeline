@@ -135,13 +135,32 @@ function process_message()
     return 0
 end
 
+local msg = {
+    Timestamp   = nil,
+    Logger      = "FirefoxADIRolling",
+    Type        = "FirefoxADIRolling.json",
+    Payload     = "",
+    Fields      = {
+        app         = { value = "Firefox" },
+        vendor      = { value = "Mozilla" },
+        payload_type = {
+            value = "json",
+            representation = "file-extension",
+        },
+        payload_name = { value = "Firefox ADI Rolling" },
+    },
+}
+
 function timer_event(ns)
     local now = os.time()
+
+    -- Collect the ADI data.
     local json = {
         updateTimestamp = now * 1e3,
         adi = {},
     }
 
+    -- Don't send out outdated data.
     if (now - last_update) <= ACTIVITY_WINDOW_SEC then
         local frame = get_oldest_frame(now)
         for channel,data in pairs(frame) do
@@ -152,7 +171,6 @@ function timer_event(ns)
         end
     end
 
-    -- TODO: Currently we only display this in the Heka dashboard.
-    -- This data needs to be published to S3 for consumption by other teams.
-    inject_payload("json", "Firefox ADI Rolling", cjson.encode(json))
+    msg.Payload = cjson.encode(json)
+    pcall(inject_message, msg)
 end
