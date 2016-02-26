@@ -482,7 +482,9 @@ def generate_summary_table(db, date):
 
 def rebuild_summary_view(db):
     cur = db.cursor()
-    cur.execute("SELECT relname from pg_class WHERE relname LIKE 'usage_aggregate_%'")
+    cur.execute('''SELECT table_name
+                   FROM information_schema.tables
+                   WHERE table_name LIKE 'usage_aggregate_%' ''')
     tablenames = [tablename for tablename, in cur.fetchall()]
 
     cur.execute('''
