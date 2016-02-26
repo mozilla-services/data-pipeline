@@ -529,7 +529,7 @@ if __name__ == '__main__':
         opts.connection = getpass.getpass("Database connection string: ")
 
     if len(args) == 0:
-        start_date = date.today()
+        start_date = date.today() - timedelta(days=1)
         end_date = start_date
     elif len(args) == 1:
         start_date = datetime.strptime(args[0], '%Y%m%d').date()
@@ -543,7 +543,7 @@ if __name__ == '__main__':
 
     end_date = min(end_date, current_cutoff)
     if start_date > end_date:
-        print >>sys.stderr, "No data to process!"
+        print >>sys.stderr, "No data to process: {} - {}".format(start_date, end_date)
         sys.exit(1)
 
     conn = psycopg2.connect(opts.connection)
