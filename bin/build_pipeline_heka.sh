@@ -146,11 +146,13 @@ gcc -O2 -fPIC -I${LUA_INCLUDE_PATH} -c src/*.c -Isrc/ -Wall --pedantic -Werror -
 
 SO_FLAGS="-shared -fPIC -s -O2"
 LRT_FLAGS="-lrt"
+SSL_INCLUDE=""
 case $UNAME in
 Darwin)
     echo "Looks like OSX"
     SO_FLAGS="-bundle -undefined dynamic_lookup -fPIC -O2"
     LRT_FLAGS=""
+    SSL_INCLUDE="-I$(find /usr/local/Cellar/openssl/ -type d -name 'include')"
     ;;
 *)
     echo "Looks like Linux"
@@ -193,7 +195,7 @@ LUA_OPENSSL_SRC="src/asn1.c src/auxiliar.c src/bio.c src/cipher.c src/cms.c src/
 src/ec.c src/engine.c src/hmac.c src/lbn.c src/lhash.c src/misc.c src/ocsp.c src/openssl.c src/ots.c src/pkcs12.c src/pkcs7.c
 src/pkey.c src/rsa.c src/ssl.c src/th-lock.c src/util.c src/x509.c src/xattrs.c src/xexts.c src/xname.c src/xstore.c src/xalgor.c src/callback.c"
 
-gcc $CFLAGS -DPTHREADS -I${LUA_INCLUDE_PATH} -Ideps $SO_FLAGS $LUA_OPENSSL_SRC -lssl -lcrypto -ldl $LRT_FLAGS -o $HEKA_MODS/openssl.so
+gcc $CFLAGS -DPTHREADS -I${LUA_INCLUDE_PATH} ${SSL_INCLUDE} -Ideps $SO_FLAGS $LUA_OPENSSL_SRC -lssl -lcrypto -ldl $LRT_FLAGS -o $HEKA_MODS/openssl.so
 
 HEKA_IO_MODS=$BASE/build/heka/build/heka/lib/luasandbox/io_modules
 mkdir -p $HEKA_IO_MODS/luasql
