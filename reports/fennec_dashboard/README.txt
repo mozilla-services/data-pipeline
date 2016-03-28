@@ -1,6 +1,6 @@
 To Deploy
 =========
-Until Bug 1258685 lands, the notebook will automatically the operating mode ("weekly" or
+Until Bug 1258685 lands, the notebook will automatically select the operating mode ("weekly" or
 "monthly") based on the notebook file name. For this reason, two different Spark jobs need
 to be scheduled.
 
