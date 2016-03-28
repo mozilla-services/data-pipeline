@@ -14,7 +14,7 @@ Weekly aggregation
     Notebook or Jar:       summarize_csv_weekly.ipynb
     Spark Submission Args: N/A
     Cluster Size:          5
-    Output Visibility:     Public
+    Output Visibility:     Private
     Schedule Frequency:    Weekly
     Day of Week:           N/A (Sunday)
     Day of Month:          N/A (1)
@@ -31,7 +31,7 @@ Monthly aggregation
     Notebook or Jar:       summarize_csv_monthly.ipynb
     Spark Submission Args: N/A
     Cluster Size:          10
-    Output Visibility:     Public
+    Output Visibility:     Private
     Schedule Frequency:    Monthly
     Day of Week:           N/A (Sunday)
     Day of Month:          N/A (1)
