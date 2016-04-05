@@ -11,7 +11,7 @@ aws s3 cp s3://$META/sources.json ./
 JOBNAME=telemetry-executive-summary-db
 META_PREFIX=$(jq -r ".[\"${JOBNAME}\"][\"metadata_prefix\"]" < sources.json)
 
-aws s3 cp s3://$META/$META_PREFIX/read/credentials.json ./
+aws s3 cp s3://$META/$META_PREFIX/write/credentials.json ./
 
 DB_HOST=$(jq -r '.["host"]' < credentials.json)
 DB_NAME=$(jq -r '.["db_name"]' < credentials.json)
