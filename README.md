@@ -34,6 +34,7 @@ You can set up a bare-bones data pipeline of your own.  You will get an endpoint
         ```
         mkdir lua_modules
         rsync -av build/heka/build/heka/lib/luasandbox/modules/ lua_modules/
+        rsync -av hindsight/modules/ lua_modules/
         ```
 
   4. Procure a `GeoLiteCity.dat` file and put it in the current dir
