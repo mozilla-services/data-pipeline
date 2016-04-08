@@ -173,6 +173,12 @@ local function process_json(msg, json, parsed)
             if type(parsed.environment.settings) == "table" then
                 update_field(msg.Fields, "telemetryEnabled", parsed.environment.settings.telemetryEnabled)
             end
+
+            if type(parsed.environment.addons) == "table" then
+                if type(parsed.environment.addons.activeExperiment) == "table" then
+                    update_field(msg.Fields, "activeExperimentId", parsed.environment.addons.activeExperiment.id)
+                end
+            end
         end
 
         -- Get some more dimensions.
