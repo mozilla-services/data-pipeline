@@ -82,7 +82,7 @@ setfenv(1, M) -- Remove external access to contain everything in the module
 local SEC_IN_DAY = 60 * 60 * 24
 
 function load_schema(name, schema)
-    local cfg_name          = read_config("cfg_name")
+    local cfg_name          = string.match(read_config("Logger"), "^output%.(.+)") or read_config("cfg_name")
     local format            = read_config("format")
     local ts_field          = read_config("ts_field") or "Timestamp"
     local files             = {} -- manages the derived stream buffer/output files
