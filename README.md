@@ -7,7 +7,7 @@ Visit us on irc.mozilla.org in `#datapipeline`.
 
 ## Building a Data Pipeline RPM
 
-Run `bin/build_pipeline_heka.sh` from the top level of this repo to build a heka RPM.
+Run `bash bin/build_pipeline_heka.sh` from the top level of this repo to build a heka RPM.
 
 ## Using the Data Pipeline
 
@@ -28,7 +28,7 @@ You can set up a bare-bones data pipeline of your own.  You will get an endpoint
   1. Make sure you have the depencies installed:
     1. OpenSSL v1.0+ (required by lua_openssl)
     2. libpq, the PostgreSQL API
-  2. Run `source bin/build_pipeline_heka.sh`
+  2. Run `bash bin/build_pipeline_heka.sh`
   3. Install lua modules
 
         ```
