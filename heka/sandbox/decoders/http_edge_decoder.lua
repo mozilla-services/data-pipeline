@@ -157,7 +157,7 @@ function process_message()
     local components = split_path(path)
 
     -- Skip this message: Not enough path components.
-    if not components or #components < 3 then
+    if not components or components < 2 then
         return -1, "Not enough path components"
     end
 
@@ -191,19 +191,22 @@ function process_message()
     -- Override Logger if specified.
     if cfg["logger"] then main_msg.Logger = cfg["logger"] end
 
-    -- This documentId is what we should use to de-duplicate submissions.
-    main_msg.Fields.documentId = table.remove(components, 1)
-
     local num_components = #components
     if num_components > 0 then
-        local dims = cfg["dimensions"]
-        if dims ~= nil and #dims >= num_components then
-            for i=1,num_components do
-                main_msg.Fields[dims[i]] = components[i]
+        -- This documentId is what we should use to de-duplicate submissions.
+        main_msg.Fields.documentId = table.remove(components, 1)
+        num_components = num_components - 1
+
+        if num_components > 0 then
+            local dims = cfg["dimensions"]
+            if dims ~= nil and #dims >= num_components then
+                for i=1,num_components do
+                    main_msg.Fields[dims[i]] = components[i]
+                end
+            else
+                -- Didn't have dimension spec, or had too many components.
+                main_msg.Fields.PathComponents = components
             end
-        else
-            -- Didn't have dimension spec, or had too many components.
-            main_msg.Fields.PathComponents = components
         end
     end
 
