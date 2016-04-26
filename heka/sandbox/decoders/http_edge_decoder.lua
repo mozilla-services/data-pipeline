@@ -157,7 +157,7 @@ function process_message()
     local components = split_path(path)
 
     -- Skip this message: Not enough path components.
-    if not components or components < 2 then
+    if not components or #components < 2 then
         return -1, "Not enough path components"
     end
 
