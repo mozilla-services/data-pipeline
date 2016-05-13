@@ -3,7 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Sanity check to make sure the low loop traffic volumes don't through off the
+Sanity check to make sure the low loop traffic volumes don't throw off the
 loop hyperloglog results too much.
 --]]
 
