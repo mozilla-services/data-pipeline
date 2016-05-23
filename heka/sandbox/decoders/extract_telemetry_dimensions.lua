@@ -272,6 +272,11 @@ function process_message()
     local ok, msg = pcall(decode_message, raw)
     if not ok then return -1, msg end
 
+    -- Skip non-telemetry messages.
+    if msg.Logger ~= "telemetry" then
+        return 0
+    end
+
     msg.Type = "telemetry"
     msg.EnvVersion = 1
     if not msg.Fields then msg.Fields = {} end
