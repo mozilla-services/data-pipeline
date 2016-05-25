@@ -44,9 +44,9 @@ function parse_cert(cert)
 end
 
 function process_message()
-    local payload = read_message("Payload")
+    local payload = read_message("Fields[submission]")
     local ok, report = pcall(cjson.decode, payload)
-    if not ok then return -1, fhr end
+    if not ok then return -1, report end
 
     -- copy over the expected fields
     local expected = {
