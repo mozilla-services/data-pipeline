@@ -34,7 +34,7 @@ memory_limit = 90000000
 output_limit = 8388608
     [HttpEdgeDecoder.config]
     geoip_city_db = "GeoLiteCity.dat"
-    namespace_config = '{"test":{"logger":"test_input","max_path_length":20480,"max_data_length":1048576},"telemetry":{"dimensions":["docType","appName","appVersion","appUpdateChannel","appBuildId"],"max_path_length":10240,"max_data_length":204800}}'
+    namespace_config = '{"test":{"logger":"test_input","max_path_length":20480,"max_data_length":1048576},"telemetry":{"dimensions":["docType","appName","appVersion","appUpdateChannel","appBuildId"],"max_path_length":10240,"max_data_length":204800},"sslreports":{"max_path_length":1024,"max_data_length":1048576}}'
 
 [TelemetryDecoder]
 type = "SandboxDecoder"
