@@ -2,6 +2,12 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+--[[
+Extract clock skew, issuer info and Subject / SAN match status from tls error
+reports. This decoder MUST NOT return failure due to the way the Heka
+MultiDecoder is implemented.
+--]]
+
 require "string"
 require "cjson"
 require "os"
@@ -43,7 +49,13 @@ function parse_cert(cert)
   return pcall(cert.parse, cert)
 end
 
+local duplicate_original = read_config("duplicate_original")
+
 function process_message()
+    if duplicate_original then
+        inject_message(read_message("raw"))
+    end
+
     local payload = read_message("Fields[submission]")
     local ok, report = pcall(cjson.decode, payload)
     if not ok then return -1, report end
