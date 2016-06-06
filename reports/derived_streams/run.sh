@@ -89,6 +89,6 @@ for t in main crash executive; do
     NEW_TABLE="${t}_summary_${TARGET}"
     echo "Copying data for $NEW_TABLE..."
     $PQ -c "CREATE TABLE IF NOT EXISTS $NEW_TABLE (LIKE ${t}_summary including defaults);"
-    $PQ -c "COPY $NEW_TABLE FROM 's3://telemetry-private-analysis-2/derived_streams/data/${NEW_TABLE}' CREDENTIALS '$CREDS' ACCEPTANYDATE TRUNCATECOLUMNS ESCAPE;"
+    $PQ -c "COPY $NEW_TABLE FROM 's3://telemetry-private-analysis-2/derived_streams/data/${NEW_TABLE}' CREDENTIALS '$CREDS' ACCEPTANYDATE TRUNCATECOLUMNS ESCAPE ACCEPTINVCHARS as ' ';"
     $PQ -c "GRANT SELECT ON $NEW_TABLE TO read_only;"
 done

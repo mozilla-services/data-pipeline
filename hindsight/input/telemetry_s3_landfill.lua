@@ -3,14 +3,20 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Reads the files list from the 'input_list_file' configuration option (file
-is produced by heka-s3list) and fetches the data from S3. This plugin is
-intended for backfilling of the telemetry S3 bucket and test.
+## Reader for the telemetry S3 landfill data
 
-Config:
+Retrieves/reads each file from the `s3_file_list`. The primary use of this
+plugin is to backfill the telemetry folder or to test new data
+transformation/validation sandboxes.
 
-filename = "landfill.lua"
-input_list_file = "xaa"
+### Sample Configuration
+```lua
+filename        = "telemetry_s3_landfill.lua"
+s3_bucket       = "net-mozaws-prod-us-west-2-pipeline-data"
+s3_file_list    = "landfill_dims.ls.1"
+tmp_dir         = "/mnt/work/tmp"
+schema_path     = "./mozilla-pipeline-schemas"
+```
 --]]
 
 require "hash"
@@ -23,11 +29,17 @@ require "table"
 local fx = require "fx"
 local dt = require("date_time")
 
+local tmp_dir       = read_config("tmp_dir")
+local s3_bucket     = read_config("s3_bucket") or error("s3_bucket must be set")
+local schema_path   = read_config("schema_path") or error("schema_path must be set")
+local logger        = read_config("Logger")
+local s3_file_list  = assert(io.open(read_config("s3_file_list")))
+
 local schemas = {}
 local function load_schemas()
     local schema_files = {
-        main    = "../mozilla-pipeline-schemas/telemetry/main.schema.json",
-        crash   = "../mozilla-pipeline-schemas/telemetry/crash.schema.json",
+        main    = string.format("%s/telemetry/main.schema.json", schema_path),
+        crash   = string.format("%s/telemetry/crash.schema.json", schema_path),
         }
     for k,v in pairs(schema_files) do
         local fh = assert(io.input(v))
@@ -230,12 +242,13 @@ local function process_json(hsr, msg, schema)
 end
 
 
-function process_message()
-    local total_cnt = 0
-    local success_cnt = 0;
-    local hsr = heka_stream_reader.new("stdin")
-    local fh = assert(io.popen("cat " .. read_config("input_list_file") ..
-                               " | ../heka/bin/s3cat  -bucket='net-mozaws-prod-us-west-2-pipeline-data' -stdin=true"))
+local function process_file(hsr, fn)
+    local fh, err =  io.open(fn)
+    if not fh then
+        print("failed to open", fn)
+        return
+    end
+
     local found, consumed, read
     repeat
         repeat
@@ -264,14 +277,41 @@ function process_message()
                             emsg.Fields.DecodeErrorType = "inject_message"
                             emsg.Fields.DecodeError = err
                             pcall(inject_message, emsg)
-                        else
-                            success_cnt = success_cnt + 1
                         end
                     end
                 end
-                total_cnt = total_cnt + 1
             end
         until not found
     until read == 0
-    return 0, string.format("messages processed: %d success %d", total_cnt, success_cnt)
+    fh:close()
+end
+
+
+local function execute_cmd(cmd, retries)
+    local rv = 1
+    for i=1, retries do
+        rv = os.execute(cmd)
+        if rv == 0 then
+            break
+        end
+    end
+    return rv
+end
+
+
+function process_message()
+    local hsr = heka_stream_reader.new("s3")
+
+    for fn in s3_file_list:lines() do
+        local tfn = string.format("%s/%s", tmp_dir, logger)
+        local cmd = string.format("aws s3 cp s3://%s/%s %s", s3_bucket, fn, tfn)
+        print("processing", cmd)
+        local rv = execute_cmd(cmd, 3)
+        if rv == 0 then
+            process_file(hsr, tfn)
+        else
+            print("failed to execute rv:", rv, " cmd:", cmd)
+        end
+    end
+    return 0
 end
