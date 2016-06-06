@@ -178,7 +178,7 @@ end
 
 function hours()
     local uptime = info().subsessionLength
-    if type(uptime) ~= "number" or uptime < 0 or uptime >= 180 * SEC_IN_DAY then
+    if type(uptime) ~= "number" or uptime < SEC_IN_HOUR or uptime >= 180 * SEC_IN_DAY then
         return 0
     end
     return uptime / SEC_IN_HOUR
