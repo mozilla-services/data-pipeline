@@ -95,9 +95,9 @@ function process_message()
     local failedCertChain = report["failedCertChain"]
     local ee = nil
     local rootMost = nil
-    if failedCertChain and "table" == type(failedCertChain) then
+    if "table" == type(failedCertChain) then
       for i, cert in ipairs(failedCertChain) do
-        if nil == ee then
+        if not ee then
           ee = cert
         end
         rootMost = cert
@@ -105,15 +105,15 @@ function process_message()
     end
 
     -- get the issuer name from the root-most certificate
-    if nil ~= rootMost then
+    if rootMost then
       local parsed = nil
       local ok, cert = read_cert(rootMost);
       if ok then
         ok, parsed = parse_cert(cert)
       end
-      if ok and nil ~= parsed then
+      if ok then
         local issuer = parsed["issuer"]
-        if nil ~= issuer then
+        if issuer then
           msg.Fields["rootIssuer"] = issuer:get_text("CN")
         end
       end
@@ -121,7 +121,7 @@ function process_message()
 
     -- determine if the end entity subject or SAN matches the hostname
     local hostname = report["hostname"]
-    if nil ~= ee and nil ~= hostname then
+    if ee and hostname then
       local ok, cert = read_cert(ee);
       if ok then
         local ok, matches = pcall(cert.check_host, cert, hostname)
