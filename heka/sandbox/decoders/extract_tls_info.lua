@@ -123,7 +123,7 @@ function process_message()
     local hostname = report["hostname"]
     if nil ~= ee and nil ~= hostname then
       local ok, cert = read_cert(ee);
-      if ok and nil ~= cert then
+      if ok then
         local ok, matches = pcall(cert.check_host, cert, hostname)
         if ok then
           msg.Fields["hostnameMatch"] = matches
