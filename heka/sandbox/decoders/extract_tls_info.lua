@@ -25,7 +25,7 @@ local msg = {
 }
 
 -- create PEM data from base64 encoded DER
-function make_pem(data)
+local function make_pem(data)
   local pem = certPrefix
   local offset = 1
   while offset <= data:len() do
@@ -40,12 +40,12 @@ function make_pem(data)
 end
 
 -- read and parse a certificate
-function read_cert(data)
+local function read_cert(data)
   local pem = make_pem(data)
   return pcall(openssl.x509.read, pem)
 end
 
-function parse_cert(cert)
+local function parse_cert(cert)
   return pcall(cert.parse, cert)
 end
 
@@ -77,19 +77,16 @@ function process_message()
     for i, fieldname in ipairs(expected) do
       local field = report[fieldname]
       -- ensure the field is not empty (and does not contain an empty table)
-      if nil ~= field then
-        if not ("table" == type(field) and next(field) == nil) then
-          msg.Fields[fieldname] = field
-        end
+      if not ("table" == type(field) and next(field) == nil) then
+        msg.Fields[fieldname] = field
       end
     end
 
     -- calculate the clock skew - in seconds, since os.time() returns those
     local reportTime = report["timestamp"]
-    if nil ~= reportTime then
-      local time = os.time()
+    if reportTime then
       -- skew will be positive if the remote timestamp is in the future
-      local skew = reportTime - time
+      local skew = reportTime - os.time()
 
       msg.Fields["skew"] = skew
     end
@@ -98,7 +95,7 @@ function process_message()
     local failedCertChain = report["failedCertChain"]
     local ee = nil
     local rootMost = nil
-    if nil ~= failedCertChain and nil ~= next(failedCertChain) then
+    if failedCertChain and "table" == type(failedCertChain) then
       for i, cert in ipairs(failedCertChain) do
         if nil == ee then
           ee = cert
@@ -111,7 +108,7 @@ function process_message()
     if nil ~= rootMost then
       local parsed = nil
       local ok, cert = read_cert(rootMost);
-      if ok and nil ~= cert then
+      if ok then
         ok, parsed = parse_cert(cert)
       end
       if ok and nil ~= parsed then
