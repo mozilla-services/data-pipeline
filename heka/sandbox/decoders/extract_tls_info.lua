@@ -84,7 +84,7 @@ function process_message()
 
     -- calculate the clock skew - in seconds, since os.time() returns those
     local reportTime = report["timestamp"]
-    if reportTime then
+    if "number" == type(reportTime) then
       -- skew will be positive if the remote timestamp is in the future
       local skew = reportTime - os.time()
 
