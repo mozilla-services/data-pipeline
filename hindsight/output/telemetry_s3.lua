@@ -154,6 +154,8 @@ local function get_entry(path)
 end
 
 local dimensions = ts3.validate_dimensions(read_config("dimension_file"))
+-- create the batch directory if it does not exist
+os.execute(string.format("mkdir -p %s", batch_path))
 
 function process_message()
     local dims = {}
