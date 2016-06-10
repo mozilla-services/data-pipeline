@@ -56,6 +56,8 @@ function process_message()
         inject_message(read_message("raw"))
     end
 
+    msg.Fields["submissionDate"] = read_message("Fields[submissionDate]")
+
     local payload = read_message("Fields[submission]")
     local ok, report = pcall(cjson.decode, payload)
     if not ok then return -1, report end
