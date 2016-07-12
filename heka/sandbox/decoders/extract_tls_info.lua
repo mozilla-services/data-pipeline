@@ -110,10 +110,10 @@ function process_message()
     if rootMost then
       local parsed = nil
       local ok, cert = read_cert(rootMost);
-      if ok then
+      if ok and cert then
         ok, parsed = parse_cert(cert)
       end
-      if ok then
+      if ok and parsed then
         local issuer = parsed["issuer"]
         if issuer then
           msg.Fields["rootIssuer"] = issuer:get_text("CN")
@@ -125,9 +125,9 @@ function process_message()
     local hostname = report["hostname"]
     if ee and hostname then
       local ok, cert = read_cert(ee);
-      if ok then
+      if ok and cert then
         local ok, matches = pcall(cert.check_host, cert, hostname)
-        if ok then
+        if ok and matches then
           msg.Fields["hostnameMatch"] = matches
         end
       end
