@@ -102,11 +102,6 @@ if [ ! -f "patches_applied" ]; then
     echo "add_external_plugin(git https://github.com/wvanbergen/kazoo-go 549793569f2034e3779263fb0d6b16db94186607)" >> cmake/plugin_loader.cmake
     echo "add_external_plugin(git https://github.com/samuel/go-zookeeper 218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f __ignore_root)" >> cmake/plugin_loader.cmake
 
-    echo "Fixup Hindsight plugin installation"
-    echo "install(DIRECTORY $BASE/hindsight/modules/ DESTINATION share/heka/lua_modules)" >> cmake/plugin_loader.cmake
-    echo "install(DIRECTORY $BASE/hindsight/io_modules/ DESTINATION share/heka/lua_io_modules)" >> cmake/plugin_loader.cmake
-    echo "install(DIRECTORY $BASE/hindsight/output/ DESTINATION share/heka/lua_outputs)" >> cmake/plugin_loader.cmake
-
     echo "Adding external plugin for sqs3 input"
     echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline/sqs3 :local)" >> cmake/plugin_loader.cmake
     echo "add_external_plugin(git https://github.com/aws/aws-sdk-go a170e9cb76475a0da7c0326a13cc2b39e9244b3b)" >> cmake/plugin_loader.cmake
