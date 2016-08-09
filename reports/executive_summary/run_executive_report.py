@@ -29,7 +29,7 @@ def union(tables, fields=["*"]):
                 print >> sys.stderr, "WARNING: Skipping nonexistent table {}. Output will be incomplete".format(table)
                 continue
             good_tables.append(table)
-    return " UNION ALL ".join([ "SELECT {} FROM {}".format(field_list, t) for t in good_tables ])
+    return " UNION ALL ".join([ "SELECT {} FROM {} WHERE app = 'Firefox'".format(field_list, t) for t in good_tables ])
 
 def this_week(start_date, fields=["*"]):
     tables = []
