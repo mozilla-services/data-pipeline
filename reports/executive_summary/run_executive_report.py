@@ -18,9 +18,10 @@ import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime, timedelta
 
-def union(tables):
+def union(tables, fields=["*"]):
     global summary_tables
     good_tables = tables
+    field_list = ",".join(fields)
     if summary_tables is not None:
         good_tables = []
         for table in tables:
@@ -28,15 +29,15 @@ def union(tables):
                 print >> sys.stderr, "WARNING: Skipping nonexistent table {}. Output will be incomplete".format(table)
                 continue
             good_tables.append(table)
-    return " UNION ALL ".join([ "SELECT * FROM {}".format(t) for t in good_tables ])
+    return " UNION ALL ".join([ "SELECT {} FROM {} WHERE app = 'Firefox'".format(field_list, t) for t in good_tables ])
 
-def this_week(start_date):
+def this_week(start_date, fields=["*"]):
     tables = []
     for i in range(7):
         tables.append("executive_summary_{}".format(datetime.strftime(start_date + timedelta(i), "%Y%m%d")))
-    return union(tables)
+    return union(tables, fields)
 
-def this_month(start_date):
+def this_month(start_date, fields=["*"]):
     tables = ["executive_summary_{}".format(datetime.strftime(start_date, "%Y%m%d"))]
     for i in range(1, 32):
         next_date = start_date + timedelta(i)
@@ -44,15 +45,15 @@ def this_month(start_date):
         if next_date.day == start_date.day:
             break
         tables.append("executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
-    return union(tables)
+    return union(tables, fields)
 
-def last_week(start_date):
+def last_week(start_date, fields=["*"]):
     tables = []
     for i in range(7):
         tables.append("executive_summary_{}".format(datetime.strftime(start_date + timedelta(-1 * (7 - i)), "%Y%m%d")))
-    return union(tables)
+    return union(tables, fields)
 
-def last_month(start_date):
+def last_month(start_date, fields=["*"]):
     tables = []
     skip = True
     for i in range(32):
@@ -64,28 +65,28 @@ def last_month(start_date):
             else:
                 continue
         tables.append("executive_summary_{}".format(datetime.strftime(next_date, "%Y%m%d")))
-    return union(tables)
+    return union(tables, fields)
 
 def get_target_date(start_date, inline_date):
     if inline_date:
         return "'{}'::DATE".format(datetime.strftime(start_date, "%Y-%m-%d"))
     return '%s'
 
-def get_this_period(start_date, mode):
+def get_this_period(start_date, mode, fields=["*"]):
     if mode == 'monthly':
-        return this_month(start_date)
+        return this_month(start_date, fields)
     else:
-        return this_week(start_date)
+        return this_week(start_date, fields)
 
-def get_last_period(start_date, mode):
+def get_last_period(start_date, mode, fields=["*"]):
     if mode == 'monthly':
-        return last_month(start_date)
+        return last_month(start_date, fields)
     else:
-        return last_week(start_date)
+        return last_week(start_date, fields)
 
-def get_targets(start_date, inline_date, mode):
+def get_targets(start_date, inline_date, mode, fields=["*"]):
     date_param = get_target_date(start_date, inline_date)
-    target_param = get_this_period(start_date, mode)
+    target_param = get_this_period(start_date, mode, fields)
     return date_param, target_param
 
 def client_values(start_date, inline_date, mode):
@@ -104,7 +105,8 @@ def client_values(start_date, inline_date, mode):
  FROM ({target}) t
 ) v
 WHERE v.clientid_rank = 1"""
-    report_date, target = get_targets(start_date, inline_date, mode)
+    fields = ['clientid', 'country', 'channel', 'os', 'profilecreationtimestamp', '"default"', '"timestamp"']
+    report_date, target = get_targets(start_date, inline_date, mode, fields)
     return template.format(report_date=report_date, target=target)
 
 
@@ -119,7 +121,8 @@ def get_easy_aggregates(start_date, inline_date=False, mode='monthly'):
  sum(yahoo) AS yahoo,
  sum(other) AS other
 FROM ({target}) t GROUP BY 1, 2, 3, 4"""
-    report_date, target = get_targets(start_date, inline_date, mode)
+    fields = ['country', 'channel', 'os', 'hours', 'doctype', 'google', 'bing', 'yahoo', 'other']
+    report_date, target = get_targets(start_date, inline_date, mode, fields)
     return template.format(report_date=report_date, target=target)
 
 def get_client_aggregates(start_date, inline_date=False, mode='monthly'):
@@ -154,8 +157,10 @@ def get_inactives(start_date, inline_date=False, mode='monthly'):
  ) AS ranked
  WHERE ranked.clientid_rank = 1
 ) t GROUP BY 1, 2, 3, 4"""
-    report_date, this_period = get_targets(start_date, inline_date, mode)
-    last_period = get_last_period(start_date, mode)
+    report_date, this_period = get_targets(start_date, inline_date, mode, fields=["clientid"])
+
+    fields = ['clientid', 'country', 'channel', 'os', '"timestamp"']
+    last_period = get_last_period(start_date, mode, fields)
     return template.format(report_date=report_date, this_period=this_period, last_period=last_period)
 
 def get_five_of_seven(start_date, inline_date=False, mode='monthly'):
@@ -172,7 +177,8 @@ FROM (
   count(distinct "timestamp"::date) AS num_days
  FROM ({target}) t GROUP BY 1, 2, 3, 4
 ) v GROUP BY 1, 2, 3, 4;"""
-    report_date, target = get_targets(start_date, inline_date, mode)
+    fields = ['clientid', 'country', 'channel', 'os', '"timestamp"']
+    report_date, target = get_targets(start_date, inline_date, mode, fields)
     # Using 'format' to insert a value into a query is a no-no, but in this case
     # we can guarantee that it's a known int value.
     fos_days = 5
