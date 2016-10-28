@@ -30,13 +30,12 @@ all_dau AS (
    FROM sample
 ),
 push_dau AS (
-  SELECT count(DISTINCT p.client_id) AS dau,
-         merge(hll_create(p.client_id, 15)) AS hll,
+  SELECT merge(hll_create(p.client_id, 15)) AS hll,
          normalized_submission_date
   FROM all_dau d
   INNER JOIN combined_push_users p ON d.client_id = p.client_id
   WHERE normalized_submission_date BETWEEN eligibility_start AND eligibility_end
-  GROUP BY 3
+  GROUP BY 2
 ),
 push_mau AS (
   SELECT cardinality(merge(hll) over (ORDER BY normalized_submission_date ROWS BETWEEN 27 PRECEDING AND 0 FOLLOWING)) as mau,
@@ -45,11 +44,11 @@ push_mau AS (
 ),
 smoothed_dau AS (
    SELECT normalized_submission_date,
-          avg(dau) OVER (ORDER BY normalized_submission_date ROWS BETWEEN 6 PRECEDING AND 0 FOLLOWING) AS smoothed_dau
+          avg(cardinality(hll)) OVER (ORDER BY normalized_submission_date ROWS BETWEEN 6 PRECEDING AND 0 FOLLOWING) AS smoothed_dau
    FROM push_dau
 )
 SELECT mau * 100 AS mau,
-       dau * 100 AS dau,
+       cardinality(hll) * 100 AS dau,
        smoothed_dau * 100 AS smoothed_dau,
        m.normalized_submission_date,
        smoothed_dau/mau AS ER
