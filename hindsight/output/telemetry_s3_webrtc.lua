@@ -43,12 +43,6 @@ preserve_data       = not flush_on_shutdown -- should always be the inverse of f
 s3_path             = "s3://foo"
 
 compression         = "zst"
-
--- The type of storage to use for the object.
--- Valid choices are:  STANDARD | REDUCED_REDUNDANCY | STANDARD_IA
--- (default "STANDARD")
-storage_class       = "STANDARD"
-
 ```
 --]]
 
@@ -76,11 +70,6 @@ if compression and compression ~= "zst" and compression ~= "gz" then
     error("compression must be nil, zst or gz")
 end
 
-local storage_class         = read_config("storage_class") or "STANDARD"
-if storage_class and storage_class ~= "STANDARD" and
-   storage_class ~= "REDUCED_REDUNDANCY" and storage_class ~= "STANDARD_IA" then
-     error("storage_class must be STANDARD, REDUCED_REDUNDANCY or STANDARD_IA")
-end
 
 local function get_fqfn(path)
     return string.format("%s/%s", batch_path, path)
@@ -109,14 +98,14 @@ local function copy_file(path, entry)
     local src  = get_fqfn(path)
     local dim_path = string.gsub(path, "+", "/")
     if compression == "zst" then
-        cmd = string.format("zstd -c %s | aws s3 cp --storage-class %s - %s/%s/%d_%d_%s.%s", src,
-                            storage_class, s3_path, dim_path, time_t, buffer_cnt, hostname, compression)
+        cmd = string.format("zstd -c %s | aws s3 cp - %s/%s/%d_%d_%s.%s", src,
+                            s3_path, dim_path, time_t, buffer_cnt, hostname, compression)
     elseif compression == "gz" then
-        cmd = string.format("gzip -c %s | aws s3 cp --storage-class %s - %s/%s/%d_%d_%s.%s", src,
-                            storage_class, s3_path, dim_path, time_t, buffer_cnt, hostname, compression)
+        cmd = string.format("gzip -c %s | aws s3 cp - %s/%s/%d_%d_%s.%s", src,
+                            s3_path, dim_path, time_t, buffer_cnt, hostname, compression)
     else
-        cmd = string.format("aws s3 cp %s --storage-class %s %s/%s/%d_%d_%s", src,
-                            storage_class, s3_path, dim_path, time_t, buffer_cnt, hostname)
+        cmd = string.format("aws s3 cp %s %s/%s/%d_%d_%s", src,
+                            s3_path, dim_path, time_t, buffer_cnt, hostname)
     end
 
     print(cmd)
@@ -164,11 +153,39 @@ local function get_entry(path)
     return t
 end
 
+local function check_payload (payload)
+    if type(payload) ~= "table" then return false end
+    local w = payload["webrtc"] or {}
+    local i = w["IceCandidatesStats"] or {}
+    if next(i["webrtc"] or {}) or next(i["loop"] or {}) then
+        return true
+    end
+    return false
+end
+
 local dimensions = ts3.validate_dimensions(read_config("dimension_file"))
 -- create the batch directory if it does not exist
 os.execute(string.format("mkdir -p %s", batch_path))
 
 function process_message()
+    local ok, json = pcall(cjson.decode, read_message("Payload"))
+    if not ok then return -1, json end
+    local p = json["payload"] or {}
+    local found = check_payload(p)
+    if not found then
+        -- check child payloads for E10s
+        local children = read_message("Fields[payload.childPayloads]")
+        if not children then return 0 end
+        ok, json = pcall(cjson.decode, children)
+        if not ok then return -1, children end
+        if type(json) ~= "table" then return -1 end
+        for i, child in ipairs(json) do
+            found = check_payload(child)
+            if found then break end
+        end
+    end
+    if not found then return 0 end
+
     local dims = {}
     for i,d in ipairs(dimensions) do
         local v = ts3.sanitize_dimension(read_message(d.field_name))
