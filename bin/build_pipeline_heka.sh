@@ -19,7 +19,7 @@ set -o errtrace
 
 pushd .
 # Machine config:
-# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild
+# sudo yum install -y git hg golang cmake rpmdevtools GeoIP-devel rpmrebuild systemd-devel
 
 BUILD_BRANCH=$1
 if [ -z "$BUILD_BRANCH" ]; then
@@ -87,6 +87,7 @@ if [ ! -f "patches_applied" ]; then
 
     echo "Patching to build 'heka-s3list' and 'heka-s3cat'"
     patch CMakeLists.txt < $BASE/heka/patches/0003-Add-more-cmds.patch
+    echo 'install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/inputs/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_inputs")' >> CMakeLists.txt
 
     echo "Adding external plugin for s3splitfile output"
     echo "add_external_plugin(git https://github.com/mozilla-services/data-pipeline/s3splitfile :local)" >> cmake/plugin_loader.cmake
@@ -225,6 +226,23 @@ echo 'Installing fx libs'
 mkdir -p $HEKA_MODS/fx
 cd $BASE
 gcc $CFLAGS -I${LUA_INCLUDE_PATH} $SO_FLAGS --std=c99 heka/plugins/fx/executive_report.c heka/plugins/fx/xxhash.c heka/plugins/fx/common.c -o $HEKA_MODS/fx/executive_report.so
+
+if [[ "$UNAME" == "Linux" ]] ; then
+    # build systemd input
+    echo 'Installing lua-systemd lib'
+    cd $BASE/build
+    if [ ! -d lua-systemd ]; then
+        git clone https://github.com/whd/lua-systemd
+    fi
+    cd lua-systemd
+
+    # Use a known revision (current "master" 2015-04-02)
+    git checkout 48c8db982dd3af531c9033eca0d9853f8b56c92a
+    mkdir -p release
+    cd release
+    cmake -DLUA_INCLUDE_DIR="${LUA_INCLUDE_PATH}" -DINSTALL_CMOD="" -DINSTALL_LMOD="" -DCMAKE_INSTALL_PREFIX="" -DCMAKE_BUILD_TYPE=release ..
+    make install DESTDIR=$HEKA_MODS
+fi
 
 cd $BASE/build/heka/build
 
